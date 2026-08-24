@@ -1,0 +1,18 @@
+{
+  "name": "com.bitgames.unitybhl",
+  "displayName": "BHL",
+  "version": "0.1.0",
+  "description": "Unity integration for BHL: attach BHL script classes to GameObjects via ScriptBHL, with hot reload of edited .bhl files while in Play Mode.",
+  "unity": "2021.3",
+  "license": "MIT",
+  "keywords": [
+    "scripting",
+    "gameplay",
+    "hot-reload",
+    "bhl"
+  ],
+  "dependencies": {
+    "com.bitgames.bhl": "3.0.0-alpha99",
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}

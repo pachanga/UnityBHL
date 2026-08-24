@@ -1,0 +1,20 @@
+{
+  "name": "UnityBHL.Editor",
+  "rootNamespace": "UnityBHL",
+  "references": [
+    "bhl",
+    "bhl_editor",
+    "UnityBHL"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

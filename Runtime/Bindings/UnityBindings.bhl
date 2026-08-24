@@ -1,0 +1,69 @@
+//signature-only mirror of UnityBindings.cs for bhl.proj's `bindings_sources` - lets bhl lsp/CLI (which never load the Unity assembly) resolve `import "unity"` too; keep in lockstep with UnityBindings.cs by hand
+import "std/bind"
+
+func RegisterBindings(std.bind.Types types) {
+  var module = std.bind.NewModuleDeclared("unity")
+  var ns = module.ns.Nest("unity")
+
+  {
+    var cl = std.bind.NewClassSymbolNative("Vector3", null, true)
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("x", types.T("float"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("y", types.T("float"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("z", types.T("float"), true, true))
+    cl.Setup()
+  }
+
+  {
+    var cl = std.bind.NewClassSymbolNative("Quaternion", null, true)
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("x", types.T("float"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("y", types.T("float"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("z", types.T("float"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("w", types.T("float"), true, true))
+    cl.Setup()
+  }
+
+  {
+    //NOTE: has_ctor=false - Transform is only ever handed out via GameObject.transform,
+    //      never constructed directly from BHL script
+    var cl = std.bind.NewClassSymbolNative("Transform", null, false)
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("position", types.T("unity.Vector3"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("rotation", types.T("unity.Quaternion"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("localPosition", types.T("unity.Vector3"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("localRotation", types.T("unity.Quaternion"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("localScale", types.T("unity.Vector3"), true, true))
+    cl.Setup()
+  }
+
+  {
+    //NOTE: has_ctor=false - only ever handed out via GameObject.rigidbody
+    var cl = std.bind.NewClassSymbolNative("Rigidbody", null, false)
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("velocity", types.T("unity.Vector3"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("mass", types.T("float"), true, true))
+    cl.Setup()
+  }
+
+  {
+    //NOTE: has_ctor=false - GameObject isn't constructible via `new` from BHL script,
+    //      only ever handed in by native code (e.g. ScriptBHL's auto-set "gameObject" field)
+    var cl = std.bind.NewClassSymbolNative("GameObject", null, false)
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("name", types.T("string"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("transform", types.T("unity.Transform"), true, false))
+    cl.Define(std.bind.NewFieldSymbol("rigidbody", types.T("unity.Rigidbody"), true, false))
+    cl.Setup()
+  }
+
+  ns.Define(std.bind.NewFuncSymbolNative("Log", types.T("void"),
+    [ std.bind.NewFuncArgSymbol("msg", types.T("string")) ]))
+  ns.Define(std.bind.NewFuncSymbolNative("LogWarning", types.T("void"),
+    [ std.bind.NewFuncArgSymbol("msg", types.T("string")) ]))
+  ns.Define(std.bind.NewFuncSymbolNative("LogError", types.T("void"),
+    [ std.bind.NewFuncArgSymbol("msg", types.T("string")) ]))
+
+  types.RegisterModule(module)
+  types.RegisterVersion("unity", "1.0.0")
+}
