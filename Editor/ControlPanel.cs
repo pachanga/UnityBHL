@@ -128,13 +128,6 @@ namespace UnityBHL
 
       EditorGUILayout.BeginVertical(EditorStyles.helpBox);
       _settingsEditor.OnInspectorGUI();
-
-      EditorGUILayout.Space();
-      if(GUILayout.Button(new GUIContent("Rescan Build Env",
-        "Re-detects BHL_PARSER/BHL_LZ4 plugin compatibility for the active build target - " +
-        "use after adding/reimporting Antlr4.Runtime.Standard.dll or LZ4.dll")))
-        BHLBuildEnvDetector.Rescan();
-
       EditorGUILayout.EndVertical();
     }
 

@@ -26,8 +26,16 @@ namespace UnityBHL
     public string StringValue;
     public Vector3 Vector3Value;
 
-    public void ApplyTo(VM vm, ref Val instance)
+    //NOTE: field may have been renamed/removed in the .bhl script since this value was set
+    //      up in the inspector - that's a stale-data warning, not a hard failure
+    public void ApplyTo(VM vm, ref Val instance, UnityEngine.Object context = null)
     {
+      if(instance.type is not ClassSymbol cls || cls.Resolve(FieldName) is not FieldSymbol)
+      {
+        Debug.LogWarning($"[BHL] no such field '{FieldName}' on '{instance.type}' - skipping", context);
+        return;
+      }
+
       Val v;
       switch(Type)
       {

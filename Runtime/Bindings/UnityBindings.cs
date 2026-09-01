@@ -9,13 +9,6 @@ namespace UnityBHL
   [BhlBinding("unity", "1.0.0")]
   public class UnityBindings : IUserBindings
   {
-    //NOTE: module initializers aren't guaranteed under IL2CPP, hence the explicit hooks
-  #if UNITY_EDITOR
-    [UnityEditor.InitializeOnLoadMethod]
-  #endif
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    internal static void Init() => BindingsRegistry.Register<UnityBindings>();
-
     //must be present due to loading class instance from dll requirements
     public UnityBindings()
     {}
@@ -27,6 +20,7 @@ namespace UnityBHL
     public static readonly ClassSymbolNative TypeGameObject;
     public static readonly ClassSymbolNative TypeTransform;
     public static readonly ClassSymbolNative TypeRigidbody;
+    public static readonly ClassSymbolScript TypeBHLComponent;
 
     static UnityBindings()
     {
@@ -145,6 +139,18 @@ namespace UnityBHL
       ));
 
       TypeGameObject.Setup();
+
+      //NOTE: optional base class for ScriptBHL classes - Awake/Update/OnDestroy are virtual
+      //      no-op stubs, override only what you need; ScriptBHL's own duck-typed field/method
+      //      detection also works without extending this, so it's not required
+      TypeBHLComponent = std.bind.NewClassSymbolScript(_module, "BHLComponent");
+      ns.Define(TypeBHLComponent);
+      TypeBHLComponent.Define(new FieldSymbolScript(new Origin(), "gameObject", TypeGameObject));
+      TypeBHLComponent.Define(new FieldSymbolScript(new Origin(), "transform", TypeTransform));
+      std.bind.DefineVirtualMethod(TypeBHLComponent, "Awake", Types.Void, System.Array.Empty<FuncArgSymbol>());
+      std.bind.DefineVirtualMethod(TypeBHLComponent, "Update", Types.Void, System.Array.Empty<FuncArgSymbol>());
+      std.bind.DefineVirtualMethod(TypeBHLComponent, "OnDestroy", Types.Void, System.Array.Empty<FuncArgSymbol>());
+      TypeBHLComponent.Setup();
 
       DefineLogFunc(ns, "Log", Debug.Log);
       DefineLogFunc(ns, "LogWarning", Debug.LogWarning);

@@ -108,7 +108,7 @@ namespace UnityBHL
       TrySetNativeField(vm, "transform", UnityBindings.TypeTransform, UnityBindings.NewTransform(transform));
 
       foreach(var fv in FieldValues)
-        fv.ApplyTo(vm, ref _instance);
+        fv.ApplyTo(vm, ref _instance, this);
 
       Register();
 
@@ -144,7 +144,7 @@ namespace UnityBHL
       if(_updateMethod.Symbol == null)
         return;
 
-      var args = new StackList<Val>(Val.NewFlt(Time.deltaTime));
+      var args = new StackList<Val>();
 
       //NOTE: a non-coroutine Update runs synchronously via Execute(), no Fiber overhead
       if(!_updateMethod.IsCoro)

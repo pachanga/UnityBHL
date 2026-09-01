@@ -57,6 +57,17 @@ func RegisterBindings(std.bind.Types types) {
     cl.Setup()
   }
 
+  {
+    var cl = std.bind.NewClassSymbolScript(module, "BHLComponent")
+    ns.Define(cl)
+    cl.Define(std.bind.NewFieldSymbol("gameObject", types.T("unity.GameObject"), true, true))
+    cl.Define(std.bind.NewFieldSymbol("transform", types.T("unity.Transform"), true, true))
+    cl.DefineVirtualMethod("Awake", types.T("void"), [])
+    cl.DefineVirtualMethod("Update", types.T("void"), [])
+    cl.DefineVirtualMethod("OnDestroy", types.T("void"), [])
+    cl.Setup()
+  }
+
   ns.Define(std.bind.NewFuncSymbolNative("Log", types.T("void"),
     [ std.bind.NewFuncArgSymbol("msg", types.T("string")) ]))
   ns.Define(std.bind.NewFuncSymbolNative("LogWarning", types.T("void"),
