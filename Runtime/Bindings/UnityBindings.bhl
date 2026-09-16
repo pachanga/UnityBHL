@@ -1,7 +1,12 @@
 //signature-only mirror of UnityBindings.cs for bhl.proj's `bindings_sources` - lets bhl lsp/CLI (which never load the Unity assembly) resolve `import "unity"` too; keep in lockstep with UnityBindings.cs by hand
 import "std/bind"
 
+func string,string BindingsInfo() {
+  return "unity","1.0.0"
+}
+
 func RegisterBindings(std.bind.Types types) {
+  
   var module = std.bind.NewModuleDeclared("unity")
   var ns = module.ns.Nest("unity")
 
@@ -76,5 +81,4 @@ func RegisterBindings(std.bind.Types types) {
     [ std.bind.NewFuncArgSymbol("msg", types.T("string")) ]))
 
   types.RegisterModule(module)
-  types.RegisterVersion("unity", "1.0.0")
 }
