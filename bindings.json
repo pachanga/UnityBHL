@@ -1,4 +1,0 @@
-{
-  "name": "unity",
-  "sources": ["./Runtime/Bindings/*.bhl"]
-}
