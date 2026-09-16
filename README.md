@@ -28,7 +28,7 @@ class MyScript : unity.BHLComponent
 ## Editor tools
 
 - **BHL/Control Panel** - compile status, errors, auto-compile toggle, VM pool stats.
-- **BHL/Rebuild** - clean compile and baking a bytecode bundle for
+- **BHL/Rebuild and Bake** - clean compile and baking a bytecode bundle for
   Player builds.
 
 ## License

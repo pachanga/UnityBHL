@@ -21,6 +21,12 @@ namespace UnityBHL
       public FieldType? Type;
     }
 
+    public struct ClassRef
+    {
+      public string Module;
+      public string Class;
+    }
+
     static List<string> _modulesCache;
 
     //NOTE: for the Inspector's manual "Refresh" - the only thing that triggers a
@@ -90,6 +96,19 @@ namespace UnityBHL
         CollectClasses(decl.ns, "", classes);
 
       return classes;
+    }
+
+    //NOTE: flattened across every module, for a single Module+Class picker instead of a
+    //      Module-then-Class cascade - Module is still tracked alongside Class (not
+    //      derived from it) since two different modules can each declare a same-named class
+    public static List<ClassRef> GetAllClasses()
+    {
+      var all = new List<ClassRef>();
+      foreach(var module in GetModules())
+        foreach(var cls in GetClasses(module))
+          all.Add(new ClassRef { Module = module, Class = cls });
+
+      return all;
     }
 
     //NOTE: 'resolved' distinguishes "class not found" from "class found, no fields" -

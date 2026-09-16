@@ -18,7 +18,6 @@ namespace UnityBHL
 
       var script = (ScriptBHL)target;
 
-      DrawModulePicker(script);
       DrawClassPicker(script);
 
       EditorGUILayout.Space();
@@ -33,80 +32,59 @@ namespace UnityBHL
       serializedObject.ApplyModifiedProperties();
     }
 
-    void DrawModulePicker(ScriptBHL script)
-    {
-      var moduleNameProp = serializedObject.FindProperty(nameof(ScriptBHL.ModuleName));
-      var modules = ClassIntrospection.GetModules();
-
-      if(modules.Count == 0)
-      {
-        EditorGUILayout.PropertyField(moduleNameProp, new GUIContent("Module"));
-        EditorGUILayout.HelpBox("No modules found - check BHLSettings' bhl.proj path, then Refresh.", MessageType.Info);
-        return;
-      }
-
-      //NOTE: see DrawClassPicker - a fake "<none>" entry keeps an empty ModuleName
-      //      visibly distinct from "the first real module", so picking a real one is
-      //      always a genuine index change that EndChangeCheck() actually detects
-      var options = new List<string> { "<none>" };
-      options.AddRange(modules);
-
-      int current = string.IsNullOrEmpty(moduleNameProp.stringValue) ? 0 : options.IndexOf(moduleNameProp.stringValue);
-
-      EditorGUI.BeginChangeCheck();
-      int picked = EditorGUILayout.Popup("Module", current < 0 ? 0 : current, options.ToArray());
-      if(EditorGUI.EndChangeCheck())
-      {
-        moduleNameProp.stringValue = picked == 0 ? "" : options[picked];
-        //NOTE: the previous ClassName almost certainly doesn't belong to the new module
-        serializedObject.FindProperty(nameof(ScriptBHL.ClassName)).stringValue = "";
-      }
-
-      if(current < 0 && !string.IsNullOrEmpty(moduleNameProp.stringValue))
-      {
-        EditorGUILayout.HelpBox(
-          $"'{moduleNameProp.stringValue}' not found - pick one above, or Refresh.",
-          MessageType.Warning
-        );
-      }
-    }
-
+    //NOTE: a single Module+Class picker instead of a Module-then-Class cascade - Class
+    //      names aren't unique across modules, so both fields are still stored, just
+    //      picked together via one flattened "module/Class" list
     void DrawClassPicker(ScriptBHL script)
     {
+      var moduleNameProp = serializedObject.FindProperty(nameof(ScriptBHL.ModuleName));
       var classNameProp = serializedObject.FindProperty(nameof(ScriptBHL.ClassName));
-      var classes = ClassIntrospection.GetClasses(script.ModuleName);
+      var all = ClassIntrospection.GetAllClasses();
 
-      if(classes.Count == 0)
+      if(all.Count == 0)
       {
+        EditorGUILayout.PropertyField(moduleNameProp, new GUIContent("Module"));
         EditorGUILayout.PropertyField(classNameProp, new GUIContent("Class"));
-        if(!string.IsNullOrEmpty(script.ModuleName))
-        {
-          EditorGUILayout.HelpBox(
-            $"No classes found in module '{script.ModuleName}' - fix any compile error, then Refresh.",
-            MessageType.Info
-          );
-        }
+        EditorGUILayout.HelpBox("No modules/classes found - check BHLSettings' bhl.proj path, then Refresh.", MessageType.Info);
         return;
       }
 
-      //NOTE: a fake "<none>" entry at index 0 so an empty ClassName maps to its own,
-      //      visibly distinct selection - otherwise Popup's current<0 fallback displays
-      //      the first real class as if already selected (tick mark included), and
+      //NOTE: a fake "<none>" entry at index 0 so an empty selection maps to its own,
+      //      visibly distinct entry - otherwise Popup's current<0 fallback displays
+      //      the first real entry as if already selected (tick mark included), and
       //      picking that same already-displayed item never registers as a change
       var options = new List<string> { "<none>" };
-      options.AddRange(classes);
+      options.AddRange(all.Select(e => e.Module + "/" + e.Class));
 
-      int current = string.IsNullOrEmpty(classNameProp.stringValue) ? 0 : options.IndexOf(classNameProp.stringValue);
+      bool hasSelection = !string.IsNullOrEmpty(moduleNameProp.stringValue) || !string.IsNullOrEmpty(classNameProp.stringValue);
+      int current = 0;
+      if(hasSelection)
+      {
+        int found = all.FindIndex(e => e.Module == moduleNameProp.stringValue && e.Class == classNameProp.stringValue);
+        current = found < 0 ? -1 : found + 1;
+      }
 
       EditorGUI.BeginChangeCheck();
       int picked = EditorGUILayout.Popup("Class", current < 0 ? 0 : current, options.ToArray());
       if(EditorGUI.EndChangeCheck())
-        classNameProp.stringValue = picked == 0 ? "" : options[picked];
+      {
+        if(picked == 0)
+        {
+          moduleNameProp.stringValue = "";
+          classNameProp.stringValue = "";
+        }
+        else
+        {
+          var entry = all[picked - 1];
+          moduleNameProp.stringValue = entry.Module;
+          classNameProp.stringValue = entry.Class;
+        }
+      }
 
-      if(current < 0 && !string.IsNullOrEmpty(classNameProp.stringValue))
+      if(current < 0 && hasSelection)
       {
         EditorGUILayout.HelpBox(
-          $"'{classNameProp.stringValue}' not found in '{script.ModuleName}' - pick one above, or Refresh.",
+          $"'{moduleNameProp.stringValue}/{classNameProp.stringValue}' not found - pick one above, or Refresh.",
           MessageType.Warning
         );
       }
@@ -122,7 +100,7 @@ namespace UnityBHL
 
       if(string.IsNullOrEmpty(script.ModuleName) || string.IsNullOrEmpty(script.ClassName))
       {
-        EditorGUILayout.HelpBox("Set Module and Class above to configure fields.", MessageType.None);
+        EditorGUILayout.HelpBox("Set Class above to configure fields.", MessageType.None);
         return;
       }
 
