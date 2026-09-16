@@ -147,12 +147,8 @@ namespace UnityBHL
       CollectChangedModules(movedFromAssetPaths);
     }
 
-    //NOTE: a domain reload (Unity's default "Reload Domain" on entering Play Mode, which
-    //      necessarily happens *after* CompileAndLoad's ExitingEditMode compile) wipes
-    //      this class's statics same as BHL.cs's - _proj (and the external-dirs poll
-    //      thread) would otherwise stay null/dead for the rest of the Play session,
-    //      silently breaking hot reload entirely. Cheap to rebuild (just parses bhl.proj,
-    //      no compile), so do it lazily whenever something needs it during Play Mode.
+    //NOTE: a domain reload (e.g. Reload Domain on entering Play Mode) wipes _proj same
+    //      as BHL.cs's bytecode - rebuild it lazily since it's cheap (just parses bhl.proj)
     static ProjectConf EnsureProj()
     {
       if(_proj != null || !EditorApplication.isPlaying)
@@ -165,8 +161,7 @@ namespace UnityBHL
       }
       catch(Exception)
       {
-        //NOTE: Settings/bhl.proj missing or broken - leave null, same as before this
-        //      lazy-restore existed
+        //NOTE: Settings/bhl.proj missing or broken - leave null
       }
 
       return _proj;
