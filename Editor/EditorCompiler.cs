@@ -15,6 +15,8 @@ namespace UnityBHL
   //      BHL_PARSER is never a concern here (UNITY_EDITOR always covers it)
   public static class EditorCompiler
   {
+    const string TmpDir = "Library/BHL/tmp";
+
     public static ProjectConf LoadProjectConf()
     {
       var settings = Settings.Instance;
@@ -27,9 +29,11 @@ namespace UnityBHL
 
       var proj = ProjectConf.ReadFromFile(path);
       //NOTE: Library/ is Unity's own scratch space - always ours, regardless of what a
-      //      shared bhl.proj (also read by LSP/CLI/other consumers) happens to say here
-      proj.tmp_dir = "Library/BHL/tmp";
-      proj.result_file = "Library/BHL/bhl.bytes";
+      //      shared bhl.proj (also read by LSP/CLI/other consumers) happens to say here.
+      //      result_file mirrors BHL.LastEditorCompilePath - BHL.cs reads this same file
+      //      back on a domain reload, so the two must never drift apart
+      proj.tmp_dir = TmpDir;
+      proj.result_file = BHL.LastEditorCompilePath;
       return proj;
     }
 

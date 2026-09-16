@@ -69,9 +69,44 @@ namespace UnityBHL
       _vm = _factory.MakeVM();
 
       //NOTE: reapply bytecode from before Cleanup() nulled _vm, if any
+      if(_lastBytecode == null)
+      {
+#if UNITY_EDITOR
+        TryRestoreLastEditorCompile();
+#endif
+      }
+
       if(_lastBytecode != null)
         AttachBytecode(_lastBytecode);
     }
+
+    //NOTE: the single source of truth for where an Editor compile's result lives - also
+    //      used by EditorCompiler.LoadProjectConf to set proj.result_file, so the two
+    //      can't silently drift apart. Defined here (Runtime), not there (Editor), since
+    //      Editor already references Runtime and not the other way around.
+    public const string LastEditorCompilePath = "Library/BHL/bhl.bytes";
+
+#if UNITY_EDITOR
+    //NOTE: every Editor compile writes to LastEditorCompilePath unconditionally,
+    //      regardless of who triggered it. A domain reload (Unity's default "Reload
+    //      Domain" on entering Play Mode) wipes _lastBytecode along with every other
+    //      static field, which otherwise leaves the VM with no bytecode at all right
+    //      when BHLAssetPostprocessor's ExitingEditMode compile (necessarily running
+    //      *before* that reload) had just set it. Reading the file back here closes
+    //      that gap without depending on that Editor setting.
+    static void TryRestoreLastEditorCompile()
+    {
+      try
+      {
+        if(File.Exists(LastEditorCompilePath))
+          _lastBytecode = File.ReadAllBytes(LastEditorCompilePath);
+      }
+      catch(Exception)
+      {
+        //NOTE: best-effort - an unreadable/missing file just means nothing to restore
+      }
+    }
+#endif
 
     //NOTE: called by EditorCompiler after every compile, or once at startup in a Player build
     public static void SetBytecode(byte[] bytes)
