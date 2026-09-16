@@ -92,10 +92,13 @@ namespace UnityBHL
       return classes;
     }
 
-    public static List<FieldInfo> GetFields(string module_name, string class_name)
+    //NOTE: 'resolved' distinguishes "class not found" from "class found, no fields" -
+    //      the latter is a perfectly valid class, not something to warn about
+    public static List<FieldInfo> GetFields(string module_name, string class_name, out bool resolved)
     {
       var fields = new List<FieldInfo>();
-      if(TryResolveClass(module_name, class_name, out var cls))
+      resolved = TryResolveClass(module_name, class_name, out var cls);
+      if(resolved)
       {
         foreach(var sym in cls)
           if(sym is VariableSymbol vs)

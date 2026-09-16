@@ -47,14 +47,14 @@ namespace UnityBHL
       EditorGUILayout.BeginHorizontal();
 
       bool auto_compile = EditorGUILayout.ToggleLeft(
-        new GUIContent("Auto Compile", "Watches bhl.proj's .bhl files and recompiles on change while not in Play Mode"),
-        AutoCompileController.Enabled, GUILayout.Width(120));
+        new GUIContent("Auto On File Changes", "Watches bhl.proj's .bhl files and recompiles on change while not in Play Mode"),
+        AutoCompileController.Enabled, GUILayout.Width(180));
       if(auto_compile != AutoCompileController.Enabled)
         AutoCompileController.Enabled = auto_compile;
 
       using(new EditorGUI.DisabledScope(_pendingCompile != null))
       {
-        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Recompile"))
+        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Rebuild"))
           Recompile();
       }
 

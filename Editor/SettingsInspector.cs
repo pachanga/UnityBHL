@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using bhl;
 using UnityEditor;
 using UnityEngine;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace UnityBHL
 {
@@ -11,6 +15,11 @@ namespace UnityBHL
     bool _showProjContents;
     string _cachedProjPath;
     string _cachedProjContents;
+    string _editBuffer;
+    DateTime _loadedWriteTimeUtc;
+    string _lastValidatedText;
+    string _lastValidationError;
+    List<string> _cachedSrcDirs;
     Vector2 _projContentsScroll;
 
     public override void OnInspectorGUI()
@@ -31,31 +40,78 @@ namespace UnityBHL
 
       bool projExists = File.Exists(resolved);
 
-      var prev = GUI.color;
-      GUI.color = projExists ? Color.green : Color.red;
-      EditorGUILayout.LabelField("Resolved path", resolved);
-      GUI.color = prev;
-
       if(projExists)
       {
-        if(GUILayout.Button("Open in external editor", GUILayout.ExpandWidth(false)))
-          EditorUtility.OpenWithDefaultApp(resolved);
+        if(_cachedProjPath != resolved)
+          LoadProj(resolved);
 
-        _showProjContents = EditorGUILayout.Foldout(_showProjContents, "bhl.proj contents", true);
+        var prev = GUI.color;
+        GUI.color = Color.green;
+        _showProjContents = EditorGUILayout.Foldout(_showProjContents, "Full path: " + resolved, true);
+        GUI.color = prev;
+
         if(_showProjContents)
         {
-          if(_cachedProjPath != resolved)
+          if(File.GetLastWriteTimeUtc(resolved) != _loadedWriteTimeUtc)
           {
-            _cachedProjPath = resolved;
-            _cachedProjContents = File.ReadAllText(resolved);
+            EditorGUILayout.HelpBox("File changed on disk since it was loaded here.", MessageType.Warning);
+            if(GUILayout.Button("Reload", GUILayout.ExpandWidth(false)))
+              LoadProj(resolved);
           }
 
-          var height = EditorStyles.textArea.CalcHeight(new GUIContent(_cachedProjContents), EditorGUIUtility.currentViewWidth);
+          var height = EditorStyles.textArea.CalcHeight(new GUIContent(_editBuffer), EditorGUIUtility.currentViewWidth);
 
           _projContentsScroll = EditorGUILayout.BeginScrollView(_projContentsScroll, GUILayout.Height(200));
-          EditorGUILayout.SelectableLabel(_cachedProjContents, EditorStyles.textArea, GUILayout.Height(height));
+          _editBuffer = EditorGUILayout.TextArea(_editBuffer, EditorStyles.textArea, GUILayout.Height(height));
           EditorGUILayout.EndScrollView();
+
+          bool dirty = _editBuffer != _cachedProjContents;
+
+          if(_lastValidatedText != _editBuffer)
+          {
+            _lastValidatedText = _editBuffer;
+            TryValidateProjText(_editBuffer, resolved, out _lastValidationError);
+          }
+
+          bool valid = _lastValidationError == null;
+          if(dirty && !valid)
+            EditorGUILayout.HelpBox("Invalid bhl.proj: " + _lastValidationError, MessageType.Error);
+
+          EditorGUILayout.BeginHorizontal();
+          using(new EditorGUI.DisabledScope(!dirty || !valid))
+          {
+            if(GUILayout.Button("Save", GUILayout.ExpandWidth(false)))
+              SaveProj(resolved);
+          }
+          using(new EditorGUI.DisabledScope(!dirty))
+          {
+            if(GUILayout.Button("Revert", GUILayout.ExpandWidth(false)))
+              _editBuffer = _cachedProjContents;
+          }
+          EditorGUILayout.EndHorizontal();
         }
+
+        EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Script sources", EditorStyles.boldLabel);
+        if(_cachedSrcDirs.Count == 0)
+          EditorGUILayout.HelpBox("No src_dirs configured in bhl.proj.", MessageType.Warning);
+        foreach(var src_dir in _cachedSrcDirs)
+        {
+          var dir_prev = GUI.color;
+          GUI.color = Directory.Exists(src_dir) ? Color.green : Color.red;
+          EditorGUILayout.LabelField(src_dir);
+          GUI.color = dir_prev;
+        }
+      }
+      else
+      {
+        var prev = GUI.color;
+        GUI.color = Color.red;
+        EditorGUILayout.LabelField("Full path", resolved);
+        GUI.color = prev;
+
+        if(GUILayout.Button("Create default", GUILayout.ExpandWidth(false)))
+          CreateEmptyProj(resolved);
       }
 
       EditorGUILayout.Space();
@@ -65,9 +121,115 @@ namespace UnityBHL
       var indirectCallsProp = serializedObject.FindProperty(nameof(Settings.indirectCalls));
       EditorGUILayout.PropertyField(indirectCallsProp, new GUIContent("Hotreload Support", indirectCallsProp.tooltip));
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
-      EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Asset Path", bakedBundlePathProp.tooltip));
+      EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Bundle Path", bakedBundlePathProp.tooltip));
 
       serializedObject.ApplyModifiedProperties();
+    }
+
+    void CreateEmptyProj(string resolved)
+    {
+      var dir = Path.GetDirectoryName(resolved);
+      if(!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        Directory.CreateDirectory(dir);
+
+      var include = ToRelativeUnixPath(dir, UnityBhlProjInclude);
+
+      File.WriteAllText(resolved,
+        "{\n" +
+        "  \"src_dirs\" : [\"./\"],\n" +
+        $"  \"includes\" : [\"{include}\"]\n" +
+        "}");
+
+      AssetDatabase.Refresh();
+    }
+
+    //NOTE: resolved via PackageInfo (not a plain path join) so it also works when this
+    //      package is a git/registry dependency living in Library/PackageCache, not just
+    //      when it's embedded directly under the project's Packages/ folder.
+    //      A PackageCache folder name carries a version/commit-hash suffix that changes
+    //      whenever the package is re-resolved (fresh install, version bump, different
+    //      machine) - wildcard that segment so a generated bhl.proj doesn't go stale.
+    string UnityBhlProjInclude
+    {
+      get
+      {
+        var scriptPath = AssetDatabase.GetAssetPath(MonoScript.FromScriptableObject(this));
+        var packageInfo = PackageInfo.FindForAssetPath(scriptPath);
+        if(packageInfo == null)
+        {
+          var root = Path.GetFullPath(Path.Combine(Settings.ProjectRoot, Path.GetDirectoryName(Path.GetDirectoryName(scriptPath))));
+          return Path.Combine(root, "bhl.proj");
+        }
+
+        var packageDir = packageInfo.resolvedPath.TrimEnd('/', '\\');
+        var cacheDir = Path.GetDirectoryName(packageDir);
+        bool inPackageCache = string.Equals(Path.GetFileName(cacheDir), "PackageCache", StringComparison.OrdinalIgnoreCase);
+
+        return inPackageCache
+          ? Path.Combine(cacheDir, packageInfo.name + "@*")
+          : Path.Combine(packageDir, "bhl.proj");
+      }
+    }
+
+    void LoadProj(string resolved)
+    {
+      _cachedProjPath = resolved;
+      _cachedProjContents = File.ReadAllText(resolved);
+      _editBuffer = _cachedProjContents;
+      _loadedWriteTimeUtc = File.GetLastWriteTimeUtc(resolved);
+      _cachedSrcDirs = TryParseSrcDirs(resolved);
+    }
+
+    void SaveProj(string resolved)
+    {
+      File.WriteAllText(resolved, _editBuffer);
+      AssetDatabase.Refresh();
+      LoadProj(resolved);
+    }
+
+    //NOTE: validated against a scratch copy sitting next to the real bhl.proj (not the
+    //      system temp dir) - relative entries (src_dirs, includes, ...) are normalized
+    //      against the proj file's own directory, so validating from an unrelated
+    //      directory made every relative path fail to resolve
+    static void TryValidateProjText(string text, string resolvedPath, out string error)
+    {
+      var dir = Path.GetDirectoryName(resolvedPath);
+      var tmp = Path.Combine(dir, "~" + Path.GetRandomFileName() + ".proj");
+      try
+      {
+        File.WriteAllText(tmp, text);
+        ProjectConf.ReadFromFile(tmp);
+        error = null;
+      }
+      catch(Exception e)
+      {
+        error = e.Message;
+      }
+      finally
+      {
+        File.Delete(tmp);
+      }
+    }
+
+    //NOTE: src_dirs come back normalized (relative ones resolved against the proj file's
+    //      own directory) by ProjectConf.Setup() - swallow parse errors since this only
+    //      feeds an informational display, not the actual compile
+    static List<string> TryParseSrcDirs(string proj_path)
+    {
+      try
+      {
+        return ProjectConf.ReadFromFile(proj_path).src_dirs;
+      }
+      catch
+      {
+        return new List<string>();
+      }
+    }
+
+    static string ToRelativeUnixPath(string from_dir, string to_path)
+    {
+      var rel = Path.GetRelativePath(from_dir, to_path);
+      return rel.Replace(Path.DirectorySeparatorChar, '/');
     }
 
     void Browse()
@@ -76,14 +238,8 @@ namespace UnityBHL
       if(string.IsNullOrEmpty(picked))
         return;
 
-      serializedObject.FindProperty(nameof(Settings.bhlProjPath)).stringValue = ToProjectRelativePath(picked);
-    }
-
-    //NOTE: stored relative to the project root so it stays valid across different checkouts
-    static string ToProjectRelativePath(string absolute_path)
-    {
-      var rel = Path.GetRelativePath(Settings.ProjectRoot, absolute_path);
-      return rel.Replace(Path.DirectorySeparatorChar, '/');
+      //NOTE: stored relative to the project root so it stays valid across different checkouts
+      serializedObject.FindProperty(nameof(Settings.bhlProjPath)).stringValue = ToRelativeUnixPath(Settings.ProjectRoot, picked);
     }
   }
 

@@ -126,14 +126,14 @@ namespace UnityBHL
         return;
       }
 
-      var available = ClassIntrospection.GetFields(script.ModuleName, script.ClassName)
+      var available = ClassIntrospection.GetFields(script.ModuleName, script.ClassName, out bool resolved)
         .Where(f => f.Type.HasValue)
         .ToList();
 
-      if(available.Count == 0)
+      if(!resolved)
       {
         EditorGUILayout.HelpBox(
-          $"No fields found for '{script.ClassName}' in '{script.ModuleName}' - " +
+          $"'{script.ClassName}' not found in '{script.ModuleName}' - " +
           "check the names, fix any compile error, then Refresh.",
           MessageType.Warning
         );
