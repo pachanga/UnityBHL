@@ -118,8 +118,6 @@ namespace UnityBHL
 
       serializedObject.Update();
 
-      var indirectCallsProp = serializedObject.FindProperty(nameof(Settings.indirectCalls));
-      EditorGUILayout.PropertyField(indirectCallsProp, new GUIContent("Hotreload Support", indirectCallsProp.tooltip));
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
       EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Bundle Path", bakedBundlePathProp.tooltip));
 

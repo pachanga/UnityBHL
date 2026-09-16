@@ -12,10 +12,6 @@ namespace UnityBHL
              "Can point outside the project (e.g. \"../shared/BHL/bhl.proj\").")]
     public string bhlProjPath = "Assets/BHL/bhl.proj";
 
-    [Tooltip("Let cross-module calls be relinked after a reload without recompiling the " +
-             "importer. Turn off only for a build that will never hot-reload.")]
-    public bool indirectCalls = true;
-
     [Tooltip("Where BHL/Rebuild and Bake writes baked bytecode. Must be inside a " +
              "Resources folder.")]
     public string bakedBundlePath = "Assets/Resources/bhl.bytes";

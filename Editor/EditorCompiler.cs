@@ -58,7 +58,9 @@ namespace UnityBHL
       //NOTE: proj.bindings is the source of truth, not "everything self-registered"
       conf.bindings = proj.LoadBindings();
       conf.ts = new Types();
-      conf.indirect_calls = Settings.Instance.indirectCalls;
+      //NOTE: always on - every BHL compile happens in the Editor, and hot-reload
+      //      relinking depends on it
+      conf.indirect_calls = true;
 
       var executor = new CompilationExecutor();
       //NOTE: Task.Run avoids a sync-over-async deadlock on Unity's main-thread SynchronizationContext
