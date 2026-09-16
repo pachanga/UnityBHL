@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using UnityEditor;
 using bhl;
 
 namespace UnityBHL
@@ -160,12 +161,16 @@ namespace UnityBHL
         _compiled = true;
         try
         {
-          //NOTE: CompileAll, not CompileAllWithProgressBar - this can run from inside
-          //      ScriptBHLInspector's OnInspectorGUI, and EditorUtility.DisplayProgressBar/
-          //      ClearProgressBar are themselves IMGUI overlays; invoking them mid-Layout/
-          //      Event pass desyncs Unity's control-ID counting between passes, which
-          //      manifests as clicks on one Popup misfiring EndChangeCheck() on another
-          _cachedBytes = EditorCompiler.CompileAll();
+          //NOTE: in Play Mode, reuse BHL's own bytecode instead of compiling again;
+          //      touching BHL.VM first restores it if a domain reload wiped it.
+          //      CompileAll (not …WithProgressBar) for Edit Mode - runs from
+          //      OnInspectorGUI, and the progress bar's IMGUI desyncs control IDs there.
+          if(EditorApplication.isPlaying)
+            _ = BHL.VM;
+
+          _cachedBytes = EditorApplication.isPlaying && BHL.LastBytecode != null
+            ? BHL.LastBytecode
+            : EditorCompiler.CompileAll();
           _cachedTypes = new Types();
           //NOTE: matches EditorCompiler.Compile's conf.bindings - needed to resolve native imports
           EditorCompiler.LoadProjectConf().LoadBindings().Register(_cachedTypes);

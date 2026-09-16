@@ -32,6 +32,10 @@ namespace UnityBHL
 
     public static bool IsReady => _vm != null;
 
+    //NOTE: lets Editor tooling (e.g. ClassIntrospection) reuse the already-compiled
+    //      bytecode instead of triggering its own separate compile
+    public static byte[] LastBytecode => _lastBytecode;
+
     //NOTE: non-creating accessor, for teardown paths that shouldn't resurrect a torn-down VM
     public static bool TryGetVM(out VM vm)
     {
@@ -80,20 +84,13 @@ namespace UnityBHL
         AttachBytecode(_lastBytecode);
     }
 
-    //NOTE: the single source of truth for where an Editor compile's result lives - also
-    //      used by EditorCompiler.LoadProjectConf to set proj.result_file, so the two
-    //      can't silently drift apart. Defined here (Runtime), not there (Editor), since
-    //      Editor already references Runtime and not the other way around.
+    //NOTE: also used by EditorCompiler.LoadProjectConf for proj.result_file, so the two
+    //      can't drift apart. Lives here since Editor references Runtime, not vice versa.
     public const string LastEditorCompilePath = "Library/BHL/bhl.bytes";
 
 #if UNITY_EDITOR
-    //NOTE: every Editor compile writes to LastEditorCompilePath unconditionally,
-    //      regardless of who triggered it. A domain reload (Unity's default "Reload
-    //      Domain" on entering Play Mode) wipes _lastBytecode along with every other
-    //      static field, which otherwise leaves the VM with no bytecode at all right
-    //      when BHLAssetPostprocessor's ExitingEditMode compile (necessarily running
-    //      *before* that reload) had just set it. Reading the file back here closes
-    //      that gap without depending on that Editor setting.
+    //NOTE: restores bytecode a domain reload wiped from _lastBytecode (e.g. Reload
+    //      Domain on entering Play Mode, right after ExitingEditMode's compile set it)
     static void TryRestoreLastEditorCompile()
     {
       try
