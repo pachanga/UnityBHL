@@ -126,7 +126,7 @@ namespace UnityBHL
 
     static void OnEditorUpdate()
     {
-      if(_pendingModules.IsEmpty || !EditorApplication.isPlaying || _proj == null)
+      if(_pendingModules.IsEmpty || !EditorApplication.isPlaying || EnsureProj() == null)
         return;
 
       DrainPendingReload();
@@ -138,13 +138,38 @@ namespace UnityBHL
       string[] movedAssets,
       string[] movedFromAssetPaths)
     {
-      if(!EditorApplication.isPlaying || _proj == null)
+      if(!EditorApplication.isPlaying || EnsureProj() == null)
         return;
 
       CollectChangedModules(importedAssets);
       CollectChangedModules(deletedAssets);
       CollectChangedModules(movedAssets);
       CollectChangedModules(movedFromAssetPaths);
+    }
+
+    //NOTE: a domain reload (Unity's default "Reload Domain" on entering Play Mode, which
+    //      necessarily happens *after* CompileAndLoad's ExitingEditMode compile) wipes
+    //      this class's statics same as BHL.cs's - _proj (and the external-dirs poll
+    //      thread) would otherwise stay null/dead for the rest of the Play session,
+    //      silently breaking hot reload entirely. Cheap to rebuild (just parses bhl.proj,
+    //      no compile), so do it lazily whenever something needs it during Play Mode.
+    static ProjectConf EnsureProj()
+    {
+      if(_proj != null || !EditorApplication.isPlaying)
+        return _proj;
+
+      try
+      {
+        _proj = EditorCompiler.LoadProjectConf();
+        StartPolling(_proj);
+      }
+      catch(Exception)
+      {
+        //NOTE: Settings/bhl.proj missing or broken - leave null, same as before this
+        //      lazy-restore existed
+      }
+
+      return _proj;
     }
 
     static void CollectChangedModules(string[] asset_paths)
