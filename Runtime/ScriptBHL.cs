@@ -6,7 +6,6 @@ using bhl;
 namespace UnityBHL
 {
 
-  //NOTE: class-instance model (not free-function) so fields hold durable per-GameObject state
   public class ScriptBHL : MonoBehaviour
   {
     [Tooltip("BHL module (source file, without extension) the class lives in")]
