@@ -6,6 +6,9 @@ using bhl;
 namespace UnityBHL
 {
 
+  //NOTE: AddComponentMenu's last path segment doubles as the Inspector header title -
+  //      "BHL Script" so the header itself is identifiable, not just the menu location
+  [AddComponentMenu("BHL/BHL Script")]
   public class ScriptBHL : MonoBehaviour
   {
     [Tooltip("BHL module (source file, without extension) the class lives in")]

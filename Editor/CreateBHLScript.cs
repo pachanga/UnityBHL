@@ -36,9 +36,8 @@ namespace UnityBHL
 
     //NOTE: a script created outside bhl.proj's src_dirs is invisible to the BHL compiler -
     //      prefer the active Project-window folder only if it's actually one of them,
-    //      otherwise redirect into a configured src_dir so the new file isn't dead on arrival.
-    //      Internal: also used by AddBHLComponentMenu's "Add Component > New BHL Component"
-    internal static string ResolveTargetDir()
+    //      otherwise redirect into a configured src_dir so the new file isn't dead on arrival
+    static string ResolveTargetDir()
     {
       var active = GetActiveFolderPath();
 
@@ -103,8 +102,7 @@ namespace UnityBHL
       return method != null ? (string)method.Invoke(null, null) : "Assets";
     }
 
-    //NOTE: internal - also used by AddBHLComponentMenu
-    internal static void WriteAndShow(string pathName, string content)
+    static void WriteAndShow(string pathName, string content)
     {
       var full = Path.GetFullPath(pathName);
       File.WriteAllText(full, content);
@@ -113,9 +111,7 @@ namespace UnityBHL
       EditorUtility.OpenWithDefaultApp(full);
     }
 
-    //NOTE: internal - also used by AddBHLComponentMenu, which needs the same template
-    //      text but has to wire up a ScriptBHL component afterward
-    internal static string BuildComponentContent(string className)
+    static string BuildComponentContent(string className)
     {
       return
         "import \"unity\"\n\n" +
