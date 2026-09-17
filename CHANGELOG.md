@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BitGames.Scripting` - no Unity/scripting-specific dependency, so it's part of the
   `NO_UNITY` build too.
 - `BHLProjectConfig`: a resolved `bhl.proj`'s module->source-file mapping (e.g. for a
-  DAP client's "jump to source"), via `TryMapModuleToFile`.
+  DAP client's "jump to source") via `TryMapModuleToFile`, plus the raw
+  `IncDirs`/`SrcDirs`/`Defines`/`ResultFile` for BC consumers that need the plain data.
 - `Settings` moved from `Editor/` to `Runtime/` (still excluded from the `NO_UNITY`
   build - it's a `ScriptableObject`) and gained a `BhlProj` property, so a
   Runtime-visible consumer (e.g. scripting's `BHLConfig`) can reference it directly

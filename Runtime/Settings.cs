@@ -60,9 +60,11 @@ namespace UnityBHL
     {
       try
       {
-        return File.Exists(ResolvedBhlProjPath)
-          ? new BHLProjectConfig(ProjectConf.ReadFromFile(ResolvedBhlProjPath).inc_path)
-          : null;
+        if(!File.Exists(ResolvedBhlProjPath))
+          return null;
+
+        var proj = ProjectConf.ReadFromFile(ResolvedBhlProjPath);
+        return new BHLProjectConfig(proj.inc_path, proj.inc_dirs, proj.src_dirs, proj.defines, proj.result_file);
       }
       catch(Exception)
       {

@@ -28,16 +28,19 @@ namespace UnityBHL
         throw new Exception($"bhl.proj not found at '{path}' - check BHLSettings.bhlProjPath");
 
       var proj = ProjectConf.ReadFromFile(path);
+
+      //NOTE: Settings.BhlProj already lazily self-parses on first access; this just
+      //      refreshes it with what was already parsed here, avoiding a second parse.
+      //      Captured before result_file gets overridden below, so BC consumers of
+      //      BhlProj.ResultFile see what bhl.proj itself says, not our own scratch path.
+      settings.BhlProj = new BHLProjectConfig(proj.inc_path, proj.inc_dirs, proj.src_dirs, proj.defines, proj.result_file);
+
       //NOTE: Library/ is Unity's own scratch space - always ours, regardless of what a
       //      shared bhl.proj (also read by LSP/CLI/other consumers) happens to say here.
       //      result_file mirrors BHL.LastEditorCompilePath - BHL.cs reads this same file
       //      back on a domain reload, so the two must never drift apart
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
-
-      //NOTE: Settings.BhlProj already lazily self-parses on first access; this just
-      //      refreshes it with what was already parsed here, avoiding a second parse
-      settings.BhlProj = new BHLProjectConfig(proj.inc_path);
 
       return proj;
     }
