@@ -20,3 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subset (`BHL`, `VMCreator`, `VMFactory`, `VMTracker`, `IVMProvider`) as a plain .NET
   assembly, for headless/server consumers (e.g. `BitGames.Scripting.csproj`) that can't
   reference `UnityEngine`.
+- `BHL.Reset()`: public alias for the internal lazy-state cleanup, so an external
+  consumer sharing `BHL.VM` as a common singleton can force a fresh VM on next access.

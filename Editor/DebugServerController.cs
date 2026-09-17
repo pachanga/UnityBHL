@@ -4,11 +4,8 @@ using UnityEngine;
 namespace UnityBHL
 {
 
-  //NOTE: [InitializeOnLoad] so auto-start-on-play works even if the Control Panel
-  //      window isn't open - an EditorWindow's own OnEnable only runs while it's open.
-  //      Just the Editor-side auto start/stop + port config + progress-bar wiring;
-  //      the actual multi-VM debug session bookkeeping lives in BHL.cs (Runtime), so
-  //      it's also available to a Player build with its own debug-attach bootstrap.
+  //NOTE: [InitializeOnLoad] so auto-start-on-play works even without the Control Panel
+  //      open. Just Editor-side wiring - the actual session tracking lives in BHL.cs.
   [InitializeOnLoad]
   public static class DebugServerController
   {

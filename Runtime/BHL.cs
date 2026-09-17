@@ -52,9 +52,13 @@ namespace UnityBHL
     //NOTE: plain-creator convenience, still wrapped in VMTracker/VMFactory like the default
     public static void Configure(IVMCreator creator) => Configure(new VMFactory(new VMTracker(creator ?? new DefaultVMCreator(), "BHL.VM")));
 
-    //NOTE: resets only the lazily-built state, not the injected creator config.
-    //      NO_UNITY (a plain .NET build with no Unity lifecycle at all) gets neither
-    //      auto-invoke attribute - call this manually there if it's ever needed.
+    //NOTE: public alias for Cleanup() - lets an external caller (e.g. a consumer that
+    //      shares this VM singleton) force a fresh VM on next access, same as a domain
+    //      reload/scene load would, without waiting for one of those to happen
+    public static void Reset() => Cleanup();
+
+    //NOTE: resets only the lazily-built state, not the injected creator config -
+    //      NO_UNITY gets no auto-invoke attribute, call this manually there if needed
   #if UNITY_EDITOR
     [UnityEditor.InitializeOnLoadMethod]
   #endif
@@ -151,8 +155,8 @@ namespace UnityBHL
       _vm.Loader = loader;
     }
 
-    //NOTE: explicit entry point for a Player build with no Editor driver; defaults to
-    //      Resources/bhl. NO_UNITY has no Resources concept, so it requires an explicit bundle.
+    //NOTE: for a Player build with no Editor driver; defaults to Resources/bhl (NO_UNITY
+    //      has no Resources concept, so it requires an explicit bundle there)
     public static void LoadBakedBundle(BytecodeSource bundle = default)
     {
       if(bundle.Path2Stream == null)
@@ -218,14 +222,12 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: one DAP server per VM (a project can have more than one live VM, e.g. via
-    //      VMTracker-tracked pooled ones) - ConditionalWeakTable so a torn-down VM's
-    //      session is collected along with it rather than leaking
+    //NOTE: one DAP server per VM - ConditionalWeakTable so a torn-down VM's session is
+    //      collected along with it rather than leaking
     static readonly ConditionalWeakTable<VM, DebugSession> _debugSessions = new ConditionalWeakTable<VM, DebugSession>();
 
-    //NOTE: polled every ~50ms while AttachDebugServer(waitForClient: true) blocks -
-    //      return false to abort the wait. Wired by Editor code to a cancelable progress
-    //      bar; left null, the wait blocks indefinitely instead of polling.
+    //NOTE: polled every ~50ms while AttachDebugServer(waitForClient: true) blocks; return
+    //      false to abort. Null blocks indefinitely instead of polling.
     public static Func<bool> OnDebuggerWaiting;
     public static Action OnDebuggerWaitDone;
 
