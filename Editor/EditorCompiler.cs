@@ -35,8 +35,7 @@ namespace UnityBHL
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
 
-      //NOTE: keeps Settings.TryMapModuleToFile in sync with whatever bhl.proj currently
-      //      resolves to, for any consumer (e.g. scripting's BHLConfig) that needs it
+      //NOTE: keeps Settings.TryMapModuleToFile in sync with the resolved bhl.proj
       Settings.ConfigureModuleMap(proj.inc_path);
 
       return proj;
