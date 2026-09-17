@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `VM.Fiber`'s BHL-side stack trace into one readable trace. Moved here from
   `BitGames.Scripting` - no Unity/scripting-specific dependency, so it's part of the
   `NO_UNITY` build too.
-- `BHL.ConfigureModuleMap`/`TryMapModuleToFile`: Player-build-safe module->source-file
-  mapping (e.g. for a DAP client's "jump to source"), given already-resolved
-  directories - `bhl.ProjectConf` itself can't be used outside `UNITY_EDITOR`/
-  `BHL_PARSER`, so this doesn't try to parse a whole `bhl.proj`.
+- `BHL.ConfigureModuleMap`/`TryMapModuleToFile` (Editor-only): module->source-file
+  mapping (e.g. for a DAP client's "jump to source"). `EditorCompiler.LoadProjectConf`
+  keeps it in sync with the resolved `bhl.proj` automatically.
