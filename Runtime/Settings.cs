@@ -1,11 +1,17 @@
+using System;
 using System.IO;
 using UnityEngine;
+#if UNITY_EDITOR
+using bhl;
+#endif
 
 namespace UnityBHL
 {
 
-  //NOTE: BhlProj is only ever populated by EditorCompiler (Editor-only) - in an actual
-  //      Player build nothing configures it, so it stays null there
+  //NOTE: BhlProj parses lazily on first access (Editor-only - bhl.ProjectConf itself
+  //      can't be used outside UNITY_EDITOR/BHL_PARSER), so it's available even if
+  //      nothing has triggered a compile yet. EditorCompiler.LoadProjectConf still
+  //      overwrites it after every real compile, to stay fresh without re-parsing here.
   [CreateAssetMenu(fileName = "BHLSettings", menuName = "BHL/Settings")]
   public class Settings : ScriptableObject
   {
@@ -37,8 +43,35 @@ namespace UnityBHL
 
     public string ResolvedBhlProjPath => Path.GetFullPath(Path.Combine(ProjectRoot, bhlProjPath));
 
-    //NOTE: pushed in by EditorCompiler.LoadProjectConf, kept in sync with the resolved bhl.proj
-    public BHLProjectConfig BhlProj { get; set; }
+#if UNITY_EDITOR
+    BHLProjectConfig _bhlProj;
+    public BHLProjectConfig BhlProj
+    {
+      get
+      {
+        if(_bhlProj == null)
+          _bhlProj = TryParseBhlProj();
+        return _bhlProj;
+      }
+      set => _bhlProj = value;
+    }
+
+    BHLProjectConfig TryParseBhlProj()
+    {
+      try
+      {
+        return File.Exists(ResolvedBhlProjPath)
+          ? new BHLProjectConfig(ProjectConf.ReadFromFile(ResolvedBhlProjPath).inc_path)
+          : null;
+      }
+      catch(Exception)
+      {
+        return null;
+      }
+    }
+#else
+    public BHLProjectConfig BhlProj { get => null; set {} }
+#endif
   }
 
 }

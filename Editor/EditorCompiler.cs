@@ -17,16 +17,6 @@ namespace UnityBHL
   {
     const string TmpDir = "Library/BHL/tmp";
 
-    //NOTE: eagerly primes Settings.Instance.BhlProj at Editor load, so a consumer
-    //      calling TryMapModuleToFile doesn't have to wait for something else to
-    //      trigger a compile/introspection first
-    [InitializeOnLoadMethod]
-    static void Preload()
-    {
-      try { LoadProjectConf(); }
-      catch(Exception) { /* Settings/bhl.proj not configured yet - nothing to preload */ }
-    }
-
     public static ProjectConf LoadProjectConf()
     {
       var settings = Settings.Instance;
@@ -45,6 +35,8 @@ namespace UnityBHL
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
 
+      //NOTE: Settings.BhlProj already lazily self-parses on first access; this just
+      //      refreshes it with what was already parsed here, avoiding a second parse
       settings.BhlProj = new BHLProjectConfig(proj.inc_path);
 
       return proj;

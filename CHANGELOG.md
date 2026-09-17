@@ -31,8 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Settings` moved from `Editor/` to `Runtime/` (still excluded from the `NO_UNITY`
   build - it's a `ScriptableObject`) and gained a `BhlProj` property, so a
   Runtime-visible consumer (e.g. scripting's `BHLConfig`) can reference it directly
-  instead of needing an Editor-only bridge. `EditorCompiler.LoadProjectConf` keeps
-  `Settings.Instance.BhlProj` in sync with the resolved `bhl.proj` automatically
-  (including an `[InitializeOnLoadMethod]` preload, so it's populated as soon as the
-  Editor loads rather than only after the first compile/introspection) - in an actual
-  Player build nothing populates it, so it stays `null` there.
+  instead of needing an Editor-only bridge. `BhlProj` parses `bhl.proj` lazily on first
+  access (Editor-only - `bhl.ProjectConf` can't be used outside `UNITY_EDITOR`/
+  `BHL_PARSER`), so it's available even before anything else has triggered a compile;
+  `EditorCompiler.LoadProjectConf` still refreshes it after every real compile to stay
+  maximally fresh. In an actual Player build it's always `null`.
