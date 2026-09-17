@@ -82,11 +82,8 @@ namespace UnityBHL
       return modules;
     }
 
-    //NOTE: any BHL class is offered, not just ones implementing some marker interface -
-    //      BHL script classes can't implement/extend anything native (a hard compiler
-    //      restriction, see tests/test_interface.cs and tests/test_class.cs), so a
-    //      native-declared marker interface isn't an option; a .bhl-declared one is a
-    //      possible follow-up once that's worth the added friction of requiring it
+    //NOTE: only classes extending unity.BHLComponent are offered - that's what ScriptBHL
+    //      actually instantiates and drives (Awake/Update/OnDestroy, gameObject/transform)
     public static List<string> GetClasses(string module_name)
     {
       if(string.IsNullOrEmpty(module_name))
@@ -232,11 +229,19 @@ namespace UnityBHL
     {
       foreach(var sym in ns.members)
       {
-        if(sym is ClassSymbolScript cls)
+        if(sym is ClassSymbolScript cls && InheritsBHLComponent(cls))
           classes.Add(prefix + cls.name);
         else if(sym is Namespace nested)
           CollectClasses(nested, prefix + nested.name + ".", classes);
       }
+    }
+
+    static bool InheritsBHLComponent(ClassSymbolScript cls)
+    {
+      for(var c = cls.super_class; c != null; c = c.super_class)
+        if(c == UnityBindings.TypeBHLComponent)
+          return true;
+      return false;
     }
 
     static FieldType? MapType(IType t)
