@@ -54,7 +54,7 @@ namespace UnityBHL
 
       using(new EditorGUI.DisabledScope(_pendingCompile != null))
       {
-        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Rebuild"))
+        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Hot Recompile"))
           Recompile();
       }
 
@@ -285,8 +285,9 @@ namespace UnityBHL
         return;
       }
 
-      if(BHL.TryGetVM(out _))
-        BHL.SetBytecode(task.Result);
+      //NOTE: always applied, even in Edit Mode with no VM yet - SetBytecode creates one
+      //      if needed, so clicking this always does something observable
+      BHL.SetBytecode(task.Result);
 
       BHLErrorWindow.HideIfNoErrors();
     }

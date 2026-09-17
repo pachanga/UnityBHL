@@ -124,9 +124,7 @@ namespace UnityBHL
 
     //NOTE: also bakes if bakedBundlePath is set (the default) - a CI/PR check that wants
     //      pure validation without touching that tracked asset can clear the path first.
-    //      Also callable via `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild`.
-    //      Named "Rebuild and Bake" (not just "Rebuild") to stay distinct from the Control
-    //      Panel's own "Rebuild" button, which is an unrelated cached/no-bake compile
+    //      Also callable via `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild`
     [MenuItem("BHL/Rebuild and Bake")]
     public static void Rebuild()
     {
