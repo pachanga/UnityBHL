@@ -10,19 +10,17 @@
         <NoWarn>CS8981;NU1104</NoWarn>
         <ProduceReferenceAssemblyInOutDir>true</ProduceReferenceAssemblyInOutDir>
         <LangVersion>9</LangVersion>
-        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     </PropertyGroup>
 
     <ItemGroup>
-      <!-- NOTE: only the Unity-independent subset. ScriptBHL.cs, FieldValue.cs, and
-           everything under Bindings/ are fundamentally MonoBehaviour/UnityEngine-based
-           and are excluded from this build entirely, not just conditionally compiled. -->
-      <Compile Include="BHL.cs" />
-      <Compile Include="VMCreator.cs" />
-      <Compile Include="VMFactory.cs" />
-      <Compile Include="VMTracker.cs" />
-      <Compile Include="IVMProvider.cs" />
-      <Compile Include="BHLRuntimeException.cs" />
+      <!-- NOTE: everything else here compiles by default (SDK-style glob) - only
+           ScriptBHL.cs, FieldValue.cs, and Bindings/ are fundamentally
+           MonoBehaviour/UnityEngine-based, so they're excluded from this build entirely,
+           not just conditionally compiled. Any new Unity-independent file is picked up
+           automatically; a new Unity-only file needs a Remove added here. -->
+      <Compile Remove="ScriptBHL.cs" />
+      <Compile Remove="FieldValue.cs" />
+      <Compile Remove="Bindings/**/*.cs" />
     </ItemGroup>
 
     <ItemGroup>
