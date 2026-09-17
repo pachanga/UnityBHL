@@ -56,14 +56,27 @@ namespace UnityBHL
   public class VMCreator : IVMCreator
   {
     public BytecodeSource Bundle { get; }
+    public IUserBindings Bindings { get; }
 
-    public VMCreator(BytecodeSource bundle)
+    public VMCreator(BytecodeSource bundle, IUserBindings bindings = null)
     {
       Bundle = bundle;
+      Bindings = bindings;
     }
 
-    //NOTE: bytecode already known via Bundle, so this cherry-picks bindings right away
-    public VM MakeVM() => VM.FromBytecode(Bundle.Stream);
+    //NOTE: with no explicit Bindings, defer to VM.FromBytecode's reflection-based
+    //      auto-discovery of whatever bindings the bundle declares as required. With
+    //      explicit Bindings, register them directly instead - the bundle-declared
+    //      bindings aren't consulted at all in that case
+    public VM MakeVM()
+    {
+      if(Bindings == null)
+        return VM.FromBytecode(Bundle.Stream);
+
+      var types = new Types();
+      Bindings.Register(types);
+      return new VM(types, new ModuleLoader(types, Bundle.Stream));
+    }
   }
 
 }

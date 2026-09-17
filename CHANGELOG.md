@@ -40,3 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BHL_PARSER`), so it's available even before anything else has triggered a compile;
   `EditorCompiler.LoadProjectConf` still refreshes it after every real compile to stay
   maximally fresh. In an actual Player build it's always `null`.
+- `VMCreator` now takes an optional `IUserBindings` - matches the more advanced VM
+  construction `BitGames.Scripting.VMCreator` already had. With no bindings passed, it
+  keeps using `VM.FromBytecode` (bundle-declared bindings auto-discovered via
+  reflection); with bindings passed, it registers them directly on a fresh `Types`
+  instead (`new VM(types, new ModuleLoader(types, bundle))`), and the bundle-declared
+  bindings aren't consulted.
