@@ -121,6 +121,9 @@ namespace UnityBHL
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
       EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Bundle Path", bakedBundlePathProp.tooltip));
 
+      var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
+      EditorGUILayout.PropertyField(debugPortProp, new GUIContent("Debug Port", debugPortProp.tooltip));
+
       serializedObject.ApplyModifiedProperties();
     }
 

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>UnityBHL</AssemblyName>
+        <OutputType>Library</OutputType>
+        <BaseOutputPath>.\.dotnet\bin</BaseOutputPath>
+        <RootNamespace>UnityBHL</RootNamespace>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefineConstants>NO_UNITY;</DefineConstants>
+        <NoWarn>CS8981;NU1104</NoWarn>
+        <ProduceReferenceAssemblyInOutDir>true</ProduceReferenceAssemblyInOutDir>
+        <LangVersion>9</LangVersion>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!-- NOTE: only the Unity-independent subset. ScriptBHL.cs, FieldValue.cs, and
+           everything under Bindings/ are fundamentally MonoBehaviour/UnityEngine-based
+           and are excluded from this build entirely, not just conditionally compiled. -->
+      <Compile Include="BHL.cs" />
+      <Compile Include="VMCreator.cs" />
+      <Compile Include="VMFactory.cs" />
+      <Compile Include="VMTracker.cs" />
+      <Compile Include="IVMProvider.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\bit\bhl\src\vm\bhl_runtime.csproj"/>
+    </ItemGroup>
+
+</Project>

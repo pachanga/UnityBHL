@@ -2,8 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+#if !NO_UNITY
 using UnityEngine;
+#endif
 using bhl;
+using bhl.dap;
 
 namespace UnityBHL
 {
@@ -49,16 +52,23 @@ namespace UnityBHL
     //NOTE: plain-creator convenience, still wrapped in VMTracker/VMFactory like the default
     public static void Configure(IVMCreator creator) => Configure(new VMFactory(new VMTracker(creator ?? new DefaultVMCreator(), "BHL.VM")));
 
-    //NOTE: resets only the lazily-built state, not the injected creator config
+    //NOTE: resets only the lazily-built state, not the injected creator config.
+    //      NO_UNITY (a plain .NET build with no Unity lifecycle at all) gets neither
+    //      auto-invoke attribute - call this manually there if it's ever needed.
   #if UNITY_EDITOR
     [UnityEditor.InitializeOnLoadMethod]
   #endif
+  #if !NO_UNITY
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  #endif
     static void Cleanup()
     {
+      StopAllDebugServers();
       _vm = null;
       _bindingsResolved = false;
+#if !NO_UNITY
       ScriptBHL.ClearRegistry();
+#endif
       VMTracker.Clear();
       //NOTE: pooled VMs reference pre-reload Types/Symbol state - unsafe to reuse after this
       _factory.CleanVMCache();
@@ -141,11 +151,18 @@ namespace UnityBHL
       _vm.Loader = loader;
     }
 
-    //NOTE: explicit entry point for a Player build with no Editor driver; defaults to Resources/bhl
+    //NOTE: explicit entry point for a Player build with no Editor driver; defaults to
+    //      Resources/bhl. NO_UNITY has no Resources concept, so it requires an explicit bundle.
     public static void LoadBakedBundle(BytecodeSource bundle = default)
     {
       if(bundle.Path2Stream == null)
+      {
+#if !NO_UNITY
         bundle = BytecodeSource.FromResources();
+#else
+        throw new Exception("LoadBakedBundle requires an explicit BytecodeSource under NO_UNITY");
+#endif
+      }
 
       using(var stream = bundle.Stream)
       using(var ms = new MemoryStream())
@@ -189,13 +206,113 @@ namespace UnityBHL
           _vm.Reload(new Module(decl));
           _vm.RelinkImports(module_name);
 
+#if !NO_UNITY
           foreach(var script in ScriptBHL.GetByModule(module_name))
             script.MigrateInstance();
+#endif
         }
         else
         {
           _vm.LoadModule(new Module(decl));
         }
+      }
+    }
+
+    //NOTE: one DAP server per VM (a project can have more than one live VM, e.g. via
+    //      VMTracker-tracked pooled ones) - ConditionalWeakTable so a torn-down VM's
+    //      session is collected along with it rather than leaking
+    static readonly ConditionalWeakTable<VM, DebugSession> _debugSessions = new ConditionalWeakTable<VM, DebugSession>();
+
+    //NOTE: polled every ~50ms while AttachDebugServer(waitForClient: true) blocks -
+    //      return false to abort the wait. Wired by Editor code to a cancelable progress
+    //      bar; left null, the wait blocks indefinitely instead of polling.
+    public static Func<bool> OnDebuggerWaiting;
+    public static Action OnDebuggerWaitDone;
+
+    public static bool IsDebugSessionActive => GetDebugServer(_vm)?.IsConnected ?? false;
+    public static bool IsDebugPaused => GetDebugServer(_vm)?.IsPaused ?? false;
+
+    public static DebugSession AttachDebugServer(VM vm, int port, bool waitForClient = true)
+    {
+      if(vm == null)
+        return null;
+
+      StopDebugServer(vm);
+
+      var session = new DebugSession(vm);
+      _debugSessions.Add(vm, session);
+      session.Server.StartListening(port);
+
+      if(waitForClient)
+      {
+        if(OnDebuggerWaiting != null)
+        {
+          while(!session.WaitForClient(50) && OnDebuggerWaiting()) {}
+          OnDebuggerWaitDone?.Invoke();
+        }
+        else
+          session.WaitForClient();
+      }
+
+      return session;
+    }
+
+    public static DebugSession GetDebugServer(VM vm)
+    {
+      if(vm == null)
+        return null;
+      _debugSessions.TryGetValue(vm, out var session);
+      return session;
+    }
+
+    public static void StopDebugServer(VM vm)
+    {
+      if(vm == null)
+        return;
+
+      if(_debugSessions.TryGetValue(vm, out var session))
+      {
+        session.Stop();
+        _debugSessions.Remove(vm);
+      }
+    }
+
+    public static void StopAllDebugServers()
+    {
+      if(_vm != null)
+        StopDebugServer(_vm);
+
+      foreach(var item in VMTracker.Tracked)
+        if(item.VM.TryGetTarget(out var vm))
+          StopDebugServer(vm);
+    }
+
+    //NOTE: thin wrapper - bhl.dap.BHLDebugServer itself doesn't track connected/paused
+    //      state, just fires OnPause/OnResume
+    public class DebugSession
+    {
+      public readonly BHLDebugServer Server;
+      public bool IsConnected { get; private set; }
+      public bool IsPaused { get; private set; }
+
+      public DebugSession(VM vm)
+      {
+        Server = new BHLDebugServer(vm);
+        Server.OnPause = () => IsPaused = true;
+        Server.OnResume = () => IsPaused = false;
+      }
+
+      public bool WaitForClient(int timeout_ms = System.Threading.Timeout.Infinite)
+      {
+        IsConnected = Server.WaitForClient(timeout_ms);
+        return IsConnected;
+      }
+
+      public void Stop()
+      {
+        Server.Stop();
+        IsConnected = false;
+        IsPaused = false;
       }
     }
   }

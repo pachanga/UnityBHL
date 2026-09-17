@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+#if !NO_UNITY
 using UnityEngine;
+#endif
 using bhl;
 
 namespace UnityBHL
@@ -31,6 +33,7 @@ namespace UnityBHL
       Path2Stream = path2stream;
     }
 
+#if !NO_UNITY
     public static BytecodeSource FromResources(string resource_path = "bhl")
     {
       return new BytecodeSource(resource_path, path =>
@@ -46,6 +49,7 @@ namespace UnityBHL
         return new MemoryStream(asset.bytes);
       });
     }
+#endif
   }
 
   //NOTE: bundle-aware, for a Player build with no Editor driver - opt in via BHL.Configure(new VMCreator(bundle))

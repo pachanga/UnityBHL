@@ -16,3 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reload can migrate every affected instance.
 - Editor-time hot reload via `BHLAssetPostprocessor`, watching `.bhl` asset changes.
 - Basic Unity bindings module (`unity` — `Vector3`, `Quaternion`) for BHL scripts.
+- `NO_UNITY` build support: `Runtime/UnityBHL.csproj` compiles a Unity-independent
+  subset (`BHL`, `VMCreator`, `VMFactory`, `VMTracker`, `IVMProvider`) as a plain .NET
+  assembly, for headless/server consumers (e.g. `BitGames.Scripting.csproj`) that can't
+  reference `UnityEngine`.

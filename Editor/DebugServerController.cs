@@ -1,23 +1,19 @@
 using UnityEditor;
 using UnityEngine;
-using bhl;
-using bhl.dap;
 
 namespace UnityBHL
 {
 
   //NOTE: [InitializeOnLoad] so auto-start-on-play works even if the Control Panel
-  //      window isn't open - an EditorWindow's own OnEnable only runs while it's open
+  //      window isn't open - an EditorWindow's own OnEnable only runs while it's open.
+  //      Just the Editor-side auto start/stop + port config + progress-bar wiring;
+  //      the actual multi-VM debug session bookkeeping lives in BHL.cs (Runtime), so
+  //      it's also available to a Player build with its own debug-attach bootstrap.
   [InitializeOnLoad]
   public static class DebugServerController
   {
     const string DebugModePrefKey = "UnityBHL.DebugMode";
-    const int Port = 7777;
-
-    static BHLDebugServer _server;
-    static bool _paused;
-
-    public static bool IsPaused => _paused;
+    const int DefaultPort = 7777;
 
     public static bool Enabled
     {
@@ -32,11 +28,22 @@ namespace UnityBHL
       }
     }
 
-    public static bool IsRunning => _server != null;
+    public static bool IsRunning => BHL.TryGetVM(out var vm) && BHL.GetDebugServer(vm) != null;
+    public static bool IsConnected => BHL.TryGetVM(out var vm) && (BHL.GetDebugServer(vm)?.IsConnected ?? false);
+    public static bool IsPaused => BHL.TryGetVM(out var vm) && (BHL.GetDebugServer(vm)?.IsPaused ?? false);
+
+    static int Port => Settings.Instance != null ? Settings.Instance.debugPort : DefaultPort;
 
     static DebugServerController()
     {
       EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+
+      //NOTE: blocks Play Mode entry (see BHL.AttachDebugServer) until a DAP client
+      //      attaches, or the user cancels via this progress bar
+      BHL.OnDebuggerWaiting = () =>
+        !EditorUtility.DisplayCancelableProgressBar(
+          "BHL Debugger", $"Waiting for DAP client to attach on port {Port}...", 0f);
+      BHL.OnDebuggerWaitDone = EditorUtility.ClearProgressBar;
     }
 
     static void OnPlayModeStateChanged(PlayModeStateChange change)
@@ -49,23 +56,14 @@ namespace UnityBHL
 
     static void Start()
     {
-      if(_server != null || !BHL.TryGetVM(out var vm))
+      if(!BHL.TryGetVM(out var vm) || BHL.GetDebugServer(vm) != null)
         return;
 
-      _paused = false;
-      _server = new BHLDebugServer(vm);
-      _server.OnPause = () => _paused = true;
-      _server.OnResume = () => _paused = false;
-      _server.StartListening(Port);
+      BHL.AttachDebugServer(vm, Port, waitForClient: true);
       Debug.Log($"[BHL] debug server listening on {Port}");
     }
 
-    static void Stop()
-    {
-      _server?.Stop();
-      _server = null;
-      _paused = false;
-    }
+    static void Stop() => BHL.StopAllDebugServers();
   }
 
 }

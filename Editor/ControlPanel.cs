@@ -74,6 +74,7 @@ namespace UnityBHL
             if(item.VM.TryGetTarget(out var vm))
             {
               GUILayout.Label($"=== #{++i} {item.Label} ===");
+              DrawVMDebugStatus(vm);
               DrawPoolStats(vm);
             }
           }
@@ -156,11 +157,31 @@ namespace UnityBHL
 
       var prev = GUI.color;
       GUI.color = !DebugServerController.IsRunning ? Color.gray
-                : DebugServerController.IsPaused  ? new Color(1f, 0.65f, 0f)
+                : !DebugServerController.IsConnected ? Color.yellow
+                : DebugServerController.IsPaused ? new Color(1f, 0.65f, 0f)
                 : Color.green;
       GUILayout.Label(!DebugServerController.IsRunning ? "○ Debug server: stopped"
-                    : DebugServerController.IsPaused  ? "● Debug server: paused"
-                    : "● Debug server: listening");
+                    : !DebugServerController.IsConnected ? "○ Debug server: waiting for client"
+                    : DebugServerController.IsPaused ? "● Debug server: paused"
+                    : "● Debug server: connected");
+      GUI.color = prev;
+    }
+
+    //NOTE: BHL.VM's own status is already shown by DrawDebugStatus() above - this is
+    //      for any other VMTracker-tracked VM (e.g. a pooled one) with its own session
+    static void DrawVMDebugStatus(VM vm)
+    {
+      var session = BHL.GetDebugServer(vm);
+      if(session == null)
+        return;
+
+      var prev = GUI.color;
+      GUI.color = !session.IsConnected ? Color.yellow
+                : session.IsPaused ? new Color(1f, 0.65f, 0f)
+                : Color.green;
+      GUILayout.Label(!session.IsConnected ? "○ Debug: waiting for client"
+                    : session.IsPaused ? "● Debug: paused"
+                    : "● Debug: connected");
       GUI.color = prev;
     }
 

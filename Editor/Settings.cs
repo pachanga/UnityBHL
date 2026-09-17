@@ -16,6 +16,9 @@ namespace UnityBHL
              "Resources folder.")]
     public string bakedBundlePath = "Assets/Resources/bhl.bytes";
 
+    [Tooltip("TCP port the BHL DAP debug server listens on")]
+    public int debugPort = 7777;
+
     const string ResourceName = "BHLSettings";
 
     static Settings _instance;
