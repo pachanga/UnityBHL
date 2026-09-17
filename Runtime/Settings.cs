@@ -37,10 +37,8 @@ namespace UnityBHL
 
     public string ResolvedBhlProjPath => Path.GetFullPath(Path.Combine(ProjectRoot, bhlProjPath));
 
-    public BHLProjectConfig BhlProj { get; private set; }
-
     //NOTE: pushed in by EditorCompiler.LoadProjectConf, kept in sync with the resolved bhl.proj
-    public void ConfigureBhlProj(BHLProjectConfig config) => BhlProj = config;
+    public BHLProjectConfig BhlProj { get; set; }
   }
 
 }

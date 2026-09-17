@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BHLProjectConfig`: a resolved `bhl.proj`'s module->source-file mapping (e.g. for a
   DAP client's "jump to source"), via `TryMapModuleToFile`.
 - `Settings` moved from `Editor/` to `Runtime/` (still excluded from the `NO_UNITY`
-  build - it's a `ScriptableObject`) and gained `BhlProj`/`ConfigureBhlProj`, so a
+  build - it's a `ScriptableObject`) and gained a `BhlProj` property, so a
   Runtime-visible consumer (e.g. scripting's `BHLConfig`) can reference it directly
   instead of needing an Editor-only bridge. `EditorCompiler.LoadProjectConf` keeps
   `Settings.Instance.BhlProj` in sync with the resolved `bhl.proj` automatically

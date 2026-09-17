@@ -45,7 +45,7 @@ namespace UnityBHL
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
 
-      settings.ConfigureBhlProj(new BHLProjectConfig(proj.inc_path));
+      settings.BhlProj = new BHLProjectConfig(proj.inc_path);
 
       return proj;
     }
