@@ -22,3 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reference `UnityEngine`.
 - `BHL.Reset()`: public alias for the internal lazy-state cleanup, so an external
   consumer sharing `BHL.VM` as a common singleton can force a fresh VM on next access.
+- `BHLRuntimeException`: combines a caught C# exception (or plain message) with a live
+  `VM.Fiber`'s BHL-side stack trace into one readable trace. Moved here from
+  `BitGames.Scripting` - no Unity/scripting-specific dependency, so it's part of the
+  `NO_UNITY` build too.
