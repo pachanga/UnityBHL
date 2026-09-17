@@ -1,0 +1,8 @@
+{
+  "name": "pachanga/unitybhl",
+  "description": "Unity integration for BHL: attach BHL script classes to GameObjects via ScriptBHL, with hot reload of edited .bhl files while in Play Mode.",
+  "homepage": "https://github.com/pachanga/UnityBHL",
+  "require": {
+    "php": ">=8.1"
+  }
+}
