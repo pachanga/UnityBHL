@@ -222,6 +222,26 @@ namespace UnityBHL
       }
     }
 
+    static IncludePath _moduleMap;
+
+    //NOTE: Player-build-safe module->file mapping (e.g. for a DAP client's "jump to
+    //      source") - bhl.ProjectConf itself can't be used outside UNITY_EDITOR/
+    //      BHL_PARSER, so this just takes the already-resolved directories to search
+    //      instead of parsing a whole bhl.proj
+    public static void ConfigureModuleMap(IEnumerable<string> dirs)
+    {
+      var inc_path = new IncludePath();
+      foreach(var dir in dirs)
+        inc_path.Add(dir);
+      _moduleMap = inc_path;
+    }
+
+    public static bool TryMapModuleToFile(string module, out string file)
+    {
+      file = _moduleMap?.TryIncludePaths(module);
+      return file != null;
+    }
+
     //NOTE: one DAP server per VM - ConditionalWeakTable so a torn-down VM's session is
     //      collected along with it rather than leaking
     static readonly ConditionalWeakTable<VM, DebugSession> _debugSessions = new ConditionalWeakTable<VM, DebugSession>();
