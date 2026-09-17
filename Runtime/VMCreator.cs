@@ -73,7 +73,7 @@ namespace UnityBHL
       if(Bindings == null)
         return VM.FromBytecode(Bundle.Stream);
 
-      var types = new Types();
+      var types = new bhl.Types();
       Bindings.Register(types);
       return new VM(types, new ModuleLoader(types, Bundle.Stream));
     }
