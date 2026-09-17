@@ -14,12 +14,13 @@
 
     <ItemGroup>
       <!-- NOTE: everything else here compiles by default (SDK-style glob) - only
-           ScriptBHL.cs, FieldValue.cs, and Bindings/ are fundamentally
+           ScriptBHL.cs, FieldValue.cs, Settings.cs, and Bindings/ are fundamentally
            MonoBehaviour/UnityEngine-based, so they're excluded from this build entirely,
            not just conditionally compiled. Any new Unity-independent file is picked up
            automatically; a new Unity-only file needs a Remove added here. -->
       <Compile Remove="ScriptBHL.cs" />
       <Compile Remove="FieldValue.cs" />
+      <Compile Remove="Settings.cs" />
       <Compile Remove="Bindings/**/*.cs" />
     </ItemGroup>
 

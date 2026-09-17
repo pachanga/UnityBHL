@@ -1,11 +1,11 @@
 using System.IO;
-using bhl;
 using UnityEngine;
 
 namespace UnityBHL
 {
 
-  //NOTE: Editor-only - nothing in the Player-build-visible Runtime/ asmdef references this
+  //NOTE: BhlProj is only ever populated by EditorCompiler (Editor-only) - in an actual
+  //      Player build nothing configures it, so it stays null there
   [CreateAssetMenu(fileName = "BHLSettings", menuName = "BHL/Settings")]
   public class Settings : ScriptableObject
   {
@@ -37,17 +37,10 @@ namespace UnityBHL
 
     public string ResolvedBhlProjPath => Path.GetFullPath(Path.Combine(ProjectRoot, bhlProjPath));
 
-    static IncludePath _moduleMap;
+    public BHLProjectConfig BhlProj { get; private set; }
 
-    //NOTE: module->file mapping (e.g. for a DAP client's "jump to source"), kept in
-    //      sync automatically by EditorCompiler.LoadProjectConf
-    public static void ConfigureModuleMap(IncludePath inc_path) => _moduleMap = inc_path;
-
-    public static bool TryMapModuleToFile(string module, out string file)
-    {
-      file = _moduleMap?.TryIncludePaths(module);
-      return file != null;
-    }
+    //NOTE: pushed in by EditorCompiler.LoadProjectConf, kept in sync with the resolved bhl.proj
+    public void ConfigureBhlProj(BHLProjectConfig config) => BhlProj = config;
   }
 
 }

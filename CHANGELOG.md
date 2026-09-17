@@ -26,7 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `VM.Fiber`'s BHL-side stack trace into one readable trace. Moved here from
   `BitGames.Scripting` - no Unity/scripting-specific dependency, so it's part of the
   `NO_UNITY` build too.
-- `Settings.ConfigureModuleMap`/`TryMapModuleToFile`: module->source-file mapping (e.g.
-  for a DAP client's "jump to source"). `EditorCompiler.LoadProjectConf` keeps it in
-  sync with the resolved `bhl.proj` automatically. Lives on `Settings` (Editor-only,
-  like the rest of `bhl.proj`-derived config) rather than the Runtime-visible `BHL`.
+- `BHLProjectConfig`: a resolved `bhl.proj`'s module->source-file mapping (e.g. for a
+  DAP client's "jump to source"), via `TryMapModuleToFile`.
+- `Settings` moved from `Editor/` to `Runtime/` (still excluded from the `NO_UNITY`
+  build - it's a `ScriptableObject`) and gained `BhlProj`/`ConfigureBhlProj`, so a
+  Runtime-visible consumer (e.g. scripting's `BHLConfig`) can reference it directly
+  instead of needing an Editor-only bridge. `EditorCompiler.LoadProjectConf` keeps
+  `Settings.Instance.BhlProj` in sync with the resolved `bhl.proj` automatically
+  (including an `[InitializeOnLoadMethod]` preload, so it's populated as soon as the
+  Editor loads rather than only after the first compile/introspection) - in an actual
+  Player build nothing populates it, so it stays `null` there.
