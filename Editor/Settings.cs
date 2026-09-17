@@ -1,4 +1,5 @@
 using System.IO;
+using bhl;
 using UnityEngine;
 
 namespace UnityBHL
@@ -35,6 +36,20 @@ namespace UnityBHL
     public static string ProjectRoot => Directory.GetParent(Application.dataPath).FullName;
 
     public string ResolvedBhlProjPath => Path.GetFullPath(Path.Combine(ProjectRoot, bhlProjPath));
+
+    static IncludePath _moduleMap;
+
+    //NOTE: module->file mapping (e.g. for a DAP client's "jump to source") - kept in
+    //      sync automatically by EditorCompiler.LoadProjectConf. Reached from scripting's
+    //      Runtime-visible BHLConfig via reflection, since a Runtime asmdef can't take a
+    //      compile-time reference to this Editor-only one.
+    public static void ConfigureModuleMap(IncludePath inc_path) => _moduleMap = inc_path;
+
+    public static bool TryMapModuleToFile(string module, out string file)
+    {
+      file = _moduleMap?.TryIncludePaths(module);
+      return file != null;
+    }
   }
 
 }

@@ -222,21 +222,6 @@ namespace UnityBHL
       }
     }
 
-#if UNITY_EDITOR
-    static IncludePath _moduleMap;
-
-    //NOTE: Editor-only module->file mapping (e.g. for a DAP client's "jump to source") -
-    //      EditorCompiler.LoadProjectConf keeps this in sync with the resolved bhl.proj
-    //      automatically. Not needed in an actual Player build, so it isn't exposed there.
-    public static void ConfigureModuleMap(IncludePath inc_path) => _moduleMap = inc_path;
-
-    public static bool TryMapModuleToFile(string module, out string file)
-    {
-      file = _moduleMap?.TryIncludePaths(module);
-      return file != null;
-    }
-#endif
-
     //NOTE: one DAP server per VM - ConditionalWeakTable so a torn-down VM's session is
     //      collected along with it rather than leaking
     static readonly ConditionalWeakTable<VM, DebugSession> _debugSessions = new ConditionalWeakTable<VM, DebugSession>();
