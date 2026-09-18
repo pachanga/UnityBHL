@@ -150,7 +150,7 @@ namespace UnityBHL
       EditorGUILayout.Space();
 
       var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
-      EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars", envVarsProp.tooltip), true);
+      EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars"), true);
       if(envVarsProp.isExpanded)
       {
         EditorGUI.indentLevel++;
