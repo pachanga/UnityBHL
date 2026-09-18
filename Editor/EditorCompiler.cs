@@ -65,8 +65,6 @@ namespace UnityBHL
       conf.files = BuildUtils.NormalizeFilePaths(files);
       //NOTE: proj.bindings is the source of truth, not "everything self-registered"
       conf.bindings = proj.LoadBindings();
-      //NOTE: was previously never set here, silently ignoring bhl.proj's postproc_dll -
-      //      LoadPostprocessor() itself falls back to EmptyPostProcessor when unset
       conf.postproc = proj.LoadPostprocessor();
       conf.ts = new Types();
       //NOTE: always on - every BHL compile happens in the Editor, and hot-reload
