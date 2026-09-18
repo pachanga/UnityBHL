@@ -98,7 +98,6 @@ namespace UnityBHL
         }
 
         DrawPathArray("Script sources", _cachedSrcDirs, "No src_dirs configured in bhl.proj.", Directory.Exists);
-        DrawPathArray("Postproc sources", _cachedPostprocSources, "No postproc_sources configured in bhl.proj.", File.Exists);
       }
       else
       {
@@ -138,6 +137,8 @@ namespace UnityBHL
         EditorGUILayout.HelpBox(envVarsProp.tooltip, MessageType.Info);
         EditorGUI.indentLevel--;
       }
+
+      DrawPathArray("Postproc sources", _cachedPostprocSources, "No postproc_sources configured in bhl.proj.", File.Exists);
 
       var asmdefDirProp = serializedObject.FindProperty(nameof(Settings.postprocAsmdefDir));
       EditorGUILayout.BeginHorizontal();
