@@ -54,14 +54,19 @@ namespace UnityBHL
 
       using(new EditorGUI.DisabledScope(_pendingCompile != null))
       {
-        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Hot Recompile"))
+        var hotContent = new GUIContent(
+          _pendingCompile != null ? "Compiling..." : "Hot Recompile",
+          "Incremental compile - a no-op (\"BHL no stale files detected\") if nothing in " +
+          "src_dirs/bhl.proj/self changed since the last successful compile. Unchanged " +
+          "individual files are also served from cache, skipping postproc for them.");
+        if(GUILayout.Button(hotContent))
           Recompile();
 
-        //NOTE: Recompile() alone is a no-op ("BHL no stale files detected") if nothing
-        //      in src_dirs/bhl.proj/self changed since the last successful compile -
-        //      this bypasses that (and per-file caching too, both gated by use_cache)
-        //      to force every file through the pipeline, postproc included
-        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Force Recompile", GUILayout.Width(120)))
+        var forceContent = new GUIContent(
+          _pendingCompile != null ? "Compiling..." : "Force Recompile",
+          "Bypasses both cache checks above (proj.use_cache = false) - every file goes " +
+          "through the full pipeline, postproc included, regardless of what changed.");
+        if(GUILayout.Button(forceContent, GUILayout.Width(120)))
           Recompile(force: true);
       }
 
