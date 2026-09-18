@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -133,30 +134,50 @@ namespace UnityBHL
       return Compile(proj);
     }
 
-    //NOTE: blocking call sites (main thread) get a simple shown/cleared bar - only
-    //      ControlPanel's Recompile button runs the compile off-thread and animates one
-    public static byte[] CompileAllWithProgressBar() => WithProgressBar(CompileAll);
+    //NOTE: resolves proj on the calling (main) thread first - see LoadProjectConf's own
+    //      note on why (Settings.Instance's first Resources.Load must not happen off it)
+    //      - then hands only the actual compile to WithProgressBar, which runs it via
+    //      Task.Run so the progress bar can keep refreshing with live output meanwhile
+    public static byte[] CompileAllWithProgressBar()
+    {
+      var proj = LoadProjectConf();
+      return WithProgressBar(() => Compile(proj));
+    }
 
     public static byte[] CompileWithProgressBar(ProjectConf proj) => WithProgressBar(() => Compile(proj));
 
+    //NOTE: runs compile() via Task.Run and polls it from here (main thread) so the
+    //      progress bar can keep refreshing with the compiler's latest log line
+    //      (UnityConsoleLogger.LastLine) instead of freezing on "Compiling..." for the
+    //      whole (possibly long) compile, the way a single blocking call would
     static byte[] WithProgressBar(Func<byte[]> compile)
     {
-      EditorUtility.DisplayProgressBar("BHL", "Compiling...", 0f);
+      var task = Task.Run(compile);
+      var start = EditorApplication.timeSinceStartup;
       try
       {
-        var bytes = compile();
-        BHLErrorWindow.HideIfNoErrors();
-        return bytes;
+        while(!task.IsCompleted)
+        {
+          var t = (float)(EditorApplication.timeSinceStartup - start);
+          EditorUtility.DisplayProgressBar("BHL", UnityConsoleLogger.LastLine, Mathf.PingPong(t, 1f));
+          Thread.Sleep(50);
+        }
       }
       finally
       {
         EditorUtility.ClearProgressBar();
       }
+
+      if(task.IsFaulted)
+        throw task.Exception.InnerException ?? task.Exception;
+
+      BHLErrorWindow.HideIfNoErrors();
+      return task.Result;
     }
 
     //NOTE: matches the Control Panel's plain "Recompile" button - incremental, respects
     //      bhl's own compile cache. Also bakes if bakedBundlePath is set (the default).
-    [MenuItem("BHL/Recompile")]
+    [MenuItem("BHL/Recompile", priority = 2)]
     public static void Recompile()
     {
       var bytes = CompileOrThrow("recompile", CompileAllWithProgressBar);
@@ -167,7 +188,7 @@ namespace UnityBHL
     //NOTE: matches the Control Panel's "Force Recompile" button - bypasses bhl's compile
     //      cache (use_cache = false) without wiping tmp_dir, unlike Rebuild/RebuildAll
     //      below. Also bakes if bakedBundlePath is set (the default).
-    [MenuItem("BHL/Force Recompile")]
+    [MenuItem("BHL/Force Recompile", priority = 3)]
     public static void ForceRecompile()
     {
       var proj = LoadProjectConf();
@@ -185,7 +206,13 @@ namespace UnityBHL
     //      its own method (rather than folded into Recompile) for that BC
     public static void Rebuild()
     {
-      var bytes = CompileOrThrow("rebuild", () => WithProgressBar(RebuildAll));
+      var proj = LoadProjectConf();
+      proj.use_cache = false;
+
+      if(Directory.Exists(proj.tmp_dir))
+        Directory.Delete(proj.tmp_dir, recursive: true);
+
+      var bytes = CompileOrThrow("rebuild", () => WithProgressBar(() => Compile(proj)));
       if(!string.IsNullOrEmpty(Settings.Instance.bakedBundlePath))
         WriteBakedBundle(bytes);
     }

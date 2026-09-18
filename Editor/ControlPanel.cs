@@ -17,7 +17,7 @@ namespace UnityBHL
     static Task<byte[]> _pendingCompile;
     static double _compileStartTime;
 
-    [MenuItem("BHL/Control Panel")]
+    [MenuItem("BHL/Control Panel", priority = 1)]
     static void Open() => GetWindow<ControlPanel>("BHL Control Panel");
 
     void OnInspectorUpdate() => Repaint();

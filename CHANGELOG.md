@@ -92,6 +92,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   underlying `Rebuild`/`RebuildAll`).
 
 ### Changed
+- `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
+  compiler's latest log line, `UnityConsoleLogger.LastLine`, plus a sweeping percentage)
+  instead of a static "Compiling..." bar for the whole compile -
+  `EditorCompiler.WithProgressBar` now runs the compile via `Task.Run` and polls it from
+  the calling thread instead of blocking on it directly. `CompileWithProgressBar`
+  (used by Play Mode entry) benefits too, since it shares the same helper.
+- Explicit menu priorities (`BHL/Control Panel` < `BHL/Recompile` < `BHL/Force
+  Recompile`) so they always appear in that order - Unity's default alphabetical
+  sort put "Force Recompile" above "Recompile".
 - Settings Inspector: Debug Port moved to the top, ahead of `bhl.proj` path.
 - Control Panel's "Hot Recompile" renamed to "Recompile", and it (and "Force
   Recompile") now also bake to `bakedBundlePath` if it's set, matching `BHL/Recompile`'s
