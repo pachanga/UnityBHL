@@ -98,6 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BHL/Rebuild and Bake` menu item renamed to `BHL/Recompile`, for consistency with the
   Control Panel button - the underlying `EditorCompiler.Rebuild` method name (and its
   `-executeMethod` entry point) is unchanged for BC.
+- Control Panel: "Auto On File Changes" renamed to "Auto Recompile On File Changes" and
+  moved inside the "Settings" foldout.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously
