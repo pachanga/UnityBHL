@@ -161,7 +161,7 @@ namespace UnityBHL
       var asmdefDirProp = serializedObject.FindProperty(nameof(Settings.postprocAsmdefDir));
       EditorGUILayout.BeginHorizontal();
       EditorGUILayout.PropertyField(asmdefDirProp, new GUIContent("Postproc Asmdef Dir", asmdefDirProp.tooltip));
-      if(GUILayout.Button("Clear", GUILayout.Width(50)))
+      if(GUILayout.Button("Clear Contents", GUILayout.Width(100)))
         PostprocBridge.Clear((Settings)target);
       EditorGUILayout.EndHorizontal();
 
