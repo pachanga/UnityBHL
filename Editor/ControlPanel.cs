@@ -56,6 +56,13 @@ namespace UnityBHL
       {
         if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Hot Recompile"))
           Recompile();
+
+        //NOTE: Recompile() alone is a no-op ("BHL no stale files detected") if nothing
+        //      in src_dirs/bhl.proj/self changed since the last successful compile -
+        //      this bypasses that (and per-file caching too, both gated by use_cache)
+        //      to force every file through the pipeline, postproc included
+        if(GUILayout.Button(_pendingCompile != null ? "Compiling..." : "Force Recompile", GUILayout.Width(120)))
+          Recompile(force: true);
       }
 
       EditorGUILayout.EndHorizontal();
@@ -258,7 +265,7 @@ namespace UnityBHL
       public int AvgRegions => Count > 0 ? _regionSum / Count : 0;
     }
 
-    public static void Recompile()
+    public static void Recompile(bool force = false)
     {
       if(_pendingCompile != null)
         return;
@@ -266,6 +273,8 @@ namespace UnityBHL
       //NOTE: resolved on the main thread - Settings.Instance does a Resources.Load,
       //      which throws if it's first touched from the background task below
       var proj = EditorCompiler.LoadProjectConf();
+      if(force)
+        proj.use_cache = false;
 
       _compileStartTime = EditorApplication.timeSinceStartup;
       _pendingCompile = Task.Run(() => EditorCompiler.Compile(proj));

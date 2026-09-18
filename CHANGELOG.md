@@ -74,6 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   times `Patch()` was actually called each compile (via `Tally()`) - a count of 0 with
   unchanged `.bhl` files usually means every file hit the compile cache
   (`ProjectConf.use_cache`), since `Patch()` only runs for files actually recompiled.
+- Control Panel: "Force Recompile" next to "Hot Recompile" - the latter is a silent
+  no-op ("BHL no stale files detected") if nothing in `src_dirs`/`bhl.proj`/self changed
+  since the last successful compile, since `bhl`'s own top-level cache check (and the
+  per-file one) short-circuits before the pipeline (postproc included) ever runs. Force
+  Recompile sets `proj.use_cache = false` first, bypassing both.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously
