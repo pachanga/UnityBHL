@@ -90,6 +90,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Settings Inspector: Debug Port moved to the top, ahead of `bhl.proj` path.
+- Control Panel's "Hot Recompile" renamed to "Recompile", and it (and "Force
+  Recompile") now also bake to `bakedBundlePath` if it's set, matching `BHL/Recompile`'s
+  own behavior - the baked asset no longer silently drifts from what's running
+  in-memory. `EditorCompiler.WriteBakedBundle` is now `internal` so the Control Panel
+  can call it.
+- `BHL/Rebuild and Bake` menu item renamed to `BHL/Recompile`, for consistency with the
+  Control Panel button - the underlying `EditorCompiler.Rebuild` method name (and its
+  `-executeMethod` entry point) is unchanged for BC.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

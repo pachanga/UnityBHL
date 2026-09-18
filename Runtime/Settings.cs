@@ -29,7 +29,7 @@ namespace UnityBHL
              "Can point outside the project (e.g. \"../shared/BHL/bhl.proj\").")]
     public string bhlProjPath = "Assets/BHL/bhl.proj";
 
-    [Tooltip("Where BHL/Rebuild and Bake writes baked bytecode. Must be inside a " +
+    [Tooltip("Where BHL/Recompile writes baked bytecode. Must be inside a " +
              "Resources folder.")]
     public string bakedBundlePath = "Assets/Resources/bhl.bytes";
 

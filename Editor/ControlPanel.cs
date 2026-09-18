@@ -54,12 +54,12 @@ namespace UnityBHL
 
       using(new EditorGUI.DisabledScope(_pendingCompile != null))
       {
-        var hotContent = new GUIContent(
-          _pendingCompile != null ? "Compiling..." : "Hot Recompile",
+        var recompileContent = new GUIContent(
+          _pendingCompile != null ? "Compiling..." : "Recompile",
           "Incremental compile - a no-op (\"BHL no stale files detected\") if nothing in " +
           "src_dirs/bhl.proj/self changed since the last successful compile. Unchanged " +
           "individual files are also served from cache, skipping postproc for them.");
-        if(GUILayout.Button(hotContent))
+        if(GUILayout.Button(recompileContent))
           Recompile();
 
         var forceContent = new GUIContent(
@@ -323,6 +323,11 @@ namespace UnityBHL
       //NOTE: always applied, even in Edit Mode with no VM yet - SetBytecode creates one
       //      if needed, so clicking this always does something observable
       BHL.SetBytecode(task.Result);
+
+      //NOTE: matches BHL/Recompile's own "bake if bakedBundlePath is set" behavior, so
+      //      the baked asset doesn't silently drift from what's now running in-memory
+      if(!string.IsNullOrEmpty(Settings.Instance.bakedBundlePath))
+        EditorCompiler.WriteBakedBundle(task.Result);
 
       BHLErrorWindow.HideIfNoErrors();
     }

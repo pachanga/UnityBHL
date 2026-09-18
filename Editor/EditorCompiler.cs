@@ -157,7 +157,8 @@ namespace UnityBHL
     //NOTE: also bakes if bakedBundlePath is set (the default) - a CI/PR check that wants
     //      pure validation without touching that tracked asset can clear the path first.
     //      Also callable via `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild`
-    [MenuItem("BHL/Rebuild and Bake")]
+    //      (kept as-is for BC - only the menu label changed)
+    [MenuItem("BHL/Recompile")]
     public static void Rebuild()
     {
       var bytes = CompileOrThrow("rebuild", () => WithProgressBar(RebuildAll));
@@ -225,7 +226,7 @@ namespace UnityBHL
       }
     }
 
-    static void WriteBakedBundle(byte[] bytes)
+    internal static void WriteBakedBundle(byte[] bytes)
     {
       var bundle_path = Settings.Instance.bakedBundlePath;
 

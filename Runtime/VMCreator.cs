@@ -43,7 +43,7 @@ namespace UnityBHL
         {
           throw new Exception(
             $"No baked BHL bytecode found at Resources/{path}.bytes - " +
-            "run 'BHL/Rebuild and Bake' in the Editor before building"
+            "run 'BHL/Recompile' in the Editor before building"
           );
         }
         return new MemoryStream(asset.bytes);
