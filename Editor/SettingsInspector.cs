@@ -114,21 +114,6 @@ namespace UnityBHL
 
       serializedObject.Update();
 
-      var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
-      var bakedBundlePathRect = EditorGUILayout.GetControlRect();
-      EditorGUI.PropertyField(bakedBundlePathRect, bakedBundlePathProp, new GUIContent("Result Path", bakedBundlePathProp.tooltip));
-      if(string.IsNullOrEmpty(bakedBundlePathProp.stringValue) && Event.current.type == EventType.Repaint)
-      {
-        var fieldRect = EditorGUI.IndentedRect(bakedBundlePathRect);
-        fieldRect.xMin += EditorGUIUtility.labelWidth;
-        var prevColor = GUI.color;
-        GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, 0.4f);
-        GUI.Label(fieldRect, "not set - bhl.proj's result_file is ignored in the Editor");
-        GUI.color = prevColor;
-      }
-
-      EditorGUILayout.Space();
-
       var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
       EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars"), true);
       if(envVarsProp.isExpanded)
@@ -149,6 +134,21 @@ namespace UnityBHL
 
       var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
       EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Recompile On Play", forceOnPlayProp.tooltip));
+
+      EditorGUILayout.Space();
+
+      var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
+      var bakedBundlePathRect = EditorGUILayout.GetControlRect();
+      EditorGUI.PropertyField(bakedBundlePathRect, bakedBundlePathProp, new GUIContent("Result Path", bakedBundlePathProp.tooltip));
+      if(string.IsNullOrEmpty(bakedBundlePathProp.stringValue) && Event.current.type == EventType.Repaint)
+      {
+        var fieldRect = EditorGUI.IndentedRect(bakedBundlePathRect);
+        fieldRect.xMin += EditorGUIUtility.labelWidth;
+        var prevColor = GUI.color;
+        GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, 0.4f);
+        GUI.Label(fieldRect, "not set - bhl.proj's result_file is ignored in the Editor");
+        GUI.color = prevColor;
+      }
 
       serializedObject.ApplyModifiedProperties();
     }
