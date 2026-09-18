@@ -129,6 +129,9 @@ namespace UnityBHL
       var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
       EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars", envVarsProp.tooltip), true);
 
+      var asmdefDirProp = serializedObject.FindProperty(nameof(Settings.postprocAsmdefDir));
+      EditorGUILayout.PropertyField(asmdefDirProp, new GUIContent("Postproc Asmdef Dir", asmdefDirProp.tooltip));
+
       serializedObject.ApplyModifiedProperties();
     }
 

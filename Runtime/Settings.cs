@@ -42,6 +42,10 @@ namespace UnityBHL
              "A value can reference $(DATA_PATH), replaced with Application.dataPath.")]
     public List<EnvVarEntry> postprocEnvVars = new List<EnvVarEntry>();
 
+    [Tooltip("Where PostprocBridge generates the asmdef that mirrors postproc_sources, " +
+             "so Unity compiles them itself. Must be under Assets/.")]
+    public string postprocAsmdefDir = "Assets/BHL/Generated/Postproc";
+
     const string ResourceName = "BHLSettings";
 
     static Settings _instance;

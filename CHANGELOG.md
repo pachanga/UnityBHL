@@ -79,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   since the last successful compile, since `bhl`'s own top-level cache check (and the
   per-file one) short-circuits before the pipeline (postproc included) ever runs. Force
   Recompile sets `proj.use_cache = false` first, bypassing both.
+- `Settings.postprocAsmdefDir`: where `PostprocBridge` generates the postproc asmdef,
+  previously hardcoded to `Assets/BHL/Generated/Postproc` (still the default). Editable
+  from the Settings Inspector/Control Panel.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

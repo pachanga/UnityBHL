@@ -43,7 +43,7 @@ namespace UnityBHL
       proj.result_file = BHL.LastEditorCompilePath;
 
       ApplyPostprocEnvVars(settings);
-      PostprocBridge.Sync(proj);
+      PostprocBridge.Sync(proj, settings);
 
       return proj;
     }

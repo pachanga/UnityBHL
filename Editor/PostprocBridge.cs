@@ -17,27 +17,29 @@ namespace UnityBHL
   //      by name among already-loaded ones, instead of scanning all of them
   public static class PostprocBridge
   {
-    const string GeneratedDir = "Assets/BHL/Generated/Postproc";
-
-    public static void Sync(ProjectConf proj)
+    public static void Sync(ProjectConf proj, Settings settings)
     {
+      var generatedDir = string.IsNullOrEmpty(settings.postprocAsmdefDir)
+        ? "Assets/BHL/Generated/Postproc"
+        : settings.postprocAsmdefDir;
+
       var sources = proj.postproc_sources.Where(f => f.EndsWith(".cs")).ToList();
       var asmName = Path.GetFileNameWithoutExtension(proj.postproc_dll);
 
       if(sources.Count == 0 || string.IsNullOrEmpty(asmName))
       {
-        if(Directory.Exists(GeneratedDir))
+        if(Directory.Exists(generatedDir))
         {
           Debug.Log("[BHL] postproc: no postproc_sources/postproc_dll configured - removing generated asmdef");
-          Directory.Delete(GeneratedDir, recursive: true);
-          if(File.Exists(GeneratedDir + ".meta"))
-            File.Delete(GeneratedDir + ".meta");
+          Directory.Delete(generatedDir, recursive: true);
+          if(File.Exists(generatedDir + ".meta"))
+            File.Delete(generatedDir + ".meta");
           AssetDatabase.Refresh();
         }
         return;
       }
 
-      Directory.CreateDirectory(GeneratedDir);
+      Directory.CreateDirectory(generatedDir);
 
       var changed = false;
       var wanted = new HashSet<string>();
@@ -47,7 +49,7 @@ namespace UnityBHL
         var file_name = Path.GetFileName(src);
         wanted.Add(file_name);
 
-        var dst = Path.Combine(GeneratedDir, file_name);
+        var dst = Path.Combine(generatedDir, file_name);
         var content = File.ReadAllText(src);
         if(!File.Exists(dst) || File.ReadAllText(dst) != content)
         {
@@ -56,7 +58,7 @@ namespace UnityBHL
         }
       }
 
-      foreach(var existing in Directory.GetFiles(GeneratedDir, "*.cs"))
+      foreach(var existing in Directory.GetFiles(generatedDir, "*.cs"))
       {
         if(wanted.Contains(Path.GetFileName(existing)))
           continue;
@@ -70,8 +72,8 @@ namespace UnityBHL
       //NOTE: named after postproc_dll (not a fixed name), and any stale asmdef left
       //      over from a previous, differently-named postproc_dll is removed - only one
       //      is ever expected to exist here
-      var asmdefPath = Path.Combine(GeneratedDir, asmName + ".asmdef");
-      foreach(var existing in Directory.GetFiles(GeneratedDir, "*.asmdef"))
+      var asmdefPath = Path.Combine(generatedDir, asmName + ".asmdef");
+      foreach(var existing in Directory.GetFiles(generatedDir, "*.asmdef"))
       {
         if(existing == asmdefPath)
           continue;
@@ -93,7 +95,7 @@ namespace UnityBHL
       //      lets postproc_sources' own code tell "am I compiled as part of a postproc
       //      build" apart from "am I outside Unity" - the same symbol is also defined
       //      for the CLI-built postproc_dll (see bhl's BuildPostprocDll)
-      var rspPath = Path.Combine(GeneratedDir, "csc.rsp");
+      var rspPath = Path.Combine(generatedDir, "csc.rsp");
       const string rspContent = "-define:BHL_POSTPROC";
       if(!File.Exists(rspPath) || File.ReadAllText(rspPath) != rspContent)
       {
