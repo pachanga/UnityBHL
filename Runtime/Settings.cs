@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 #if UNITY_EDITOR
@@ -7,6 +8,15 @@ using bhl;
 
 namespace UnityBHL
 {
+
+  //NOTE: a plain name/value pair, not a Dictionary - Unity can't serialize/draw
+  //      Dictionary fields in the Inspector
+  [Serializable]
+  public class EnvVarEntry
+  {
+    public string name = "";
+    public string value = "";
+  }
 
   //NOTE: BhlProj parses lazily on first access (Editor-only - bhl.ProjectConf itself
   //      can't be used outside UNITY_EDITOR/BHL_PARSER), so it's available even if
@@ -25,6 +35,11 @@ namespace UnityBHL
 
     [Tooltip("TCP port the BHL DAP debug server listens on")]
     public int debugPort = 7777;
+
+    [Tooltip("Environment variables set before every Editor compile, for postproc_sources " +
+             "code that reads them (e.g. a CLI/CI build's own GAME_ROOT-style env vars, " +
+             "otherwise only set externally for that build, never inside the Editor)")]
+    public List<EnvVarEntry> postprocEnvVars = new List<EnvVarEntry>();
 
     const string ResourceName = "BHLSettings";
 

@@ -60,6 +60,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   field for a custom `#define`) - the same symbol bhl's CLI build defines for
   `postproc_dll`, so `postproc_sources`' own code can tell "am I part of a postproc
   build" apart from "am I outside Unity".
+- `Settings.postprocEnvVars`: a list of name/value pairs, set via
+  `Environment.SetEnvironmentVariable` before every Editor compile - for
+  `postproc_sources` code that reads environment variables a CLI/CI build sets
+  externally (e.g. a project root path), which otherwise wouldn't exist inside the
+  Editor process. Editable from the Settings Inspector and the Control Panel (which
+  embeds it), re-applied on every compile so an edit takes effect without a domain
+  reload.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

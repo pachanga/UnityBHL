@@ -42,9 +42,22 @@ namespace UnityBHL
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
 
+      ApplyPostprocEnvVars(settings);
       PostprocBridge.Sync(proj);
 
       return proj;
+    }
+
+    //NOTE: set before every compile (not just once) so an edit to Settings.postprocEnvVars
+    //      takes effect without needing a domain reload - env vars persist for the whole
+    //      process once set, so re-setting the same value again is harmless
+    static void ApplyPostprocEnvVars(Settings settings)
+    {
+      foreach(var entry in settings.postprocEnvVars)
+      {
+        if(!string.IsNullOrEmpty(entry.name))
+          Environment.SetEnvironmentVariable(entry.name, entry.value);
+      }
     }
 
     //NOTE: no UnityEditor UI calls in here - callers may run this on a background

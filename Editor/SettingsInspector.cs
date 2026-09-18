@@ -124,6 +124,11 @@ namespace UnityBHL
       var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
       EditorGUILayout.PropertyField(debugPortProp, new GUIContent("Debug Port", debugPortProp.tooltip));
 
+      EditorGUILayout.Space();
+
+      var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
+      EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars", envVarsProp.tooltip), true);
+
       serializedObject.ApplyModifiedProperties();
     }
 
