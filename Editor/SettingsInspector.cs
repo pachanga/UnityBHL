@@ -141,7 +141,7 @@ namespace UnityBHL
         fieldRect.xMin += EditorGUIUtility.labelWidth;
         var prevColor = GUI.color;
         GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, 0.4f);
-        GUI.Label(fieldRect, "not set - no baked bytecode for Player builds");
+        GUI.Label(fieldRect, "not set - bhl.proj's result_file is ignored in the Editor");
         GUI.color = prevColor;
       }
 
