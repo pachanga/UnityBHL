@@ -106,7 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Path", briefly "Result Asset Path"), with a tooltip clarifying it's unrelated to
   `bhl.proj`'s own `result_file` - that's never used in the Editor (compiles always go
   to `Library/BHL`, so other tools sharing the same `bhl.proj`, e.g. a CLI/CI build,
-  aren't affected by Editor compiles).
+  aren't affected by Editor compiles). When empty, a faint inline hint ("not set - no
+  baked bytecode for Player builds") shows directly inside the field.
 - Settings Inspector: "Script sources" now lists `src_dirs` on one line (`, `-separated)
   instead of one per line, still color-coded per entry (green exists / red missing).
 
