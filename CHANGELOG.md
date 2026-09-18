@@ -136,7 +136,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aren't affected by Editor compiles). When empty, a faint inline hint ("not set -
   bhl.proj's result_file is ignored in the Editor") shows directly inside the field.
 - Settings Inspector: "Script sources" now lists `src_dirs` on one line (`, `-separated)
-  instead of one per line, still color-coded per entry (green exists / red missing).
+  instead of one per line, still color-coded per entry (green exists / red missing),
+  drawn as an array literal (`[a, b, ...]`). A new "Postproc sources" list shows
+  `postproc_sources` the same way (color-coded by `File.Exists` instead of
+  `Directory.Exists`) - both now share a `DrawPathArray` helper.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

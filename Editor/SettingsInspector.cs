@@ -20,6 +20,7 @@ namespace UnityBHL
     string _lastValidatedText;
     string _lastValidationError;
     List<string> _cachedSrcDirs;
+    List<string> _cachedPostprocSources;
     Vector2 _projContentsScroll;
 
     public override void OnInspectorGUI()
@@ -96,28 +97,8 @@ namespace UnityBHL
           EditorGUILayout.EndHorizontal();
         }
 
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Script sources", EditorStyles.boldLabel);
-        if(_cachedSrcDirs.Count == 0)
-          EditorGUILayout.HelpBox("No src_dirs configured in bhl.proj.", MessageType.Warning);
-        else
-        {
-          EditorGUILayout.BeginHorizontal();
-          GUILayout.Label("[", GUILayout.ExpandWidth(false));
-          for(int i = 0; i < _cachedSrcDirs.Count; ++i)
-          {
-            var src_dir = _cachedSrcDirs[i];
-            var dir_prev = GUI.color;
-            GUI.color = Directory.Exists(src_dir) ? Color.green : Color.red;
-            GUILayout.Label(src_dir, GUILayout.ExpandWidth(false));
-            GUI.color = dir_prev;
-
-            if(i < _cachedSrcDirs.Count - 1)
-              GUILayout.Label(", ", GUILayout.ExpandWidth(false));
-          }
-          GUILayout.Label("]", GUILayout.ExpandWidth(false));
-          EditorGUILayout.EndHorizontal();
-        }
+        DrawPathArray("Script sources", _cachedSrcDirs, "No src_dirs configured in bhl.proj.", Directory.Exists);
+        DrawPathArray("Postproc sources", _cachedPostprocSources, "No postproc_sources configured in bhl.proj.", File.Exists);
       }
       else
       {
@@ -222,7 +203,8 @@ namespace UnityBHL
       _cachedProjContents = File.ReadAllText(resolved);
       _editBuffer = _cachedProjContents;
       _loadedWriteTimeUtc = File.GetLastWriteTimeUtc(resolved);
-      _cachedSrcDirs = TryParseSrcDirs(resolved);
+      _cachedSrcDirs = TryParseProjList(resolved, p => p.src_dirs);
+      _cachedPostprocSources = TryParseProjList(resolved, p => p.postproc_sources);
     }
 
     void SaveProj(string resolved)
@@ -256,19 +238,48 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: src_dirs come back normalized (relative ones resolved against the proj file's
-    //      own directory) by ProjectConf.Setup() - swallow parse errors since this only
-    //      feeds an informational display, not the actual compile
-    static List<string> TryParseSrcDirs(string proj_path)
+    //NOTE: list fields come back normalized (relative paths resolved against the proj
+    //      file's own directory) by ProjectConf.Setup() - swallow parse errors since this
+    //      only feeds an informational display, not the actual compile
+    static List<string> TryParseProjList(string proj_path, Func<ProjectConf, List<string>> select)
     {
       try
       {
-        return ProjectConf.ReadFromFile(proj_path).src_dirs;
+        return select(ProjectConf.ReadFromFile(proj_path));
       }
       catch
       {
         return new List<string>();
       }
+    }
+
+    //NOTE: shows an array-literal-style list ([a, b, ...]), each entry colored green if
+    //      it exists on disk (per the given check) or red otherwise
+    static void DrawPathArray(string label, List<string> paths, string emptyMessage, Func<string, bool> exists)
+    {
+      EditorGUILayout.Space();
+      EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+      if(paths.Count == 0)
+      {
+        EditorGUILayout.HelpBox(emptyMessage, MessageType.Warning);
+        return;
+      }
+
+      EditorGUILayout.BeginHorizontal();
+      GUILayout.Label("[", GUILayout.ExpandWidth(false));
+      for(int i = 0; i < paths.Count; ++i)
+      {
+        var path = paths[i];
+        var prev = GUI.color;
+        GUI.color = exists(path) ? Color.green : Color.red;
+        GUILayout.Label(path, GUILayout.ExpandWidth(false));
+        GUI.color = prev;
+
+        if(i < paths.Count - 1)
+          GUILayout.Label(", ", GUILayout.ExpandWidth(false));
+      }
+      GUILayout.Label("]", GUILayout.ExpandWidth(false));
+      EditorGUILayout.EndHorizontal();
     }
 
     static string ToRelativeUnixPath(string from_dir, string to_path)
