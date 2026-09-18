@@ -104,6 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "register bindings" -> 0, "parse" -> 1, "compile" -> 2, "postproc" -> 3, "all done" ->
   4, out of `ProgressStepCount` = 4), replacing the earlier back-and-forth sweep - a line
   matching none of those (e.g. "BHL cache blob write") keeps the last detected step.
+- Control Panel's own inline compile-progress bar, and its modal fallback for when the
+  window isn't open, now use the same step-based progress (`EditorCompiler.
+  NextProgressStep`/`ProgressStepCount`, both now `internal`) instead of a
+  `Mathf.PingPong` sweep - `_compileStep` and `UnityConsoleLogger.LastLine` are reset
+  when a new Recompile/Force Recompile starts, for the same reason as above.
 - Explicit menu priorities (`BHL/Control Panel` < `BHL/Recompile` < `BHL/Force
   Recompile`) so they always appear in that order - Unity's default alphabetical
   sort put "Force Recompile" above "Recompile".

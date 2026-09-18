@@ -15,7 +15,7 @@ namespace UnityBHL
     Editor _settingsEditor;
 
     static Task<byte[]> _pendingCompile;
-    static double _compileStartTime;
+    static int _compileStep;
 
     [MenuItem("BHL/Control Panel", priority = 1)]
     static void Open() => GetWindow<ControlPanel>("BHL Control Panel");
@@ -90,16 +90,17 @@ namespace UnityBHL
       EditorGUILayout.EndScrollView();
     }
 
-    //NOTE: same sweep-based bar as the modal PollCompile used to show, just inline -
-    //      OnInspectorUpdate's periodic Repaint keeps it animating without extra work
+    //NOTE: same step-based progress PollCompile's modal fallback shows, just inline -
+    //      OnInspectorUpdate's periodic Repaint keeps it updating without extra work
     void DrawCompileProgress()
     {
       if(_pendingCompile == null)
         return;
 
-      var t = (float)(EditorApplication.timeSinceStartup - _compileStartTime);
+      var line = UnityConsoleLogger.LastLine;
+      _compileStep = EditorCompiler.NextProgressStep(line, _compileStep);
       var rect = GUILayoutUtility.GetRect(18, 18, GUILayout.ExpandWidth(true));
-      EditorGUI.ProgressBar(rect, Mathf.PingPong(t, 1f), UnityConsoleLogger.LastLine);
+      EditorGUI.ProgressBar(rect, _compileStep / (float)EditorCompiler.ProgressStepCount, line);
     }
 
     //NOTE: same per-error format as BHLErrorWindow (shared via DrawErrorsList), so an
@@ -284,16 +285,19 @@ namespace UnityBHL
       if(force)
         proj.use_cache = false;
 
-      _compileStartTime = EditorApplication.timeSinceStartup;
+      //NOTE: both are static and outlive a single compile - reset them first, otherwise
+      //      the bar's first frame(s) show stale state left over from the last compile
+      UnityConsoleLogger.LastLine = "Compiling...";
+      _compileStep = 0;
+
       _pendingCompile = Task.Run(() => EditorCompiler.Compile(proj));
       EditorApplication.update += PollCompile;
     }
 
-    //NOTE: no real percentage is available (see EditorCompiler.Compile), so the bar
-    //      just sweeps back and forth while showing the compiler's latest log line.
-    //      Skipped (and cleared, in case it was already showing) while the Control
-    //      Panel is open - it renders the same progress inline instead, so the modal
-    //      dialog would otherwise flicker in and out alongside it every poll tick.
+    //NOTE: shows the same step-based progress DrawCompileProgress does inline, for when
+    //      the Control Panel window isn't open. Skipped (and cleared, in case it was
+    //      already showing) while it is open - it renders progress inline instead, so
+    //      the modal dialog would otherwise flicker in and out alongside it every poll tick.
     static void PollCompile()
     {
       if(!_pendingCompile.IsCompleted)
@@ -302,8 +306,9 @@ namespace UnityBHL
           EditorUtility.ClearProgressBar();
         else
         {
-          float t = (float)(EditorApplication.timeSinceStartup - _compileStartTime);
-          EditorUtility.DisplayProgressBar("BHL", UnityConsoleLogger.LastLine, Mathf.PingPong(t, 1f));
+          var line = UnityConsoleLogger.LastLine;
+          _compileStep = EditorCompiler.NextProgressStep(line, _compileStep);
+          EditorUtility.DisplayProgressBar("BHL", line, _compileStep / (float)EditorCompiler.ProgressStepCount);
         }
         return;
       }

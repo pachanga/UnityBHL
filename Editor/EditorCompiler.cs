@@ -180,7 +180,7 @@ namespace UnityBHL
       return task.Result;
     }
 
-    const int ProgressStepCount = 4;
+    internal const int ProgressStepCount = 4;
 
     //NOTE: maps the compiler's pipeline-stage log lines (see executor.cs's Pipeline
     //      stage names, e.g. "BHL register bindings"/"BHL parse finalize"/"BHL compile
@@ -188,7 +188,7 @@ namespace UnityBHL
     //      the progress bar can show real progress instead of just sweeping back and
     //      forth. A line matching nothing (e.g. "BHL cache blob write", "BHL write to
     //      file") keeps whatever step was last detected, rather than resetting
-    static int NextProgressStep(string line, int currentStep)
+    internal static int NextProgressStep(string line, int currentStep)
     {
       if(string.IsNullOrEmpty(line))
         return currentStep;
