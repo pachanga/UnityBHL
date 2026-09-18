@@ -103,6 +103,7 @@ namespace UnityBHL
         else
         {
           EditorGUILayout.BeginHorizontal();
+          GUILayout.Label("[", GUILayout.ExpandWidth(false));
           for(int i = 0; i < _cachedSrcDirs.Count; ++i)
           {
             var src_dir = _cachedSrcDirs[i];
@@ -114,6 +115,7 @@ namespace UnityBHL
             if(i < _cachedSrcDirs.Count - 1)
               GUILayout.Label(", ", GUILayout.ExpandWidth(false));
           }
+          GUILayout.Label("]", GUILayout.ExpandWidth(false));
           EditorGUILayout.EndHorizontal();
         }
       }
