@@ -154,11 +154,21 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: also bakes if bakedBundlePath is set (the default) - a CI/PR check that wants
-    //      pure validation without touching that tracked asset can clear the path first.
-    //      Also callable via `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild`
-    //      (kept as-is for BC - only the menu label changed)
+    //NOTE: matches the Control Panel's plain "Recompile" button - incremental, respects
+    //      bhl's own compile cache. Also bakes if bakedBundlePath is set (the default).
     [MenuItem("BHL/Recompile")]
+    public static void Recompile()
+    {
+      var bytes = CompileOrThrow("recompile", CompileAllWithProgressBar);
+      if(!string.IsNullOrEmpty(Settings.Instance.bakedBundlePath))
+        WriteBakedBundle(bytes);
+    }
+
+    //NOTE: full, cache-bypassing rebuild (also wipes tmp_dir) - for CI/verifying a clean
+    //      build succeeds, not routine iteration, hence no menu item of its own (see
+    //      Recompile above for that). Callable via
+    //      `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild` - kept as
+    //      its own method (rather than folded into Recompile) for that BC
     public static void Rebuild()
     {
       var bytes = CompileOrThrow("rebuild", () => WithProgressBar(RebuildAll));

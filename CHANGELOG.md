@@ -95,9 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own behavior - the baked asset no longer silently drifts from what's running
   in-memory. `EditorCompiler.WriteBakedBundle` is now `internal` so the Control Panel
   can call it.
-- `BHL/Rebuild and Bake` menu item renamed to `BHL/Recompile`, for consistency with the
-  Control Panel button - the underlying `EditorCompiler.Rebuild` method name (and its
-  `-executeMethod` entry point) is unchanged for BC.
+- `BHL/Rebuild and Bake` menu item renamed to `BHL/Recompile` (later moved onto a new
+  `EditorCompiler.Recompile` method - see Fixed below - since the rename alone left the
+  menu item's actual behavior mismatched with its new name).
 - Control Panel: "Auto On File Changes" renamed to "Auto Recompile On File Changes" and
   moved inside the "Settings" foldout.
 - Recompile/Force Recompile button tooltips now spell out the incremental-vs-always-full
@@ -117,3 +117,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EmptyPostProcessor`. In the Editor this always uses `bhl`'s `AppDomainPostProcessor`
   (see `PostprocBridge` above), not `postproc_dll` directly - only the CLI/headless
   build uses `postproc_dll`.
+- `BHL/Recompile` actually forced a full, cache-bypassing rebuild (`RebuildAll`, wiping
+  `tmp_dir` too) despite its name now matching the Control Panel's plain, incremental
+  "Recompile" button - a leftover from the earlier menu-label-only rename. It now calls
+  a new `EditorCompiler.Recompile` method mirroring the Control Panel button exactly.
+  The old forced-rebuild behavior is preserved as `EditorCompiler.Rebuild` (no menu item
+  of its own now), still reachable via
+  `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild` for CI.
