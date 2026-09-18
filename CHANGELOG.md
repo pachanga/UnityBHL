@@ -145,6 +145,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drawn as an array literal (`[a, b, ...]`). A new "Postproc sources" list shows
   `postproc_sources` the same way (color-coded by `File.Exists` instead of
   `Directory.Exists`) - both now share a `DrawPathArray` helper.
+- `SettingsInspector.OnInspectorGUI` split into `DrawMainFields`/`DrawResultPath`, so the
+  Control Panel's "Recompile On File Changes" toggle can be interleaved between them -
+  it now shows below "Recompile On Play" but above "Result Path".
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

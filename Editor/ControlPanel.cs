@@ -117,6 +117,14 @@ namespace UnityBHL
 
       EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
+      //NOTE: interleaved with SettingsInspector's own drawing (rather than just calling
+      //      its plain OnInspectorGUI()) so this toggle lands below Recompile On Play
+      //      but above Result Path, as requested
+      var settingsInspector = (SettingsInspector)_settingsEditor;
+      settingsInspector.DrawMainFields();
+
+      EditorGUILayout.Space();
+
       bool auto_compile = EditorGUILayout.Toggle(
         new GUIContent("Recompile On File Changes", "Watches bhl.proj's .bhl files and recompiles on change while not in Play Mode"),
         AutoCompileController.Enabled);
@@ -125,7 +133,7 @@ namespace UnityBHL
 
       EditorGUILayout.Space();
 
-      _settingsEditor.OnInspectorGUI();
+      settingsInspector.DrawResultPath();
 
       EditorGUILayout.EndVertical();
     }

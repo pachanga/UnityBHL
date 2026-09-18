@@ -25,6 +25,15 @@ namespace UnityBHL
 
     public override void OnInspectorGUI()
     {
+      DrawMainFields();
+      DrawResultPath();
+    }
+
+    //NOTE: split from Result Path (below) so the Control Panel can interleave its own
+    //      "Recompile On File Changes" toggle between the two - it must show below
+    //      Recompile On Play (drawn here) but above Result Path (see DrawResultPath)
+    public void DrawMainFields()
+    {
       serializedObject.Update();
 
       var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
@@ -135,7 +144,12 @@ namespace UnityBHL
       var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
       EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Recompile On Play", forceOnPlayProp.tooltip));
 
-      EditorGUILayout.Space();
+      serializedObject.ApplyModifiedProperties();
+    }
+
+    public void DrawResultPath()
+    {
+      serializedObject.Update();
 
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
       var bakedBundlePathRect = EditorGUILayout.GetControlRect();
