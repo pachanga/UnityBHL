@@ -87,6 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   incremental compile there needs to guarantee postproc runs on every entry. Off by
   default - unlike a manual Force Recompile click, this cost would otherwise be paid on
   every single Play Mode entry.
+- `BHL/Force Recompile` menu item, matching the Control Panel's "Force Recompile" button
+  (bypasses `bhl`'s compile cache without wiping `tmp_dir`, unlike `BHL/Recompile`'s
+  underlying `Rebuild`/`RebuildAll`).
 
 ### Changed
 - Settings Inspector: Debug Port moved to the top, ahead of `bhl.proj` path.

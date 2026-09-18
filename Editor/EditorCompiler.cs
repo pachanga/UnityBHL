@@ -164,6 +164,20 @@ namespace UnityBHL
         WriteBakedBundle(bytes);
     }
 
+    //NOTE: matches the Control Panel's "Force Recompile" button - bypasses bhl's compile
+    //      cache (use_cache = false) without wiping tmp_dir, unlike Rebuild/RebuildAll
+    //      below. Also bakes if bakedBundlePath is set (the default).
+    [MenuItem("BHL/Force Recompile")]
+    public static void ForceRecompile()
+    {
+      var proj = LoadProjectConf();
+      proj.use_cache = false;
+
+      var bytes = CompileOrThrow("force recompile", () => WithProgressBar(() => Compile(proj)));
+      if(!string.IsNullOrEmpty(Settings.Instance.bakedBundlePath))
+        WriteBakedBundle(bytes);
+    }
+
     //NOTE: full, cache-bypassing rebuild (also wipes tmp_dir) - for CI/verifying a clean
     //      build succeeds, not routine iteration, hence no menu item of its own (see
     //      Recompile above for that). Callable via
