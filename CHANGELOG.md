@@ -90,6 +90,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BHL/Force Recompile` menu item, matching the Control Panel's "Force Recompile" button
   (bypasses `bhl`'s compile cache without wiping `tmp_dir`, unlike `BHL/Recompile`'s
   underlying `Rebuild`/`RebuildAll`).
+- `PostprocBridge.Clear`: deletes the generated postproc asmdef folder outright, factored
+  out of `Sync`'s own "nothing configured" cleanup so a "Clear" button next to "Postproc
+  Asmdef Dir" in the Settings Inspector can trigger the same thing manually (e.g. to
+  force a full re-sync from scratch instead of the usual per-file content diff).
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the

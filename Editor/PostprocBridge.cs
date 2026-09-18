@@ -17,25 +17,35 @@ namespace UnityBHL
   //      by name among already-loaded ones, instead of scanning all of them
   public static class PostprocBridge
   {
+    static string ResolveDir(Settings settings) =>
+      string.IsNullOrEmpty(settings.postprocAsmdefDir) ? "Assets/BHL/Generated/Postproc" : settings.postprocAsmdefDir;
+
+    //NOTE: shared by Sync's own "nothing configured" cleanup and the Settings
+    //      Inspector's manual Clear button - safe to call any time, e.g. to force a
+    //      full re-sync from scratch rather than the usual per-file content diff
+    public static void Clear(Settings settings)
+    {
+      var generatedDir = ResolveDir(settings);
+      if(!Directory.Exists(generatedDir))
+        return;
+
+      Directory.Delete(generatedDir, recursive: true);
+      if(File.Exists(generatedDir + ".meta"))
+        File.Delete(generatedDir + ".meta");
+      AssetDatabase.Refresh();
+
+      Debug.Log($"[BHL] postproc: cleared generated asmdef at '{generatedDir}'");
+    }
+
     public static void Sync(ProjectConf proj, Settings settings)
     {
-      var generatedDir = string.IsNullOrEmpty(settings.postprocAsmdefDir)
-        ? "Assets/BHL/Generated/Postproc"
-        : settings.postprocAsmdefDir;
-
+      var generatedDir = ResolveDir(settings);
       var sources = proj.postproc_sources.Where(f => f.EndsWith(".cs")).ToList();
       var asmName = Path.GetFileNameWithoutExtension(proj.postproc_dll);
 
       if(sources.Count == 0 || string.IsNullOrEmpty(asmName))
       {
-        if(Directory.Exists(generatedDir))
-        {
-          Debug.Log("[BHL] postproc: no postproc_sources/postproc_dll configured - removing generated asmdef");
-          Directory.Delete(generatedDir, recursive: true);
-          if(File.Exists(generatedDir + ".meta"))
-            File.Delete(generatedDir + ".meta");
-          AssetDatabase.Refresh();
-        }
+        Clear(settings);
         return;
       }
 
