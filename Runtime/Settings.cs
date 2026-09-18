@@ -29,8 +29,11 @@ namespace UnityBHL
              "Can point outside the project (e.g. \"../shared/BHL/bhl.proj\").")]
     public string bhlProjPath = "Assets/BHL/bhl.proj";
 
-    [Tooltip("Where BHL/Recompile writes baked bytecode. Must be inside a " +
-             "Resources folder.")]
+    [Tooltip("Where BHL/Recompile (and the Control Panel's Recompile/Force Recompile) " +
+             "write baked, Player-facing bytecode. Must be inside a Resources folder. " +
+             "Unrelated to bhl.proj's own result_file - that's never used in the Editor " +
+             "(compiles always go to Library/BHL, so other tools sharing this bhl.proj, " +
+             "e.g. a CLI/CI build, aren't affected by Editor compiles).")]
     public string bakedBundlePath = "Assets/Resources/bhl.bytes";
 
     [Tooltip("TCP port the BHL DAP debug server listens on")]

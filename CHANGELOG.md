@@ -100,6 +100,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `-executeMethod` entry point) is unchanged for BC.
 - Control Panel: "Auto On File Changes" renamed to "Auto Recompile On File Changes" and
   moved inside the "Settings" foldout.
+- Recompile/Force Recompile button tooltips now spell out the incremental-vs-always-full
+  distinction between them, previously only in a code comment.
+- Settings Inspector: `bakedBundlePath`'s label is now "Result Path" (was "Result Bundle
+  Path", briefly "Result Asset Path"), with a tooltip clarifying it's unrelated to
+  `bhl.proj`'s own `result_file` - that's never used in the Editor (compiles always go
+  to `Library/BHL`, so other tools sharing the same `bhl.proj`, e.g. a CLI/CI build,
+  aren't affected by Editor compiles).
+- Settings Inspector: "Script sources" now lists `src_dirs` on one line (`, `-separated)
+  instead of one per line, still color-coded per entry (green exists / red missing).
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

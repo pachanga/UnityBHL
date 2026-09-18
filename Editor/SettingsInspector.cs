@@ -133,7 +133,7 @@ namespace UnityBHL
       serializedObject.Update();
 
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
-      EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Asset Path", bakedBundlePathProp.tooltip));
+      EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Path", bakedBundlePathProp.tooltip));
 
       EditorGUILayout.Space();
 
