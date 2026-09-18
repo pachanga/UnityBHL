@@ -42,6 +42,8 @@ namespace UnityBHL
       proj.tmp_dir = TmpDir;
       proj.result_file = BHL.LastEditorCompilePath;
 
+      PostprocBridge.Sync(proj);
+
       return proj;
     }
 

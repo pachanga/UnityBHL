@@ -46,9 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reflection); with bindings passed, it registers them directly on a fresh `Types`
   instead (`new VM(types, new ModuleLoader(types, bundle))`), and the bundle-declared
   bindings aren't consulted.
+- `PostprocBridge`: mirrors `bhl.proj`'s `postproc_sources` `.cs` files into a
+  generated, Editor-only asmdef (`Assets/BHL/Generated/Postproc`) referencing `bhl`, so
+  Unity compiles them itself. A prebuilt `postproc_dll` loaded via reflection can never
+  work here - Unity compiles `bhl` from source into its own assembly, so any externally
+  `dotnet build`-built dll's `IFrontPostProcessor` is a different, unrelated type,
+  regardless of target framework. Once compiled by Unity, `bhl`'s own
+  `AppDomainPostProcessor` picks them up by scanning already-loaded assemblies. Synced
+  on every `EditorCompiler.LoadProjectConf` call; a synced file only rewrites when its
+  content actually changed, so it doesn't force a needless recompile.
 
 ### Fixed
-- `EditorCompiler.Compile` now applies `bhl.proj`'s `postproc_dll` (via
-  `ProjectConf.LoadPostprocessor()`) - it was silently ignored before, unlike bhl's own
-  CLI compiler, since `CompileConf.postproc` was never set and defaulted to
-  `EmptyPostProcessor`.
+- `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously
+  silently ignored, since `CompileConf.postproc` was never set and defaulted to
+  `EmptyPostProcessor`. In the Editor this always uses `bhl`'s `AppDomainPostProcessor`
+  (see `PostprocBridge` above), not `postproc_dll` directly - only the CLI/headless
+  build uses `postproc_dll`.
