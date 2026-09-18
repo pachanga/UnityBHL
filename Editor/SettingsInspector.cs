@@ -100,12 +100,21 @@ namespace UnityBHL
         EditorGUILayout.LabelField("Script sources", EditorStyles.boldLabel);
         if(_cachedSrcDirs.Count == 0)
           EditorGUILayout.HelpBox("No src_dirs configured in bhl.proj.", MessageType.Warning);
-        foreach(var src_dir in _cachedSrcDirs)
+        else
         {
-          var dir_prev = GUI.color;
-          GUI.color = Directory.Exists(src_dir) ? Color.green : Color.red;
-          EditorGUILayout.LabelField(src_dir);
-          GUI.color = dir_prev;
+          EditorGUILayout.BeginHorizontal();
+          for(int i = 0; i < _cachedSrcDirs.Count; ++i)
+          {
+            var src_dir = _cachedSrcDirs[i];
+            var dir_prev = GUI.color;
+            GUI.color = Directory.Exists(src_dir) ? Color.green : Color.red;
+            GUILayout.Label(src_dir, GUILayout.ExpandWidth(false));
+            GUI.color = dir_prev;
+
+            if(i < _cachedSrcDirs.Count - 1)
+              GUILayout.Label(", ", GUILayout.ExpandWidth(false));
+          }
+          EditorGUILayout.EndHorizontal();
         }
       }
       else
