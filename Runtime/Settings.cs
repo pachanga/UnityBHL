@@ -38,7 +38,8 @@ namespace UnityBHL
 
     [Tooltip("Environment variables set before every Editor compile, for postproc_sources " +
              "code that reads them (e.g. a CLI/CI build's own GAME_ROOT-style env vars, " +
-             "otherwise only set externally for that build, never inside the Editor)")]
+             "otherwise only set externally for that build, never inside the Editor). " +
+             "A value can reference $(DATA_PATH), replaced with Application.dataPath.")]
     public List<EnvVarEntry> postprocEnvVars = new List<EnvVarEntry>();
 
     const string ResourceName = "BHLSettings";

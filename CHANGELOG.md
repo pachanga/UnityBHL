@@ -66,7 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   externally (e.g. a project root path), which otherwise wouldn't exist inside the
   Editor process. Editable from the Settings Inspector and the Control Panel (which
   embeds it), re-applied on every compile so an edit takes effect without a domain
-  reload.
+  reload. A value can reference `$(DATA_PATH)`, expanded to `Application.dataPath` -
+  useful since that path differs across machines/checkouts.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

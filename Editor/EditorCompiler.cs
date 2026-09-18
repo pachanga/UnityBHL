@@ -56,8 +56,16 @@ namespace UnityBHL
       foreach(var entry in settings.postprocEnvVars)
       {
         if(!string.IsNullOrEmpty(entry.name))
-          Environment.SetEnvironmentVariable(entry.name, entry.value);
+          Environment.SetEnvironmentVariable(entry.name, ExpandTokens(entry.value));
       }
+    }
+
+    //NOTE: $(DATA_PATH) - Application.dataPath is only meaningful from inside Unity, so
+    //      a value referencing it can't just be typed in literally the same way across
+    //      different machines/checkouts
+    static string ExpandTokens(string value)
+    {
+      return value?.Replace("$(DATA_PATH)", Application.dataPath);
     }
 
     //NOTE: no UnityEditor UI calls in here - callers may run this on a background
