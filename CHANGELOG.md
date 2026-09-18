@@ -82,6 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Settings.postprocAsmdefDir`: where `PostprocBridge` generates the postproc asmdef,
   previously hardcoded to `Assets/BHL/Generated/Postproc` (still the default). Editable
   from the Settings Inspector/Control Panel.
+- `Settings.forceRecompileOnPlay`: bypasses `bhl`'s compile cache on entering Play Mode
+  too (same effect as the Control Panel's Force Recompile), for when the default
+  incremental compile there needs to guarantee postproc runs on every entry. Off by
+  default - unlike a manual Force Recompile click, this cost would otherwise be paid on
+  every single Play Mode entry.
+
+### Changed
+- Settings Inspector: Debug Port moved to the top, ahead of `bhl.proj` path.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

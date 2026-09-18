@@ -44,6 +44,9 @@ namespace UnityBHL
       try
       {
         _proj = EditorCompiler.LoadProjectConf();
+        if(Settings.Instance != null && Settings.Instance.forceRecompileOnPlay)
+          _proj.use_cache = false;
+
         BHL.SetBytecode(EditorCompiler.CompileWithProgressBar(_proj));
       }
       catch(CompileErrorsException ex)

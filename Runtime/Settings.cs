@@ -46,6 +46,12 @@ namespace UnityBHL
              "so Unity compiles them itself. Must be under Assets/.")]
     public string postprocAsmdefDir = "Assets/BHL/Generated/Postproc";
 
+    [Tooltip("Bypass bhl's compile cache (proj.use_cache = false) when entering Play " +
+             "Mode, forcing every file through the full pipeline (postproc included) " +
+             "instead of the default incremental compile. Slower, but guarantees " +
+             "postproc actually runs even if nothing else changed.")]
+    public bool forceRecompileOnPlay = false;
+
     const string ResourceName = "BHLSettings";
 
     static Settings _instance;

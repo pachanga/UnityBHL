@@ -26,6 +26,11 @@ namespace UnityBHL
     {
       serializedObject.Update();
 
+      var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
+      EditorGUILayout.PropertyField(debugPortProp, new GUIContent("Debug Port", debugPortProp.tooltip));
+
+      EditorGUILayout.Space();
+
       var bhlProjPathProp = serializedObject.FindProperty(nameof(Settings.bhlProjPath));
       EditorGUILayout.BeginHorizontal();
       EditorGUILayout.PropertyField(bhlProjPathProp, new GUIContent("bhl.proj Path", bhlProjPathProp.tooltip));
@@ -121,9 +126,6 @@ namespace UnityBHL
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
       EditorGUILayout.PropertyField(bakedBundlePathProp, new GUIContent("Result Bundle Path", bakedBundlePathProp.tooltip));
 
-      var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
-      EditorGUILayout.PropertyField(debugPortProp, new GUIContent("Debug Port", debugPortProp.tooltip));
-
       EditorGUILayout.Space();
 
       var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
@@ -131,6 +133,9 @@ namespace UnityBHL
 
       var asmdefDirProp = serializedObject.FindProperty(nameof(Settings.postprocAsmdefDir));
       EditorGUILayout.PropertyField(asmdefDirProp, new GUIContent("Postproc Asmdef Dir", asmdefDirProp.tooltip));
+
+      var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
+      EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Force Recompile On Play", forceOnPlayProp.tooltip));
 
       serializedObject.ApplyModifiedProperties();
     }
