@@ -27,9 +27,11 @@ class MyScript : unity.BHLComponent
 
 ## Editor tools
 
-- **BHL/Control Panel** - compile status, errors, auto-compile toggle, VM pool stats.
+- **BHL/Control Panel** - compile status, errors, settings, auto-compile toggle.
 - **BHL/Recompile** - clean compile and baking a bytecode bundle for
   Player builds.
+- **BHL/Force Recompile** - like Recompile, but bypasses the compile cache.
+- **BHL/VM Stats** - Play-Mode-only pool/exec stats for every `VMTracker`-tracked VM.
 
 ## License
 

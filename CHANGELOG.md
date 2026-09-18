@@ -94,6 +94,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   out of `Sync`'s own "nothing configured" cleanup so a "Clear" button next to "Postproc
   Asmdef Dir" in the Settings Inspector can trigger the same thing manually (e.g. to
   force a full re-sync from scratch instead of the usual per-file content diff).
+- `BHL/VM Stats` window: the Play-Mode-only per-VM pool/exec stats ("Tracker" section)
+  split out of the Control Panel, which was otherwise entirely about Editor-time
+  settings/compiling. `DrawDebugStatus` (the main `BHL.VM`'s debug toggle/status) stays
+  in the Control Panel; `DrawVMDebugStatus`/`DrawPoolStats`/`DrawExecStats` (for every
+  other `VMTracker`-tracked VM) moved to the new window.
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
