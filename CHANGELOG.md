@@ -51,10 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Unity compiles them itself. A prebuilt `postproc_dll` loaded via reflection can never
   work here - Unity compiles `bhl` from source into its own assembly, so any externally
   `dotnet build`-built dll's `IFrontPostProcessor` is a different, unrelated type,
-  regardless of target framework. Once compiled by Unity, `bhl`'s own
-  `AppDomainPostProcessor` picks them up by scanning already-loaded assemblies. Synced
-  on every `EditorCompiler.LoadProjectConf` call; a synced file only rewrites when its
-  content actually changed, so it doesn't force a needless recompile.
+  regardless of target framework. The generated asmdef is named after `postproc_dll`
+  (e.g. `bhl_postprocess_client.dll` -> asmdef `bhl_postprocess_client`), so `bhl`'s
+  `AppDomainPostProcessor` can look up that exact assembly by name instead of scanning
+  every loaded one. Synced on every `EditorCompiler.LoadProjectConf` call; a synced file
+  only rewrites when its content actually changed, so it doesn't force a needless
+  recompile.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

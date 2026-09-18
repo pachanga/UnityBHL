@@ -9,32 +9,27 @@ namespace UnityBHL
 
   //NOTE: mirrors proj.postproc_sources' .cs files into a generated, Editor-only Unity
   //      asmdef so Unity compiles them itself - only then do their IFrontPostProcessor
-  //      implementations share type identity with bhl's own compiled types (see
-  //      AppDomainPostProcessor in bhl). A prebuilt postproc_dll loaded via reflection
-  //      can never satisfy that, since Unity compiles "bhl" from source, not from an
-  //      external assembly
+  //      implementations share type identity with bhl's own compiled types. A prebuilt
+  //      postproc_dll loaded via reflection can never satisfy that, since Unity compiles
+  //      "bhl" from source, not from an external assembly. The generated asmdef is named
+  //      after postproc_dll, so bhl's AppDomainPostProcessor can find this exact assembly
+  //      by name among already-loaded ones, instead of scanning all of them
   public static class PostprocBridge
   {
     const string GeneratedDir = "Assets/BHL/Generated/Postproc";
-    const string AsmdefPath = GeneratedDir + "/BHL.Postproc.Generated.asmdef";
-
-    const string AsmdefContent =
-@"{
-  ""name"": ""BHL.Postproc.Generated"",
-  ""references"": [""bhl""],
-  ""includePlatforms"": [""Editor""]
-}";
 
     public static void Sync(ProjectConf proj)
     {
       var sources = proj.postproc_sources.Where(f => f.EndsWith(".cs")).ToList();
+      var asmName = Path.GetFileNameWithoutExtension(proj.postproc_dll);
 
-      if(sources.Count == 0)
+      if(sources.Count == 0 || string.IsNullOrEmpty(asmName))
       {
         if(Directory.Exists(GeneratedDir))
         {
           Directory.Delete(GeneratedDir, recursive: true);
-          File.Delete(GeneratedDir + ".meta");
+          if(File.Exists(GeneratedDir + ".meta"))
+            File.Delete(GeneratedDir + ".meta");
           AssetDatabase.Refresh();
         }
         return;
@@ -70,15 +65,37 @@ namespace UnityBHL
         changed = true;
       }
 
-      if(!File.Exists(AsmdefPath))
+      //NOTE: named after postproc_dll (not a fixed name), and any stale asmdef left
+      //      over from a previous, differently-named postproc_dll is removed - only one
+      //      is ever expected to exist here
+      var asmdefPath = Path.Combine(GeneratedDir, asmName + ".asmdef");
+      foreach(var existing in Directory.GetFiles(GeneratedDir, "*.asmdef"))
       {
-        File.WriteAllText(AsmdefPath, AsmdefContent);
+        if(existing == asmdefPath)
+          continue;
+
+        File.Delete(existing);
+        if(File.Exists(existing + ".meta"))
+          File.Delete(existing + ".meta");
+        changed = true;
+      }
+
+      if(!File.Exists(asmdefPath))
+      {
+        File.WriteAllText(asmdefPath, MakeAsmdefContent(asmName));
         changed = true;
       }
 
       if(changed)
         AssetDatabase.Refresh();
     }
+
+    static string MakeAsmdefContent(string name) =>
+$@"{{
+  ""name"": ""{name}"",
+  ""references"": [""bhl""],
+  ""includePlatforms"": [""Editor""]
+}}";
   }
 
 }
