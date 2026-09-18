@@ -46,3 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reflection); with bindings passed, it registers them directly on a fresh `Types`
   instead (`new VM(types, new ModuleLoader(types, bundle))`), and the bundle-declared
   bindings aren't consulted.
+
+### Fixed
+- `EditorCompiler.Compile` now applies `bhl.proj`'s `postproc_dll` (via
+  `ProjectConf.LoadPostprocessor()`) - it was silently ignored before, unlike bhl's own
+  CLI compiler, since `CompileConf.postproc` was never set and defaulted to
+  `EmptyPostProcessor`.
