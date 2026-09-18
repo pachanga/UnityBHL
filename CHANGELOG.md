@@ -56,7 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AppDomainPostProcessor` can look up that exact assembly by name instead of scanning
   every loaded one. Synced on every `EditorCompiler.LoadProjectConf` call; a synced file
   only rewrites when its content actually changed, so it doesn't force a needless
-  recompile.
+  recompile. Also generates a `csc.rsp` defining `BHL_POSTPROC` (a .asmdef has no JSON
+  field for a custom `#define`) - the same symbol bhl's CLI build defines for
+  `postproc_dll`, so `postproc_sources`' own code can tell "am I part of a postproc
+  build" apart from "am I outside Unity".
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

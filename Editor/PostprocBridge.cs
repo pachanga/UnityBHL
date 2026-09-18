@@ -86,6 +86,19 @@ namespace UnityBHL
         changed = true;
       }
 
+      //NOTE: a .asmdef has no JSON field for injecting a custom #define - csc.rsp is
+      //      Unity's own mechanism for extra per-folder compiler arguments. BHL_POSTPROC
+      //      lets postproc_sources' own code tell "am I compiled as part of a postproc
+      //      build" apart from "am I outside Unity" - the same symbol is also defined
+      //      for the CLI-built postproc_dll (see bhl's BuildPostprocDll)
+      var rspPath = Path.Combine(GeneratedDir, "csc.rsp");
+      const string rspContent = "-define:BHL_POSTPROC";
+      if(!File.Exists(rspPath) || File.ReadAllText(rspPath) != rspContent)
+      {
+        File.WriteAllText(rspPath, rspContent);
+        changed = true;
+      }
+
       if(changed)
         AssetDatabase.Refresh();
     }
