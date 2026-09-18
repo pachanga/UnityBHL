@@ -157,13 +157,14 @@ namespace UnityBHL
       UnityConsoleLogger.LastLine = "Compiling...";
 
       var task = Task.Run(compile);
-      var start = EditorApplication.timeSinceStartup;
+      int step = 0;
       try
       {
         while(!task.IsCompleted)
         {
-          var t = (float)(EditorApplication.timeSinceStartup - start);
-          EditorUtility.DisplayProgressBar("BHL", UnityConsoleLogger.LastLine, Mathf.PingPong(t, 1f));
+          var line = UnityConsoleLogger.LastLine;
+          step = NextProgressStep(line, step);
+          EditorUtility.DisplayProgressBar("BHL", line, step / (float)ProgressStepCount);
           Thread.Sleep(50);
         }
       }
@@ -177,6 +178,35 @@ namespace UnityBHL
 
       BHLErrorWindow.HideIfNoErrors();
       return task.Result;
+    }
+
+    const int ProgressStepCount = 4;
+
+    //NOTE: maps the compiler's pipeline-stage log lines (see executor.cs's Pipeline
+    //      stage names, e.g. "BHL register bindings"/"BHL parse finalize"/"BHL compile
+    //      write"/"BHL postproc finalize"/"BHL all done") to a coarse step number, so
+    //      the progress bar can show real progress instead of just sweeping back and
+    //      forth. A line matching nothing (e.g. "BHL cache blob write", "BHL write to
+    //      file") keeps whatever step was last detected, rather than resetting
+    static int NextProgressStep(string line, int currentStep)
+    {
+      if(string.IsNullOrEmpty(line))
+        return currentStep;
+
+      var lower = line.ToLowerInvariant();
+
+      if(lower.Contains("all done"))
+        return 4;
+      if(lower.Contains("postproc"))
+        return 3;
+      if(lower.Contains("compile"))
+        return 2;
+      if(lower.Contains("parse"))
+        return 1;
+      if(lower.Contains("register bindings"))
+        return 0;
+
+      return currentStep;
     }
 
     //NOTE: matches the Control Panel's plain "Recompile" button - incremental, respects

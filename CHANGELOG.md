@@ -93,13 +93,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
-  compiler's latest log line, `UnityConsoleLogger.LastLine`, plus a sweeping percentage)
-  instead of a static "Compiling..." bar for the whole compile -
-  `EditorCompiler.WithProgressBar` now runs the compile via `Task.Run` and polls it from
-  the calling thread instead of blocking on it directly. `CompileWithProgressBar`
-  (used by Play Mode entry) benefits too, since it shares the same helper.
-  `UnityConsoleLogger.LastLine` is reset before each compile starts, so the bar's first
-  frame(s) don't show a stale line left over from the previous one (it's a static field).
+  compiler's latest log line, `UnityConsoleLogger.LastLine`) instead of a static
+  "Compiling..." bar for the whole compile - `EditorCompiler.WithProgressBar` now runs
+  the compile via `Task.Run` and polls it from the calling thread instead of blocking on
+  it directly. `CompileWithProgressBar` (used by Play Mode entry) benefits too, since it
+  shares the same helper. `UnityConsoleLogger.LastLine` is reset before each compile
+  starts, so the bar's first frame(s) don't show a stale line left over from the
+  previous one (it's a static field). The fill percentage now reflects real progress
+  (`NextProgressStep` maps the compiler's pipeline-stage log lines to a coarse step:
+  "register bindings" -> 0, "parse" -> 1, "compile" -> 2, "postproc" -> 3, "all done" ->
+  4, out of `ProgressStepCount` = 4), replacing the earlier back-and-forth sweep - a line
+  matching none of those (e.g. "BHL cache blob write") keeps the last detected step.
 - Explicit menu priorities (`BHL/Control Panel` < `BHL/Recompile` < `BHL/Force
   Recompile`) so they always appear in that order - Unity's default alphabetical
   sort put "Force Recompile" above "Recompile".
