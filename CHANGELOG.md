@@ -98,6 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `EditorCompiler.WithProgressBar` now runs the compile via `Task.Run` and polls it from
   the calling thread instead of blocking on it directly. `CompileWithProgressBar`
   (used by Play Mode entry) benefits too, since it shares the same helper.
+  `UnityConsoleLogger.LastLine` is reset before each compile starts, so the bar's first
+  frame(s) don't show a stale line left over from the previous one (it's a static field).
 - Explicit menu priorities (`BHL/Control Panel` < `BHL/Recompile` < `BHL/Force
   Recompile`) so they always appear in that order - Unity's default alphabetical
   sort put "Force Recompile" above "Recompile".

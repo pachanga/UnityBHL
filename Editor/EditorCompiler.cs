@@ -152,6 +152,10 @@ namespace UnityBHL
     //      whole (possibly long) compile, the way a single blocking call would
     static byte[] WithProgressBar(Func<byte[]> compile)
     {
+      //NOTE: LastLine is static and outlives this compile - reset it first, otherwise
+      //      the bar's first frame(s) show a stale line left over from the last compile
+      UnityConsoleLogger.LastLine = "Compiling...";
+
       var task = Task.Run(compile);
       var start = EditorApplication.timeSinceStartup;
       try
