@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEngine;
 using bhl;
 
 namespace UnityBHL
@@ -27,6 +28,7 @@ namespace UnityBHL
       {
         if(Directory.Exists(GeneratedDir))
         {
+          Debug.Log("[BHL] postproc: no postproc_sources/postproc_dll configured - removing generated asmdef");
           Directory.Delete(GeneratedDir, recursive: true);
           if(File.Exists(GeneratedDir + ".meta"))
             File.Delete(GeneratedDir + ".meta");
@@ -100,7 +102,11 @@ namespace UnityBHL
       }
 
       if(changed)
+      {
+        Debug.Log($"[BHL] postproc: synced {sources.Count} source(s) into '{asmdefPath}' - " +
+                  "Unity needs a script recompile before AppDomainPostProcessor can see it");
         AssetDatabase.Refresh();
+      }
     }
 
     static string MakeAsmdefContent(string name) =>

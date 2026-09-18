@@ -68,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   embeds it), re-applied on every compile so an edit takes effect without a domain
   reload. A value can reference `$(DATA_PATH)`, expanded to `Application.dataPath` -
   useful since that path differs across machines/checkouts.
+- `PostprocBridge` now logs when it syncs sources into the generated asmdef (and when
+  it removes it, if postproc isn't configured), and `AppDomainPostProcessor` logs which
+  `IFrontPostProcessor` implementation(s) it found (or a warning if none), plus how many
+  times `Patch()` was actually called each compile (via `Tally()`) - a count of 0 with
+  unchanged `.bhl` files usually means every file hit the compile cache
+  (`ProjectConf.use_cache`), since `Patch()` only runs for files actually recompiled.
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously
