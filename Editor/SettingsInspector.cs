@@ -154,7 +154,7 @@ namespace UnityBHL
       EditorGUILayout.PropertyField(asmdefDirProp, new GUIContent("Postproc Asmdef Dir", asmdefDirProp.tooltip));
 
       var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
-      EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Force Recompile On Play", forceOnPlayProp.tooltip));
+      EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Recompile On Play", forceOnPlayProp.tooltip));
 
       serializedObject.ApplyModifiedProperties();
     }
