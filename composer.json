@@ -1,6 +1,6 @@
 {
   "name": "bit/unitybhl",
-  "description": "Unity integration for BHL: attach BHL script classes to GameObjects via ScriptBHL, with hot reload of edited .bhl files while in Play Mode.",
+  "description": "Unity SDK for BHL scripting typed language",
   "homepage": "https://github.com/pachanga/UnityBHL",
   "require": {
     "php": ">=8.1"

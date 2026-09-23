@@ -2,7 +2,7 @@
   "name": "com.bitgames.unitybhl",
   "displayName": "BHL SDK",
   "version": "0.1.0",
-  "description": "Unity SDK for BHL: typed scripting language.",
+  "description": "Unity SDK for BHL scripting typed language",
   "unity": "2021.3",
   "license": "MIT",
   "keywords": [
