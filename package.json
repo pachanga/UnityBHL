@@ -1,8 +1,8 @@
 {
   "name": "com.bitgames.unitybhl",
-  "displayName": "BHL",
+  "displayName": "BHL SDK",
   "version": "0.1.0",
-  "description": "Unity integration for BHL: attach BHL script classes to GameObjects via ScriptBHL, with hot reload of edited .bhl files while in Play Mode.",
+  "description": "Unity SDK for BHL: typed scripting language.",
   "unity": "2021.3",
   "license": "MIT",
   "keywords": [
