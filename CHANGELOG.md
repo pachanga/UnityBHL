@@ -195,3 +195,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`Task.Run` + `EditorApplication.update` polling, not `EditorCompiler.WithProgressBar`'s
   blocking loop) - `AutoCompileController`'s auto-compile-on-file-change still calls this
   same method and must not freeze the Editor while doing so.
+- `BHL.LastEditorCompilePath` (`Library/BHL/bhl.bytes`) behaved as a persistent cache
+  rather than a one-time domain-reload bridge: with "Recompile On Play" off, Play Mode
+  could reattach a stale compile from a previous session, and since
+  `EditorCompiler.LoadProjectConf` always forces `result_file` to this same path, it
+  could also shadow bytecode a separate CLI/CI build had just produced.
+  `TryRestoreLastEditorCompile` now deletes the file right after reading it, so each
+  write is consumed exactly once.

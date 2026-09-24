@@ -103,14 +103,18 @@ namespace UnityBHL
     public const string LastEditorCompilePath = "Library/BHL/bhl.bytes";
 
 #if UNITY_EDITOR
-    //NOTE: restores bytecode a domain reload wiped from _lastBytecode (e.g. Reload
-    //      Domain on entering Play Mode, right after ExitingEditMode's compile set it)
+    //NOTE: restores bytecode wiped from _lastBytecode by a domain reload, then deletes
+    //      the file - a one-shot bridge for that reload, not a reusable cache (which
+    //      could otherwise resurrect a stale compile or shadow a separate CLI build)
     static void TryRestoreLastEditorCompile()
     {
       try
       {
         if(File.Exists(LastEditorCompilePath))
+        {
           _lastBytecode = File.ReadAllBytes(LastEditorCompilePath);
+          File.Delete(LastEditorCompilePath);
+        }
       }
       catch(Exception)
       {
