@@ -29,9 +29,9 @@ namespace UnityBHL
       DrawResultPath();
     }
 
-    //NOTE: split from Result Path (below) so the Control Panel can interleave its own
-    //      "Recompile On File Changes" toggle between the two - it must show below
-    //      Recompile On Play (drawn here) but above Result Path (see DrawResultPath)
+    //NOTE: split from Result Resource Path (below) so the Control Panel can interleave its
+    //      own "Recompile On File Changes" toggle between the two - it must show below
+    //      Recompile On Play (drawn here) but above Result Resource Path (see DrawResultPath)
     public void DrawMainFields()
     {
       serializedObject.Update();
@@ -156,14 +156,14 @@ namespace UnityBHL
 
       var bakedBundlePathProp = serializedObject.FindProperty(nameof(Settings.bakedBundlePath));
       var bakedBundlePathRect = EditorGUILayout.GetControlRect();
-      EditorGUI.PropertyField(bakedBundlePathRect, bakedBundlePathProp, new GUIContent("Result Path", bakedBundlePathProp.tooltip));
+      EditorGUI.PropertyField(bakedBundlePathRect, bakedBundlePathProp, new GUIContent("Result Resource Path", bakedBundlePathProp.tooltip));
       if(string.IsNullOrEmpty(bakedBundlePathProp.stringValue) && Event.current.type == EventType.Repaint)
       {
         var fieldRect = EditorGUI.IndentedRect(bakedBundlePathRect);
         fieldRect.xMin += EditorGUIUtility.labelWidth;
         var prevColor = GUI.color;
         GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, 0.4f);
-        GUI.Label(fieldRect, "not set - bhl.proj's result_file is ignored in the Editor");
+        GUI.Label(fieldRect, "e.g. Assets/Resources/bhl.bytes - not baked if left empty");
         GUI.color = prevColor;
       }
 

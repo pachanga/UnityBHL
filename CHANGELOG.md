@@ -119,6 +119,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the UnityBHL/BHL versions (same sources as the Control Panel's footer -
   `PackageInfo.FindForAssembly` and `bhl.Version.Name`). Given a low menu priority so it
   sits at the bottom of the `BHL` menu, past a separator.
+- `Settings.bakedBundlePath` ("Result Resource Path") is now auto-loaded by `BHL.VM` on device: if
+  `_lastBytecode` is empty outside the Editor, `EnsureVM` tries `Resources.Load` at the
+  path relative to `bakedBundlePath`'s `Resources/` folder, silently no-oping if nothing's
+  there. Previously a Player build had to call `BHL.LoadBakedBundle()` explicitly, whose
+  own default source is hardcoded to `Resources/bhl` regardless of `bakedBundlePath`. This
+  auto-load also checks `VM.Loader` first, so a custom `IVMCreator` (e.g. `VMCreator`
+  wrapping its own `BytecodeSource`) that already returns a fully-attached VM wins
+  deliberately and is left alone. The Editor's own restore
+  (`TryRestoreLastEditorCompile`) does NOT get this same deference - it always overrides
+  whatever the factory attached, since it exists specifically to carry the freshest
+  hot-reloaded/recompiled bytecode across a domain reload, not to act as a fallback.
 
 ### Changed
 - `Settings.forceRecompileOnPlay` replaced by `Settings.recompileOnPlay` (on by
@@ -159,12 +170,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moved inside the "Settings" foldout.
 - Recompile/Force Recompile button tooltips now spell out the incremental-vs-always-full
   distinction between them, previously only in a code comment.
-- Settings Inspector: `bakedBundlePath`'s label is now "Result Path" (was "Result Bundle
-  Path", briefly "Result Asset Path"), with a tooltip clarifying it's unrelated to
-  `bhl.proj`'s own `result_file` - that's never used in the Editor (compiles always go
-  to `Library/BHL`, so other tools sharing the same `bhl.proj`, e.g. a CLI/CI build,
-  aren't affected by Editor compiles). When empty, a faint inline hint ("not set -
-  bhl.proj's result_file is ignored in the Editor") shows directly inside the field.
+- Settings Inspector: `bakedBundlePath`'s label is now "Result Resource Path" (was
+  "Result Path", before that "Result Bundle Path", briefly "Result Asset Path"), with a
+  tooltip clarifying it's unrelated to `bhl.proj`'s own `result_file` - that's never used
+  in the Editor (compiles always go to `Library/BHL`, so other tools sharing the same
+  `bhl.proj`, e.g. a CLI/CI build, aren't affected by Editor compiles). When empty, a
+  faint inline hint now shows the expected format and consequence directly inside the
+  field ("e.g. Assets/Resources/bhl.bytes - not baked if left empty"), replacing the
+  earlier "not set - bhl.proj's result_file is ignored in the Editor" wording (still
+  covered by the tooltip).
 - Settings Inspector: "Script sources" now lists `src_dirs` on one line (`, `-separated)
   instead of one per line, still color-coded per entry (green exists / red missing),
   drawn as an array literal (`[a, b, ...]`). A new "Postproc sources" list shows
@@ -172,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Directory.Exists`) - both now share a `DrawPathArray` helper.
 - `SettingsInspector.OnInspectorGUI` split into `DrawMainFields`/`DrawResultPath`, so the
   Control Panel's "Recompile On File Changes" toggle can be interleaved between them -
-  it now shows below "Recompile On Play" but above "Result Path".
+  it now shows below "Recompile On Play" but above "Result Resource Path".
 
 ### Fixed
 - `EditorCompiler.Compile` now applies `bhl.proj`'s postprocessing - previously

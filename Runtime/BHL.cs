@@ -86,13 +86,21 @@ namespace UnityBHL
       //NOTE: MakeVM not RentVM - the singleton is always fresh; pooling is for other callers
       _vm = _factory.MakeVM();
 
-      //NOTE: reapply bytecode from before Cleanup() nulled _vm, if any
-      if(_lastBytecode == null)
-      {
+      //NOTE: _lastBytecode is from before Cleanup() nulled _vm, if any
 #if UNITY_EDITOR
+      //NOTE: always wins over whatever the factory attached - this restores the freshest
+      //      hot-reloaded/recompiled bytecode across a domain reload, not a fallback that
+      //      should defer to a custom factory's own (likely staler) bytecode source
+      if(_lastBytecode == null)
         TryRestoreLastEditorCompile();
+#elif !NO_UNITY
+      //NOTE: unlike the Editor restore above, this is just a convenience fallback for a
+      //      Player build that didn't configure its own bytecode source - a custom
+      //      IVMCreator (e.g. VMCreator wrapping its own BytecodeSource) already returning
+      //      a fully-attached VM wins deliberately, so it's left alone
+      if(_vm.Loader == null && _lastBytecode == null)
+        TryLoadBakedBundle();
 #endif
-      }
 
       if(_lastBytecode != null)
         AttachBytecode(_lastBytecode);
@@ -120,6 +128,39 @@ namespace UnityBHL
       {
         //NOTE: best-effort - an unreadable/missing file just means nothing to restore
       }
+    }
+#endif
+
+#if !NO_UNITY && !UNITY_EDITOR
+    //NOTE: best-effort, on-device counterpart to TryRestoreLastEditorCompile - a Player
+    //      build that intends to load bytecode itself later (e.g. a downloaded patch, via
+    //      SetBytecode) shouldn't get an exception just because EnsureVM() ran first, so
+    //      a missing/misconfigured baked bundle silently means no auto-load
+    static void TryLoadBakedBundle()
+    {
+      var settings = Settings.Instance;
+      if(settings == null || string.IsNullOrEmpty(settings.bakedBundlePath))
+        return;
+
+      var resource_path = ResourcesRelativePath(settings.bakedBundlePath);
+      if(resource_path == null)
+        return;
+
+      var asset = Resources.Load<TextAsset>(resource_path);
+      if(asset != null)
+        _lastBytecode = asset.bytes;
+    }
+
+    //NOTE: bakedBundlePath is project-relative (e.g. "Assets/Resources/bhl.bytes");
+    //      Resources.Load wants it relative to a Resources folder, without the extension
+    static string ResourcesRelativePath(string baked_bundle_path)
+    {
+      const string marker = "Resources/";
+      var idx = baked_bundle_path.LastIndexOf(marker, StringComparison.Ordinal);
+      if(idx < 0)
+        return null;
+
+      return Path.ChangeExtension(baked_bundle_path.Substring(idx + marker.Length), null);
     }
 #endif
 
