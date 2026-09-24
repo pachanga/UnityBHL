@@ -26,8 +26,9 @@ namespace UnityBHL
         EditorGUILayout.LabelField(info.description, EditorStyles.wordWrappedLabel);
       }
 
+      EditorGUILayout.LabelField($"v{info?.version ?? "?"}");
+
       EditorGUILayout.Space();
-      EditorGUILayout.LabelField($"UnityBHL v{info?.version ?? "?"}");
       EditorGUILayout.LabelField($"BHL {bhl.Version.Name}");
     }
   }
