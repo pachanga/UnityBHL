@@ -58,8 +58,8 @@ namespace UnityBHL
     [Tooltip("Control Panel's Recompile/Force Recompile buttons migrate already-running " +
              "ScriptBHL instances in place (BHL.ReloadModules) instead of just swapping " +
              "in the new bytecode for future loads (BHL.SetBytecode). Never applies to " +
-             "Recompile On File Changes, which always uses the plain swap. On by default.")]
-    public bool hotReloadOnRecompile = true;
+             "Recompile On File Changes, which always uses the plain swap. Off by default.")]
+    public bool hotReloadOnRecompile = false;
 
     const string ResourceName = "BHLSettings";
 

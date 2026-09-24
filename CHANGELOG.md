@@ -111,7 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`BHL.ReloadModules`, over every module `ScriptBHL.RegisteredModules` reports as
   having a live instance) instead of just swapping in the new bytecode for future loads
   (`BHL.SetBytecode`) - falls back to `SetBytecode` if no VM exists yet, since
-  `ReloadModules` is a no-op in that case. On by default. Never applies to Recompile On
+  `ReloadModules` is a no-op in that case. Off by default. Never applies to Recompile On
   File Changes (`ControlPanel.Recompile`'s new `allowHotReload` parameter, `false` for
   `AutoCompileController`'s call), which always uses the plain swap regardless of this
   setting.
