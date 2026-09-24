@@ -141,11 +141,11 @@ namespace UnityBHL
         PostprocBridge.Clear((Settings)target);
       EditorGUILayout.EndHorizontal();
 
-      var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
-      EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Recompile On Play", forceOnPlayProp.tooltip));
-
       var hotReloadProp = serializedObject.FindProperty(nameof(Settings.hotReloadOnRecompile));
       EditorGUILayout.PropertyField(hotReloadProp, new GUIContent("Hot Reload On Recompile", hotReloadProp.tooltip));
+
+      var forceOnPlayProp = serializedObject.FindProperty(nameof(Settings.forceRecompileOnPlay));
+      EditorGUILayout.PropertyField(forceOnPlayProp, new GUIContent("Recompile On Play", forceOnPlayProp.tooltip));
 
       serializedObject.ApplyModifiedProperties();
     }
