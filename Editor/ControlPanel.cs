@@ -17,6 +17,7 @@ namespace UnityBHL
 
     static Task<byte[]> _pendingCompile;
     static int _compileStep;
+    static bool _allowHotReload;
 
     [MenuItem("BHL/Control Panel", priority = 1)]
     static void Open() => GetWindow<ControlPanel>("BHL Control Panel");
@@ -188,7 +189,11 @@ namespace UnityBHL
       GUI.color = prev;
     }
 
-    public static void Recompile(bool force = false)
+    //NOTE: allowHotReload is false for AutoCompileController's file-watch-triggered
+    //      calls - Recompile On File Changes must always use the plain SetBytecode
+    //      swap, never Settings.hotReloadOnRecompile's ReloadModules migration, even if
+    //      that's enabled for manual Recompile/Force Recompile clicks
+    public static void Recompile(bool force = false, bool allowHotReload = true)
     {
       if(_pendingCompile != null)
         return;
@@ -199,10 +204,12 @@ namespace UnityBHL
       if(force)
         proj.use_cache = false;
 
-      //NOTE: both are static and outlive a single compile - reset them first, otherwise
-      //      the bar's first frame(s) show stale state left over from the last compile
+      //NOTE: all three are static and outlive a single compile - reset them first,
+      //      otherwise the bar's first frame(s) show stale state left over from the
+      //      last compile
       UnityConsoleLogger.LastLine = "Compiling...";
       _compileStep = 0;
+      _allowHotReload = allowHotReload;
 
       _pendingCompile = Task.Run(() => EditorCompiler.Compile(proj));
       EditorApplication.update += PollCompile;
@@ -237,9 +244,15 @@ namespace UnityBHL
         return;
       }
 
-      //NOTE: always applied, even in Edit Mode with no VM yet - SetBytecode creates one
-      //      if needed, so clicking this always does something observable
-      BHL.SetBytecode(task.Result);
+      //NOTE: ReloadModules migrates already-running ScriptBHL instances in place, but
+      //      only if a VM already exists (it's a no-op otherwise) and only for manual
+      //      recompiles with hotReloadOnRecompile on - SetBytecode is the fallback in
+      //      every other case, and always does something observable even with no VM yet
+      //      (it creates one), unlike ReloadModules
+      if(_allowHotReload && BHL.IsReady && Settings.Instance != null && Settings.Instance.hotReloadOnRecompile)
+        BHL.ReloadModules(new List<string>(ScriptBHL.RegisteredModules), task.Result);
+      else
+        BHL.SetBytecode(task.Result);
 
       //NOTE: matches BHL/Recompile's own "bake if bakedBundlePath is set" behavior, so
       //      the baked asset doesn't silently drift from what's now running in-memory

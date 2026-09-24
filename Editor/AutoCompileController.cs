@@ -130,7 +130,9 @@ namespace UnityBHL
         return;
 
       _pendingFiles.Clear();
-      ControlPanel.Recompile();
+      //NOTE: never hot-reloads (migrates already-running ScriptBHL instances) - always
+      //      the plain SetBytecode swap, regardless of Settings.hotReloadOnRecompile
+      ControlPanel.Recompile(allowHotReload: false);
     }
   }
 

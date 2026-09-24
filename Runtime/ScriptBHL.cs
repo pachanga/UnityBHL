@@ -51,6 +51,11 @@ namespace UnityBHL
       return _byModule.TryGetValue(module_name, out var list) ? list : (IReadOnlyList<ScriptBHL>)System.Array.Empty<ScriptBHL>();
     }
 
+    //NOTE: every module with at least one live ScriptBHL instance - for a caller (e.g.
+    //      a manual "hot reload on recompile") that wants to migrate everything
+    //      currently live, without needing its own separate tracking
+    public static IEnumerable<string> RegisteredModules => _byModule.Keys;
+
     //NOTE: called whenever the VM singleton gets recreated
     public static void ClearRegistry()
     {

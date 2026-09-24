@@ -106,6 +106,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`bhl.Version.Name`, the same string the CLI's `"BHL(vX.Y.Z) ..."` banner prints) -
   read directly rather than via `PackageInfo`, since it's not tied to how (or whether)
   the `bhl` package itself is resolved via UPM.
+- `Settings.hotReloadOnRecompile`: when on, the Control Panel's Recompile/Force
+  Recompile buttons migrate already-running `ScriptBHL` instances in place
+  (`BHL.ReloadModules`, over every module `ScriptBHL.RegisteredModules` reports as
+  having a live instance) instead of just swapping in the new bytecode for future loads
+  (`BHL.SetBytecode`) - falls back to `SetBytecode` if no VM exists yet, since
+  `ReloadModules` is a no-op in that case. Off by default. Never applies to Recompile On
+  File Changes (`ControlPanel.Recompile`'s new `allowHotReload` parameter, `false` for
+  `AutoCompileController`'s call), which always uses the plain swap regardless of this
+  setting.
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
