@@ -12,16 +12,13 @@ namespace UnityBHL
     [MenuItem("BHL/About", priority = 40)]
     static void Open()
     {
-      var window = GetWindow<AboutWindow>(true, "About BHL", true);
+      var window = GetWindow<AboutWindow>(true, "About BHL Unity SDK", true);
       window.minSize = window.maxSize = new Vector2(360, 160);
     }
 
     void OnGUI()
     {
       var info = PackageInfo.FindForAssembly(typeof(AboutWindow).Assembly);
-
-      EditorGUILayout.Space();
-      EditorGUILayout.LabelField(info?.displayName ?? "BHL", EditorStyles.boldLabel);
 
       if(!string.IsNullOrEmpty(info?.description))
       {
