@@ -32,6 +32,7 @@ class MyScript : unity.BHLComponent
   Player builds.
 - **BHL/Force Recompile** - like Recompile, but bypasses the compile cache.
 - **BHL/VM Stats** - Play-Mode-only pool/exec stats for every `VMTracker`-tracked VM.
+- **BHL/About** - package description and UnityBHL/BHL versions.
 
 ## License
 

@@ -115,6 +115,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   File Changes (`ControlPanel.Recompile`'s new `allowHotReload` parameter, `false` for
   `AutoCompileController`'s call), which always uses the plain swap regardless of this
   setting.
+- `BHL/About` menu item: a small fixed-size utility window with the package description
+  and the UnityBHL/BHL versions (same sources as the Control Panel's footer -
+  `PackageInfo.FindForAssembly` and `bhl.Version.Name`). Given a low menu priority so it
+  sits at the bottom of the `BHL` menu, past a separator.
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
