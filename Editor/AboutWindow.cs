@@ -20,16 +20,12 @@ namespace UnityBHL
     {
       var info = PackageInfo.FindForAssembly(typeof(AboutWindow).Assembly);
 
-      if(!string.IsNullOrEmpty(info?.description))
-      {
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField(info.description, EditorStyles.wordWrappedLabel);
-      }
-
-      EditorGUILayout.LabelField($"v{info?.version ?? "?"}");
-
       EditorGUILayout.Space();
-      EditorGUILayout.LabelField($"BHL {bhl.Version.Name}");
+
+      if(!string.IsNullOrEmpty(info?.description))
+        EditorGUILayout.LabelField($"{info.description} (v{info.version})", EditorStyles.wordWrappedLabel);
+
+      EditorGUILayout.LabelField($"BHL({bhl.Version.Name})");
     }
   }
 
