@@ -66,7 +66,6 @@ namespace UnityBHL
 
       EditorGUILayout.EndHorizontal();
 
-      DrawCompileProgress();
       DrawErrors();
 
       EditorGUILayout.EndScrollView();
@@ -85,19 +84,6 @@ namespace UnityBHL
         return;
 
       EditorGUILayout.LabelField($"UnityBHL v{version}", EditorStyles.centeredGreyMiniLabel);
-    }
-
-    //NOTE: same step-based progress PollCompile's modal fallback shows, just inline -
-    //      OnInspectorUpdate's periodic Repaint keeps it updating without extra work
-    void DrawCompileProgress()
-    {
-      if(_pendingCompile == null)
-        return;
-
-      var line = UnityConsoleLogger.LastLine;
-      _compileStep = EditorCompiler.NextProgressStep(line, _compileStep);
-      var rect = GUILayoutUtility.GetRect(18, 18, GUILayout.ExpandWidth(true));
-      EditorGUI.ProgressBar(rect, _compileStep / (float)EditorCompiler.ProgressStepCount, line);
     }
 
     //NOTE: same per-error format as BHLErrorWindow (shared via DrawErrorsList), so an
@@ -209,22 +195,17 @@ namespace UnityBHL
       EditorApplication.update += PollCompile;
     }
 
-    //NOTE: shows the same step-based progress DrawCompileProgress does inline, for when
-    //      the Control Panel window isn't open. Skipped (and cleared, in case it was
-    //      already showing) while it is open - it renders progress inline instead, so
-    //      the modal dialog would otherwise flicker in and out alongside it every poll tick.
+    //NOTE: same modal EditorUtility.DisplayProgressBar (BHL/Recompile menu items use it
+    //      via EditorCompiler.WithProgressBar) - always shown while pending, whether or
+    //      not the Control Panel window itself is open, instead of the previous
+    //      inline-when-open/modal-when-closed split
     static void PollCompile()
     {
       if(!_pendingCompile.IsCompleted)
       {
-        if(HasOpenInstances<ControlPanel>())
-          EditorUtility.ClearProgressBar();
-        else
-        {
-          var line = UnityConsoleLogger.LastLine;
-          _compileStep = EditorCompiler.NextProgressStep(line, _compileStep);
-          EditorUtility.DisplayProgressBar("BHL", line, _compileStep / (float)EditorCompiler.ProgressStepCount);
-        }
+        var line = UnityConsoleLogger.LastLine;
+        _compileStep = EditorCompiler.NextProgressStep(line, _compileStep);
+        EditorUtility.DisplayProgressBar("BHL", line, _compileStep / (float)EditorCompiler.ProgressStepCount);
         return;
       }
 

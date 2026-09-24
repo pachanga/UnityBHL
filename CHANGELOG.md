@@ -166,3 +166,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The old forced-rebuild behavior is preserved as `EditorCompiler.Rebuild` (no menu item
   of its own now), still reachable via
   `Unity -batchmode -executeMethod UnityBHL.EditorCompiler.Rebuild` for CI.
+- Control Panel's Recompile/Force Recompile now always show the same modal
+  `EditorUtility.DisplayProgressBar` the `BHL/Recompile`/`Force Recompile` menu items
+  use, instead of an inline bar drawn inside the window (only falling back to a modal
+  one when the window was closed). `DrawCompileProgress` removed; `PollCompile` no
+  longer special-cases whether the window is open. Still non-blocking under the hood
+  (`Task.Run` + `EditorApplication.update` polling, not `EditorCompiler.WithProgressBar`'s
+  blocking loop) - `AutoCompileController`'s auto-compile-on-file-change still calls this
+  same method and must not freeze the Editor while doing so.
