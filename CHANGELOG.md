@@ -102,7 +102,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Control Panel footer showing the resolved UnityBHL package version
   (`PackageInfo.FindForAssembly`, so it reflects however the package was actually
   resolved - registry/local/git, including a git tag's semver if that's how it was
-  pinned), pinned below the scroll view.
+  pinned), pinned below the scroll view. Now also shows the `bhl` runtime's own version
+  (`bhl.Version.Name`, the same string the CLI's `"BHL(vX.Y.Z) ..."` banner prints) -
+  read directly rather than via `PackageInfo`, since it's not tied to how (or whether)
+  the `bhl` package itself is resolved via UPM.
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the

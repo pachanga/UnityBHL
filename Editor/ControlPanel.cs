@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -74,16 +75,28 @@ namespace UnityBHL
     }
 
     //NOTE: outside the scroll view so it stays pinned at the bottom regardless of
-    //      scroll position. FindForAssembly reflects however the package was actually
-    //      resolved (registry/local/git - and for git, the resolved tag's version if
-    //      it looked like a semver, see UPM's git-dependency version resolution)
+    //      scroll position. FindForAssembly reflects however the UnityBHL package was
+    //      actually resolved (registry/local/git - and for git, the resolved tag's
+    //      version if it looked like a semver, see UPM's git-dependency version
+    //      resolution). bhl.Version.Name is used directly for the runtime instead of
+    //      the same PackageInfo lookup - it's the bhl language/VM's own self-reported
+    //      version (same one the CLI's "BHL(vX.Y.Z) ..." banner prints), not tied to how
+    //      (or whether) the bhl package itself is resolved via UPM
     static void DrawVersionFooter()
     {
-      var version = PackageInfo.FindForAssembly(typeof(ControlPanel).Assembly)?.version;
-      if(string.IsNullOrEmpty(version))
+      var unitybhlVersion = PackageInfo.FindForAssembly(typeof(ControlPanel).Assembly)?.version;
+      var bhlVersion = bhl.Version.Name;
+
+      var parts = new List<string>();
+      if(!string.IsNullOrEmpty(unitybhlVersion))
+        parts.Add($"UnityBHL v{unitybhlVersion}");
+      if(!string.IsNullOrEmpty(bhlVersion))
+        parts.Add($"BHL {bhlVersion}");
+
+      if(parts.Count == 0)
         return;
 
-      EditorGUILayout.LabelField($"UnityBHL v{version}", EditorStyles.centeredGreyMiniLabel);
+      EditorGUILayout.LabelField(string.Join("   ", parts), EditorStyles.centeredGreyMiniLabel);
     }
 
     //NOTE: same per-error format as BHLErrorWindow (shared via DrawErrorsList), so an
