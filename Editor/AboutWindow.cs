@@ -12,7 +12,7 @@ namespace UnityBHL
     [MenuItem("BHL/About", priority = 40)]
     static void Open()
     {
-      var window = GetWindow<AboutWindow>(true, "About BHL Unity SDK", true);
+      var window = GetWindow<AboutWindow>(true, "Unity BHL SDK", true);
       window.minSize = window.maxSize = new Vector2(360, 160);
     }
 
