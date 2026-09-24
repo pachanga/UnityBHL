@@ -25,7 +25,7 @@ namespace UnityBHL
       if(!string.IsNullOrEmpty(info?.description))
         EditorGUILayout.LabelField($"{info.description} (v{info.version})", EditorStyles.wordWrappedLabel);
 
-      EditorGUILayout.LabelField($"BHL({bhl.Version.Name})");
+      EditorGUILayout.LabelField($"BHL ({bhl.Version.Name})");
     }
   }
 
