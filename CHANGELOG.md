@@ -99,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   settings/compiling. `DrawDebugStatus` (the main `BHL.VM`'s debug toggle/status) stays
   in the Control Panel; `DrawVMDebugStatus`/`DrawPoolStats`/`DrawExecStats` (for every
   other `VMTracker`-tracked VM) moved to the new window.
+- Control Panel footer showing the resolved UnityBHL package version
+  (`PackageInfo.FindForAssembly`, so it reflects however the package was actually
+  resolved - registry/local/git, including a git tag's semver if that's how it was
+  pinned), pinned below the scroll view.
 
 ### Changed
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the

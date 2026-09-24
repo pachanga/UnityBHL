@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using bhl;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace UnityBHL
 {
@@ -69,6 +70,21 @@ namespace UnityBHL
       DrawErrors();
 
       EditorGUILayout.EndScrollView();
+
+      DrawVersionFooter();
+    }
+
+    //NOTE: outside the scroll view so it stays pinned at the bottom regardless of
+    //      scroll position. FindForAssembly reflects however the package was actually
+    //      resolved (registry/local/git - and for git, the resolved tag's version if
+    //      it looked like a semver, see UPM's git-dependency version resolution)
+    static void DrawVersionFooter()
+    {
+      var version = PackageInfo.FindForAssembly(typeof(ControlPanel).Assembly)?.version;
+      if(string.IsNullOrEmpty(version))
+        return;
+
+      EditorGUILayout.LabelField($"UnityBHL v{version}", EditorStyles.centeredGreyMiniLabel);
     }
 
     //NOTE: same step-based progress PollCompile's modal fallback shows, just inline -
