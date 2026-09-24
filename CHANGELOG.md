@@ -121,6 +121,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sits at the bottom of the `BHL` menu, past a separator.
 
 ### Changed
+- `Settings.forceRecompileOnPlay` replaced by `Settings.recompileOnPlay` (on by
+  default), which now actually gates whether `BHLAssetPostprocessor.CompileAndLoad`
+  runs at all on entering Play Mode, rather than just toggling `use_cache` on a compile
+  that always ran regardless - turning it off skips `EditorCompiler.Compile` (and its
+  postproc setup/logging) entirely, reusing whatever bytecode is already loaded.
 - `BHL/Recompile` and `BHL/Force Recompile` now show a live-updating progress bar (the
   compiler's latest log line, `UnityConsoleLogger.LastLine`) instead of a static
   "Compiling..." bar for the whole compile - `EditorCompiler.WithProgressBar` now runs

@@ -33,7 +33,14 @@ namespace UnityBHL
     static void OnPlayModeStateChanged(PlayModeStateChange change)
     {
       if(change == PlayModeStateChange.ExitingEditMode)
-        CompileAndLoad();
+      {
+        //NOTE: Settings.recompileOnPlay actually gates whether this runs at all - off
+        //      means Play Mode reuses whatever's already loaded, no
+        //      EditorCompiler.Compile call (and no postproc setup/logging) at all.
+        //      Missing Settings is treated as "on", matching the field's own default.
+        if(Settings.Instance == null || Settings.Instance.recompileOnPlay)
+          CompileAndLoad();
+      }
       else if(change == PlayModeStateChange.EnteredEditMode)
         StopPolling();
     }
@@ -44,9 +51,6 @@ namespace UnityBHL
       try
       {
         _proj = EditorCompiler.LoadProjectConf();
-        if(Settings.Instance != null && Settings.Instance.forceRecompileOnPlay)
-          _proj.use_cache = false;
-
         BHL.SetBytecode(EditorCompiler.CompileWithProgressBar(_proj));
       }
       catch(CompileErrorsException ex)

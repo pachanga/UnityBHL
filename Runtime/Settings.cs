@@ -49,11 +49,11 @@ namespace UnityBHL
              "so Unity compiles them itself. Must be under Assets/.")]
     public string postprocAsmdefDir = "Assets/BHL/Generated/Postproc";
 
-    [Tooltip("Bypass bhl's compile cache (proj.use_cache = false) when entering Play " +
-             "Mode, forcing every file through the full pipeline (postproc included) " +
-             "instead of the default incremental compile. Slower, but guarantees " +
-             "postproc actually runs even if nothing else changed.")]
-    public bool forceRecompileOnPlay = false;
+    [Tooltip("Compile when entering Play Mode. Off skips compiling entirely and reuses " +
+             "whatever bytecode is already loaded (or, failing that, whatever was baked " +
+             "to Library/BHL last), instead of running EditorCompiler.Compile (and its " +
+             "postproc setup/logging) on every single Play Mode entry. On by default.")]
+    public bool recompileOnPlay = true;
 
     [Tooltip("Control Panel's Recompile/Force Recompile buttons migrate already-running " +
              "ScriptBHL instances in place (BHL.ReloadModules) instead of just swapping " +
