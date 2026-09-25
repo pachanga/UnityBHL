@@ -22,6 +22,7 @@ namespace UnityBHL
     List<string> _cachedSrcDirs;
     List<string> _cachedPostprocSources;
     Vector2 _projContentsScroll;
+    readonly Dictionary<string, bool> _pathArrayFoldouts = new Dictionary<string, bool>();
 
     public override void OnInspectorGUI()
     {
@@ -271,33 +272,35 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: shows an array-literal-style list ([a, b, ...]), each entry colored green if
-    //      it exists on disk (per the given check) or red otherwise
-    static void DrawPathArray(string label, List<string> paths, string emptyMessage, Func<string, bool> exists)
+    //NOTE: collapsible dropdown, one path per line, each colored green if it exists on
+    //      disk (per the given check) or red otherwise
+    void DrawPathArray(string label, List<string> paths, string emptyMessage, Func<string, bool> exists)
     {
       EditorGUILayout.Space();
-      EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
+
       if(paths.Count == 0)
       {
+        EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(emptyMessage, MessageType.Warning);
         return;
       }
 
-      EditorGUILayout.BeginHorizontal();
-      GUILayout.Label("[", GUILayout.ExpandWidth(false));
-      for(int i = 0; i < paths.Count; ++i)
+      _pathArrayFoldouts.TryGetValue(label, out bool expanded);
+      expanded = EditorGUILayout.Foldout(expanded, $"{label} ({paths.Count})", true);
+      _pathArrayFoldouts[label] = expanded;
+
+      if(!expanded)
+        return;
+
+      EditorGUI.indentLevel++;
+      foreach(var path in paths)
       {
-        var path = paths[i];
         var prev = GUI.color;
         GUI.color = exists(path) ? Color.green : Color.red;
-        GUILayout.Label(path, GUILayout.ExpandWidth(false));
+        EditorGUILayout.LabelField(path);
         GUI.color = prev;
-
-        if(i < paths.Count - 1)
-          GUILayout.Label(", ", GUILayout.ExpandWidth(false));
       }
-      GUILayout.Label("]", GUILayout.ExpandWidth(false));
-      EditorGUILayout.EndHorizontal();
+      EditorGUI.indentLevel--;
     }
 
     static string ToRelativeUnixPath(string from_dir, string to_path)

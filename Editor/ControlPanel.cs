@@ -38,6 +38,8 @@ namespace UnityBHL
 
     void OnGUI()
     {
+      titleContent.text = DebugServerController.Enabled ? "BHL Control Panel (Debug)" : "BHL Control Panel";
+
       _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
       DrawDebugStatus();
@@ -176,6 +178,10 @@ namespace UnityBHL
 
       if(!DebugServerController.Enabled)
         return;
+
+      EditorGUILayout.HelpBox(
+        $"Play Mode will block until a BHL DAP debugger attaches on port {DebugServerController.Port}.",
+        MessageType.Warning);
 
       var prev = GUI.color;
       GUI.color = !DebugServerController.IsRunning ? Color.gray
