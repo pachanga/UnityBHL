@@ -1,7 +1,7 @@
 //signature-only mirror of UnityBindings.cs for bhl.proj's `bindings_sources` - lets bhl lsp/CLI (which never load the Unity assembly) resolve `import "unity"` too; keep in lockstep with UnityBindings.cs by hand
 import "std/bind"
 
-func string,string BindingsInfo() {
+func string,string BindingInfo() {
   return "unity","1.0.0"
 }
 

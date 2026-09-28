@@ -5,6 +5,16 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-09-28
+
+### Fixed
+- `Runtime/Bindings/UnityBindings.bhl` declared its version-info function as
+  `BindingsInfo` (plural) instead of the name `bhl` actually looks for,
+  `ProjectConf.DefaultBindingsInfoScriptName` = `BindingInfo` - the mismatch meant
+  nothing was ever discovered, so `bhl.proj`'s `unity` bindings entry always failed
+  with "does not declare a version" wherever this `.bhl` mirror is used (LSP/CLI, which
+  never load the Unity assembly's `UnityBindings.cs`).
+
 ## [0.11.0] - 2026-09-28
 
 ### Changed
