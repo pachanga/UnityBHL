@@ -19,8 +19,8 @@ namespace UnityBHL
     DateTime _loadedWriteTimeUtc;
     string _lastValidatedText;
     string _lastValidationError;
-    List<string> _cachedSrcDirs;
-    List<string> _cachedPostprocSources;
+    List<string> _cachedSrcDirs = new List<string>();
+    List<string> _cachedPostprocSources = new List<string>();
     Vector2 _projContentsScroll;
     readonly Dictionary<string, bool> _pathArrayFoldouts = new Dictionary<string, bool>();
 
@@ -264,7 +264,7 @@ namespace UnityBHL
     {
       try
       {
-        return select(ProjectConf.ReadFromFile(proj_path));
+        return select(ProjectConf.ReadFromFile(proj_path)) ?? new List<string>();
       }
       catch
       {
