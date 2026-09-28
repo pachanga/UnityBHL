@@ -49,7 +49,7 @@ namespace UnityBHL
         Browse();
       EditorGUILayout.EndHorizontal();
 
-      serializedObject.ApplyModifiedProperties();
+      ApplySettings();
 
       var settings = (Settings)target;
       var resolved = settings.ResolvedBhlProjPath;
@@ -148,7 +148,7 @@ namespace UnityBHL
       var recompileOnPlayProp = serializedObject.FindProperty(nameof(Settings.recompileOnPlay));
       EditorGUILayout.PropertyField(recompileOnPlayProp, new GUIContent("Recompile On Play", recompileOnPlayProp.tooltip));
 
-      serializedObject.ApplyModifiedProperties();
+      ApplySettings();
     }
 
     public void DrawResultPath()
@@ -168,7 +168,16 @@ namespace UnityBHL
         GUI.color = prevColor;
       }
 
-      serializedObject.ApplyModifiedProperties();
+      ApplySettings();
+    }
+
+    //NOTE: ApplyModifiedProperties returns true only when something actually changed -
+    //      SaveAssetIfDirty flushes just this asset to disk, not the whole project
+    //      (unlike AssetDatabase.SaveAssets), so it's cheap enough to call on every edit
+    void ApplySettings()
+    {
+      if(serializedObject.ApplyModifiedProperties())
+        AssetDatabase.SaveAssetIfDirty(target);
     }
 
     void CreateEmptyProj(string resolved)

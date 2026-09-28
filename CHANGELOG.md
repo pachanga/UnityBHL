@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-09-28
+
+### Changed
+- Settings Inspector now saves the `BHLSettings` asset to disk right after any edit
+  (`AssetDatabase.SaveAssetIfDirty`, scoped to just this asset) instead of waiting for
+  Unity's own save cycle (focus loss, domain reload, Editor quit). The in-memory
+  `Settings.Instance` already reflected edits immediately either way.
+
 ## [0.9.1] - 2026-09-28
 
 ### Fixed
