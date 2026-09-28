@@ -21,6 +21,7 @@ namespace UnityBHL
 
     //NOTE: wrapped in VMTracker so the singleton shows up in the Control Panel by default
     static IVMFactory _factory = new VMFactory(new VMTracker(new DefaultVMCreator(), "BHL.VM"));
+    public static IVMFactory Factory => _factory;
 
     public static VM VM
     {
