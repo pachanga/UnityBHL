@@ -23,6 +23,7 @@ namespace UnityBHL
     List<string> _cachedPostprocSources = new List<string>();
     Vector2 _projContentsScroll;
     readonly Dictionary<string, bool> _pathArrayFoldouts = new Dictionary<string, bool>();
+    readonly Dictionary<string, string> _pathArrayErrors = new Dictionary<string, string>();
 
     public override void OnInspectorGUI()
     {
@@ -231,8 +232,10 @@ namespace UnityBHL
       _cachedProjContents = File.ReadAllText(resolved);
       _editBuffer = _cachedProjContents;
       _loadedWriteTimeUtc = File.GetLastWriteTimeUtc(resolved);
-      _cachedSrcDirs = TryParseProjList(resolved, p => p.src_dirs);
-      _cachedPostprocSources = TryParseProjList(resolved, p => p.postproc_sources);
+      _cachedSrcDirs = TryParseProjList(resolved, p => p.src_dirs, out var srcDirsError);
+      _pathArrayErrors["Script sources"] = srcDirsError;
+      _cachedPostprocSources = TryParseProjList(resolved, p => p.postproc_sources, out var postprocSourcesError);
+      _pathArrayErrors["Postproc sources"] = postprocSourcesError;
     }
 
     void SaveProj(string resolved)
@@ -267,16 +270,19 @@ namespace UnityBHL
     }
 
     //NOTE: list fields come back normalized (relative paths resolved against the proj
-    //      file's own directory) by ProjectConf.Setup() - swallow parse errors since this
-    //      only feeds an informational display, not the actual compile
-    static List<string> TryParseProjList(string proj_path, Func<ProjectConf, List<string>> select)
+    //      file's own directory, wildcards expanded, non-existent entries dropped) by
+    //      ProjectConf.Setup() - a parse/setup exception is reported via 'error' rather
+    //      than swallowed, so a real problem doesn't just look like "nothing configured"
+    static List<string> TryParseProjList(string proj_path, Func<ProjectConf, List<string>> select, out string error)
     {
       try
       {
+        error = null;
         return select(ProjectConf.ReadFromFile(proj_path)) ?? new List<string>();
       }
-      catch
+      catch(Exception e)
       {
+        error = e.Message;
         return new List<string>();
       }
     }
@@ -290,7 +296,11 @@ namespace UnityBHL
       if(paths.Count == 0)
       {
         EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(emptyMessage, MessageType.Warning);
+        _pathArrayErrors.TryGetValue(label, out var error);
+        if(error != null)
+          EditorGUILayout.HelpBox($"Failed to parse bhl.proj: {error}", MessageType.Error);
+        else
+          EditorGUILayout.HelpBox(emptyMessage, MessageType.Warning);
         return;
       }
 
