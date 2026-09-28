@@ -5,6 +5,23 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-09-28
+
+### Changed
+- `bhl.proj` "Save" button no longer requires the edit to pass `ProjectConf.ReadFromFile`
+  validation - only "Revert" did before. Validation can itself be wrong (e.g. the
+  `TryParseProjList` swallowing bug just fixed), so it now just downgrades to a warning
+  HelpBox instead of blocking the save.
+
+### Fixed
+- `CreateEmptyProj`'s generated `includes` entry, when the UnityBHL package resolves
+  into `Library/PackageCache` (the normal git/registry-dependency case), was a
+  directory-level wildcard with no `bhl.proj` filename appended - `ExpandIncludes`
+  treats the last segment as a file match, so this always threw "did not match any
+  existing file". Only affects newly-generated `bhl.proj` files going forward; an
+  existing one created before this fix needs `/bhl.proj` appended to that `includes`
+  entry by hand.
+
 ## [0.10.1] - 2026-09-28
 
 ### Fixed

@@ -92,10 +92,10 @@ namespace UnityBHL
 
           bool valid = _lastValidationError == null;
           if(dirty && !valid)
-            EditorGUILayout.HelpBox("Invalid bhl.proj: " + _lastValidationError, MessageType.Error);
+            EditorGUILayout.HelpBox("Invalid bhl.proj: " + _lastValidationError, MessageType.Warning);
 
           EditorGUILayout.BeginHorizontal();
-          using(new EditorGUI.DisabledScope(!dirty || !valid))
+          using(new EditorGUI.DisabledScope(!dirty))
           {
             if(GUILayout.Button("Save", GUILayout.ExpandWidth(false)))
               SaveProj(resolved);
@@ -221,7 +221,7 @@ namespace UnityBHL
         bool inPackageCache = string.Equals(Path.GetFileName(cacheDir), "PackageCache", StringComparison.OrdinalIgnoreCase);
 
         return inPackageCache
-          ? Path.Combine(cacheDir, packageInfo.name + "@*")
+          ? Path.Combine(cacheDir, packageInfo.name + "@*", "bhl.proj")
           : Path.Combine(packageDir, "bhl.proj");
       }
     }
