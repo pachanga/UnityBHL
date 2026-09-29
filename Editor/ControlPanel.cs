@@ -58,16 +58,13 @@ namespace UnityBHL
       {
         var recompileContent = new GUIContent(
           _pendingCompile != null ? "Compiling..." : "Recompile",
-          "Incremental compile - a no-op (\"BHL no stale files detected\") if nothing in " +
-          "src_dirs/bhl.proj/self changed since the last successful compile. Unchanged " +
-          "individual files are also served from cache, skipping postproc for them.");
+          "Incremental compile - skips unchanged files, no-ops entirely if nothing changed.");
         if(GUILayout.Button(recompileContent))
           Recompile();
 
         var forceContent = new GUIContent(
           _pendingCompile != null ? "Compiling..." : "Force Recompile",
-          "Bypasses both cache checks above (proj.use_cache = false) - every file goes " +
-          "through the full pipeline, postproc included, regardless of what changed.");
+          "Bypasses the compile cache - recompiles every file regardless of what changed.");
         if(GUILayout.Button(forceContent, GUILayout.Width(120)))
           Recompile(force: true);
       }
@@ -148,7 +145,7 @@ namespace UnityBHL
       EditorGUILayout.Space();
 
       bool auto_compile = EditorGUILayout.Toggle(
-        new GUIContent("Recompile On File Changes", "Watches bhl.proj's .bhl files and recompiles on change while not in Play Mode"),
+        new GUIContent("Recompile On Changes", "Watches bhl.proj's .bhl files and recompiles on change while not in Play Mode"),
         AutoCompileController.Enabled);
       if(auto_compile != AutoCompileController.Enabled)
         AutoCompileController.Enabled = auto_compile;

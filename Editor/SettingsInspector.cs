@@ -127,6 +127,8 @@ namespace UnityBHL
 
       serializedObject.Update();
 
+      DrawPathArray("Postproc sources", _cachedPostprocSources, "No postproc_sources configured in bhl.proj.", File.Exists);
+
       var envVarsProp = serializedObject.FindProperty(nameof(Settings.postprocEnvVars));
       EditorGUILayout.PropertyField(envVarsProp, new GUIContent("Postproc Env Vars"), true);
       if(envVarsProp.isExpanded)
@@ -135,8 +137,6 @@ namespace UnityBHL
         EditorGUILayout.HelpBox(envVarsProp.tooltip, MessageType.Info);
         EditorGUI.indentLevel--;
       }
-
-      DrawPathArray("Postproc sources", _cachedPostprocSources, "No postproc_sources configured in bhl.proj.", File.Exists);
 
       var asmdefDirProp = serializedObject.FindProperty(nameof(Settings.postprocAsmdefDir));
       EditorGUILayout.BeginHorizontal();
@@ -153,7 +153,7 @@ namespace UnityBHL
       logVerbosityProp.intValue = verboseLogs ? 1 : 0;
 
       var hotReloadProp = serializedObject.FindProperty(nameof(Settings.hotReloadOnRecompile));
-      EditorGUILayout.PropertyField(hotReloadProp, new GUIContent("Hot Reload On Recompile", hotReloadProp.tooltip));
+      EditorGUILayout.PropertyField(hotReloadProp, new GUIContent("Hot Reload", hotReloadProp.tooltip));
 
       var recompileOnPlayProp = serializedObject.FindProperty(nameof(Settings.recompileOnPlay));
       EditorGUILayout.PropertyField(recompileOnPlayProp, new GUIContent("Recompile On Play", recompileOnPlayProp.tooltip));

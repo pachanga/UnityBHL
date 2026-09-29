@@ -26,51 +26,37 @@ namespace UnityBHL
   [CreateAssetMenu(fileName = "BHLSettings", menuName = "BHL/Settings")]
   public class Settings : ScriptableObject
   {
-    [Tooltip("Path to bhl.proj, relative to the Unity project root (parent of Assets/). " +
-             "Can point outside the project (e.g. \"../shared/BHL/bhl.proj\").")]
+    [Tooltip("Path to bhl.proj, relative to the project root. Can point outside the project.")]
     public string bhlProjPath = "Assets/BHL/bhl.proj";
 
-    [Tooltip("Where BHL/Recompile (and the Control Panel's Recompile/Force Recompile) " +
-             "write baked, Player-facing bytecode. Must be inside a Resources folder. " +
-             "Auto-loaded by BHL.VM on device (not in the Editor, which always compiles " +
-             "fresh). Unrelated to bhl.proj's own result_file - that's never used in the " +
-             "Editor (compiles always go to Library/BHL, so other tools sharing this " +
-             "bhl.proj, e.g. a CLI/CI build, aren't affected by Editor compiles).")]
+    [Tooltip("Where baked, Player-facing bytecode is written. Must be inside a Resources " +
+             "folder; auto-loaded from there on device. Unrelated to bhl.proj's own " +
+             "result_file, which the Editor never uses.")]
     public string bakedBundlePath = "Assets/Resources/bhl.bytes";
 
     [Tooltip("TCP port the BHL DAP debug server listens on")]
     public int debugPort = 7777;
 
     [Tooltip("Environment variables set before every Editor compile, for postproc_sources " +
-             "code that reads them (e.g. a CLI/CI build's own GAME_ROOT-style env vars, " +
-             "otherwise only set externally for that build, never inside the Editor). " +
-             "A value can reference $(DATA_PATH), replaced with Application.dataPath.")]
+             "code. Supports $(DATA_PATH), expanded to Application.dataPath.")]
     public List<EnvVarEntry> postprocEnvVars = new List<EnvVarEntry>();
 
-    [Tooltip("Where PostprocBridge generates the asmdef that mirrors postproc_sources, " +
-             "so Unity compiles them itself. Must be under Assets/.")]
+    [Tooltip("Where the generated postproc asmdef is placed. Must be under Assets/.")]
     public string postprocAsmdefDir = "Assets/BHL/Generated/Postproc";
 
-    [Tooltip("Compile when entering Play Mode. Off skips compiling entirely and reuses " +
-             "whatever bytecode is already loaded (or, failing that, whatever was baked " +
-             "to Library/BHL last), instead of running EditorCompiler.Compile (and its " +
-             "postproc setup/logging) on every single Play Mode entry. On by default.")]
+    [Tooltip("Compile when entering Play Mode. Off reuses whatever bytecode is already " +
+             "loaded instead. On by default.")]
     public bool recompileOnPlay = true;
 
-    [Tooltip("Control Panel's Recompile/Force Recompile buttons migrate already-running " +
-             "ScriptBHL instances in place (BHL.ReloadModules) instead of just swapping " +
-             "in the new bytecode for future loads (BHL.SetBytecode). Never applies to " +
-             "Recompile On File Changes, which always uses the plain swap. Off by default.")]
+    [Tooltip("Migrate already-running ScriptBHL instances on Recompile/Force Recompile, " +
+             "instead of just swapping bytecode for future loads. Off by default.")]
     public bool hotReloadOnRecompile = false;
 
-    [Tooltip("Print the compiler's per-pipeline-stage log lines (parse/compile/postproc/...) " +
-             "to Unity's console during a compile. Off by default - the Control Panel/menu " +
-             "progress bars track the same lines regardless of this setting, so turning it " +
-             "off only quiets the console, it doesn't affect progress reporting.")]
+    [Tooltip("Print the compiler's log lines to Unity's console during a compile. Off by " +
+             "default; doesn't affect progress bars either way.")]
     public int logVerbosity = 0;
 
-    [Tooltip("Watches bhl.proj's src_dirs and recompiles on change while not in Play Mode " +
-             "(AutoCompileController). Off by default.")]
+    [Tooltip("Recompile on .bhl file changes while not in Play Mode. Off by default.")]
     public bool recompileOnFileChanges = false;
 
     const string ResourceName = "BHLSettings";
