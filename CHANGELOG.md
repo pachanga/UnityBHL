@@ -5,6 +5,16 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-09-29
+
+### Fixed
+- `AutoCompileController` ("Recompile On File Changes") snapshotted `src_dirs` once
+  when its watcher started, so editing `bhl.proj` (e.g. adding/removing a `src_dirs`
+  entry) had no effect until the watcher was restarted (toggled off/on, or a Play Mode
+  round-trip). It now also watches `bhl.proj` itself and restarts automatically when it
+  changes. Restart also no longer risks two poll threads briefly running at once (each
+  poll thread now gets its own `CancellationToken` instead of sharing one stop flag).
+
 ## [0.13.0] - 2026-09-29
 
 ### Changed

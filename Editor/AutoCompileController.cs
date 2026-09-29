@@ -20,7 +20,9 @@ namespace UnityBHL
 
     static ConcurrentDictionary<string, bool> _pendingFiles = new ConcurrentDictionary<string, bool>();
     static Thread _pollThread;
-    static volatile bool _pollStop;
+    static CancellationTokenSource _pollCts;
+    static string _watchedProjFile;
+    static DateTime _watchedProjMtime;
 
     public static bool Enabled
     {
@@ -61,9 +63,12 @@ namespace UnityBHL
         return;
 
       List<string> dirs;
+      string proj_file;
       try
       {
-        dirs = new List<string>(EditorCompiler.LoadProjectConf().src_dirs);
+        var proj = EditorCompiler.LoadProjectConf();
+        dirs = new List<string>(proj.src_dirs);
+        proj_file = proj.proj_file;
       }
       catch(Exception)
       {
@@ -74,19 +79,28 @@ namespace UnityBHL
       if(dirs.Count == 0)
         return;
 
+      _watchedProjFile = proj_file;
+      _watchedProjMtime = File.Exists(proj_file) ? File.GetLastWriteTimeUtc(proj_file) : default;
+
       _pendingFiles.Clear();
-      _pollStop = false;
-      _pollThread = new Thread(() => PollLoop(dirs)) { IsBackground = true };
+      _pollCts = new CancellationTokenSource();
+      var token = _pollCts.Token;
+      _pollThread = new Thread(() => PollLoop(dirs, token)) { IsBackground = true };
       _pollThread.Start();
     }
 
     static void Stop()
     {
-      _pollStop = true;
+      //NOTE: cancels this specific thread's token rather than a shared stop flag - a
+      //      flag flipped back to "running" by a subsequent Start() (e.g. the bhl.proj-
+      //      change restart below) could otherwise race with the old thread not having
+      //      noticed the stop yet, leaving two poll threads alive at once
+      _pollCts?.Cancel();
+      _pollCts = null;
       _pollThread = null;
     }
 
-    static void PollLoop(List<string> dirs)
+    static void PollLoop(List<string> dirs, CancellationToken token)
     {
       const int poll_interval_ms = 300;
       var mtimes = new Dictionary<string, DateTime>();
@@ -96,7 +110,7 @@ namespace UnityBHL
           foreach(var f in Directory.GetFiles(dir, "*.bhl", SearchOption.AllDirectories))
             mtimes[f] = File.GetLastWriteTimeUtc(f);
 
-      while(!_pollStop)
+      while(!token.IsCancellationRequested)
       {
         Thread.Sleep(poll_interval_ms);
 
@@ -118,12 +132,36 @@ namespace UnityBHL
       }
     }
 
+    //NOTE: bhl.proj itself is never among the polled files (wrong extension, and the
+    //      poll thread's directory list is a fixed snapshot from whenever it started) -
+    //      checked here on the main thread (LoadProjectConf touches Settings.Instance/
+    //      AssetDatabase, unsafe off it) so an edit (e.g. via the Settings Inspector's
+    //      Save, or a bare text editor) takes effect without needing to toggle the
+    //      watcher or exit/enter Play Mode
+    static void CheckProjFileChanged()
+    {
+      if(_pollThread == null || _watchedProjFile == null || !File.Exists(_watchedProjFile))
+        return;
+
+      var mtime = File.GetLastWriteTimeUtc(_watchedProjFile);
+      if(mtime == _watchedProjMtime)
+        return;
+
+      Stop();
+      Start();
+    }
+
     //NOTE: pending changes still accumulate while Unity is unfocused (e.g. you're still
     //      editing in an external IDE) - the actual recompile waits until you switch
     //      back to Unity, rather than firing the moment a file is saved
     static void OnEditorUpdate()
     {
-      if(_pendingFiles.IsEmpty || !Enabled || EditorApplication.isPlaying)
+      if(!Enabled || EditorApplication.isPlaying)
+        return;
+
+      CheckProjFileChanged();
+
+      if(_pendingFiles.IsEmpty)
         return;
 
       if(!UnityEditorInternal.InternalEditorUtility.isApplicationActive)
