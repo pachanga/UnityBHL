@@ -5,6 +5,22 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-09-29
+
+### Added
+- `EditorCompiler.Icon`: the BHL logo (`Editor/Icons/bhl_logo.png`), resolved via
+  `PackageInfo.assetPath` so it works whether the package is embedded or resolved into
+  `Library/PackageCache`. Shown in the `BHL/About` window next to its text, and as the
+  `BHL Control Panel`/`BHL VM Stats` windows' own tab icon (`titleContent.image`, set
+  every `OnGUI` frame rather than once in `OnEnable` - `GetWindow<T>(title)` replaces
+  `titleContent` with a fresh title-only `GUIContent` right after creation, which
+  otherwise wiped out an image set any earlier).
+- `Settings.logVerbosity`: gates whether the compiler's per-pipeline-stage log lines are
+  printed to Unity's console, exposed as a "Verbose Logs" toggle in the Settings
+  Inspector/Control Panel. Off (0) by default. Progress-bar tracking
+  (`UnityConsoleLogger.LastLine`) is unaffected either way - only console output is
+  gated, so turning this off doesn't break the Recompile/Force Recompile progress bars.
+
 ## [0.11.1] - 2026-09-28
 
 ### Fixed

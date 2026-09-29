@@ -8,6 +8,7 @@ using UnityEngine;
 using bhl;
 using Types = bhl.Types;
 using Logger = bhl.Logger;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace UnityBHL
 {
@@ -18,11 +19,39 @@ namespace UnityBHL
   {
     const string TmpDir = "Library/BHL/tmp";
 
+    //NOTE: "Packages/<name>/..." resolves via AssetDatabase whether the package is
+    //      embedded directly under Packages/ or resolved into Library/PackageCache via
+    //      git/registry - Unity's virtual package filesystem understands that path either
+    //      way, unlike a hardcoded PackageCache-only path
+    static Texture2D _icon;
+    internal static Texture2D Icon
+    {
+      get
+      {
+        if(_icon == null)
+        {
+          var packageInfo = PackageInfo.FindForAssembly(typeof(EditorCompiler).Assembly);
+          if(packageInfo != null)
+            _icon = AssetDatabase.LoadAssetAtPath<Texture2D>($"{packageInfo.assetPath}/Editor/Icons/bhl_logo.png");
+        }
+        return _icon;
+      }
+    }
+
+    //NOTE: resolved here (main thread, via LoadProjectConf) rather than read directly by
+    //      Compile/UnityConsoleLogger, which may run on a background thread where
+    //      Settings.Instance's first Resources.Load would be unsafe - a plain field write
+    //      strictly before the Task.Run in WithProgressBar is safely visible to it, no
+    //      volatile needed (Task.Run itself provides that happens-before guarantee)
+    static int _consoleVerbosity;
+
     public static ProjectConf LoadProjectConf()
     {
       var settings = Settings.Instance;
       if(settings == null)
         throw new Exception("No Settings asset found - create one via Assets > Create > BHL > Settings");
+
+      _consoleVerbosity = settings.logVerbosity;
 
       var path = settings.ResolvedBhlProjPath;
       if(!File.Exists(path))
@@ -83,8 +112,11 @@ namespace UnityBHL
       var conf = new CompileConf();
       conf.proj = proj;
       //NOTE: verbosity 1 surfaces per-pipeline-stage messages (parsing/type-checking/etc),
-      //      the most granular progress info the compiler emits - not per-file
-      conf.logger = new Logger(1, new UnityConsoleLogger());
+      //      the most granular progress info the compiler emits - not per-file. This is
+      //      bhl's own Logger gate (always 1, for progress-bar tracking - see
+      //      UnityConsoleLogger), separate from Settings.logVerbosity, which only gates
+      //      whether those same lines also get printed to Unity's console
+      conf.logger = new Logger(1, new UnityConsoleLogger(_consoleVerbosity));
       conf.self_file = BuildUtils.GetSelfFile();
       conf.files = BuildUtils.NormalizeFilePaths(files);
       //NOTE: proj.bindings is the source of truth, not "everything self-registered"
@@ -328,17 +360,29 @@ namespace UnityBHL
 
   //NOTE: LastLine is written from whatever thread is compiling (background, for
   //      ControlPanel's async path) and read from the main thread by a progress-bar
-  //      poll loop - plain string reference assignment is atomic, no locking needed
+  //      poll loop - plain string reference assignment is atomic, no locking needed.
+  //      LastLine is always updated regardless of 'verbosity' - progress-bar tracking
+  //      must keep working even with Settings.logVerbosity off, only the actual
+  //      Debug.Log console output is gated by it
   class UnityConsoleLogger : ILog
   {
     public static volatile string LastLine = "";
 
+    readonly int verbosity;
+
+    public UnityConsoleLogger(int verbosity)
+    {
+      this.verbosity = verbosity;
+    }
+
     public void Write(DateTime time, int level, string msg)
     {
       LastLine = msg;
-      Debug.Log("[BHL] " + msg);
+      if(level <= verbosity)
+        Debug.Log("[BHL] " + msg);
     }
 
+    //NOTE: always shown regardless of verbosity - an actual error is never noise
     public void Error(DateTime time, string msg) => Debug.LogError("[BHL] " + msg);
   }
 

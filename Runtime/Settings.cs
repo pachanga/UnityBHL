@@ -62,6 +62,12 @@ namespace UnityBHL
              "Recompile On File Changes, which always uses the plain swap. Off by default.")]
     public bool hotReloadOnRecompile = false;
 
+    [Tooltip("Print the compiler's per-pipeline-stage log lines (parse/compile/postproc/...) " +
+             "to Unity's console during a compile. Off by default - the Control Panel/menu " +
+             "progress bars track the same lines regardless of this setting, so turning it " +
+             "off only quiets the console, it doesn't affect progress reporting.")]
+    public int logVerbosity = 0;
+
     const string ResourceName = "BHLSettings";
 
     static Settings _instance;

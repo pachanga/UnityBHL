@@ -19,6 +19,11 @@ namespace UnityBHL
 
     void OnGUI()
     {
+      //NOTE: re-set every frame, not just once in OnEnable - GetWindow<T>(title) replaces
+      //      titleContent with a fresh title-only GUIContent right after creation, which
+      //      would otherwise wipe out the image set in OnEnable
+      titleContent.image = EditorCompiler.Icon;
+
       _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
       if(!Application.isPlaying)

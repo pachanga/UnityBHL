@@ -143,6 +143,13 @@ namespace UnityBHL
         PostprocBridge.Clear((Settings)target);
       EditorGUILayout.EndHorizontal();
 
+      //NOTE: logVerbosity is an int (room for finer levels later), but exposed here as a
+      //      plain on/off toggle - 0 (off) maps to "no console spam", any positive value
+      //      to "on" (currently just 1, the only level bhl's compiler actually emits at)
+      var logVerbosityProp = serializedObject.FindProperty(nameof(Settings.logVerbosity));
+      bool verboseLogs = EditorGUILayout.Toggle(new GUIContent("Verbose Logs", logVerbosityProp.tooltip), logVerbosityProp.intValue > 0);
+      logVerbosityProp.intValue = verboseLogs ? 1 : 0;
+
       var hotReloadProp = serializedObject.FindProperty(nameof(Settings.hotReloadOnRecompile));
       EditorGUILayout.PropertyField(hotReloadProp, new GUIContent("Hot Reload On Recompile", hotReloadProp.tooltip));
 

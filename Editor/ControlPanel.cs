@@ -38,6 +38,10 @@ namespace UnityBHL
 
     void OnGUI()
     {
+      //NOTE: re-set every frame, not just once in OnEnable - GetWindow<T>(title) replaces
+      //      titleContent with a fresh title-only GUIContent right after creation, which
+      //      would otherwise wipe out the image set in OnEnable
+      titleContent.image = EditorCompiler.Icon;
       titleContent.text = DebugServerController.Enabled ? "BHL Control Panel (Debug)" : "BHL Control Panel";
 
       _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -249,6 +253,7 @@ namespace UnityBHL
           Debug.LogError("[BHL] compile failed:\n" + task.Exception.InnerException?.Message);
         return;
       }
+
 
       //NOTE: ReloadModules migrates already-running ScriptBHL instances in place, but
       //      only if a VM already exists (it's a no-op otherwise) and only for manual

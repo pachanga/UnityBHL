@@ -22,10 +22,22 @@ namespace UnityBHL
 
       EditorGUILayout.Space();
 
+      EditorGUILayout.BeginHorizontal();
+
+      var icon = EditorCompiler.Icon;
+      if(icon != null)
+        GUILayout.Label(icon, GUILayout.Width(64), GUILayout.Height(64));
+
+      EditorGUILayout.BeginVertical();
+
       if(!string.IsNullOrEmpty(info?.description))
         EditorGUILayout.LabelField($"{info.description} (v{info.version})", EditorStyles.wordWrappedLabel);
 
       EditorGUILayout.LabelField($"BHL ({bhl.Version.Name})");
+
+      EditorGUILayout.EndVertical();
+
+      EditorGUILayout.EndHorizontal();
     }
   }
 
