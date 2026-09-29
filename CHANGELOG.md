@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.2] - 2026-09-29
+
+### Changed
+- `BHL.Cleanup()` now clears `_lastBytecode` outside the Editor, so a compiled bytecode
+  blob isn't held in memory past the VM that used it if nothing reloads one afterward.
+  Editor-only exclusion: `EnsureVM()` there relies on `_lastBytecode` surviving `Cleanup()`
+  (directly when domain reload is off, or via `Library/BHL/bhl.bytes` when it's on).
+
 ## [0.15.1] - 2026-09-29
 
 ### Changed

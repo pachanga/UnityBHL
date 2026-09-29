@@ -71,6 +71,15 @@ namespace UnityBHL
       StopAllDebugServers();
       _vm = null;
       _bindingsResolved = false;
+#if !UNITY_EDITOR
+      //NOTE: Editor-only exclusion - EnsureVM() relies on _lastBytecode surviving
+      //      Cleanup() there, either directly (domain reload off) or via
+      //      TryRestoreLastEditorCompile's file fallback (domain reload on). Outside
+      //      the Editor there's no such restore path, so once the VM using it is gone,
+      //      holding onto the compiled bytecode blob is just unreclaimed memory until
+      //      something explicitly reloads it
+      _lastBytecode = null;
+#endif
 #if !NO_UNITY
       ScriptBHL.ClearRegistry();
 #endif
