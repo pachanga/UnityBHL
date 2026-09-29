@@ -5,6 +5,23 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-09-29
+
+### Added
+- "Override Locally"/"Stop Overriding" button in the Settings Inspector/Control Panel:
+  duplicates every `Settings` field into an `EditorPrefs`-backed copy
+  (`Settings.IsOverriddenLocally`), which `Settings.Instance` then transparently returns
+  instead of the shared `BHLSettings.asset` - lets a developer override any setting
+  (e.g. `debugPort`, `postprocEnvVars`) on their own machine without touching the
+  git-tracked asset. `EditorPrefs` key is namespaced per-project (via `Application.dataPath`),
+  so it can't leak across other Unity projects on the same machine.
+
+### Changed
+- "Recompile On File Changes" is now a real `Settings` field
+  (`recompileOnFileChanges`) instead of its own dedicated `EditorPrefs` key - it can now
+  be a shared, git-tracked team default, while still supporting a per-developer override
+  via the above.
+
 ## [0.14.0] - 2026-09-29
 
 ### Fixed

@@ -4,6 +4,7 @@ using System.IO;
 using UnityEngine;
 #if UNITY_EDITOR
 using bhl;
+using UnityEditor;
 #endif
 
 namespace UnityBHL
@@ -68,6 +69,10 @@ namespace UnityBHL
              "off only quiets the console, it doesn't affect progress reporting.")]
     public int logVerbosity = 0;
 
+    [Tooltip("Watches bhl.proj's src_dirs and recompiles on change while not in Play Mode " +
+             "(AutoCompileController). Off by default.")]
+    public bool recompileOnFileChanges = false;
+
     const string ResourceName = "BHLSettings";
 
     static Settings _instance;
@@ -75,11 +80,74 @@ namespace UnityBHL
     {
       get
       {
+#if UNITY_EDITOR
+        if(IsOverriddenLocally)
+          return LocalOverride;
+#endif
         if(_instance == null)
           _instance = Resources.Load<Settings>(ResourceName);
         return _instance;
       }
     }
+
+#if UNITY_EDITOR
+    //NOTE: EditorPrefs is global across every Unity project on the machine, not just
+    //      this one - namespaced by the project's own path so one project's override
+    //      can't leak into another's
+    static string OverrideKey => "UnityBHL.LocalOverride." + Application.dataPath.GetHashCode();
+
+    public static bool IsOverriddenLocally
+    {
+      get => EditorPrefs.HasKey(OverrideKey);
+      set
+      {
+        if(value == IsOverriddenLocally)
+          return;
+
+        if(value)
+        {
+          //NOTE: seed the override from whatever the shared asset currently says, so
+          //      overriding starts as a plain copy rather than Settings' own field
+          //      defaults - _localOverride is created fresh here, not reused, in case a
+          //      stale in-memory copy from a previous override session is lying around
+          var shared = Resources.Load<Settings>(ResourceName);
+          _localOverride = CreateInstance<Settings>();
+          if(shared != null)
+            JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(shared), _localOverride);
+          SaveLocalOverride();
+        }
+        else
+        {
+          EditorPrefs.DeleteKey(OverrideKey);
+          _localOverride = null;
+        }
+      }
+    }
+
+    static Settings _localOverride;
+    static Settings LocalOverride
+    {
+      get
+      {
+        if(_localOverride == null)
+        {
+          _localOverride = CreateInstance<Settings>();
+          var json = EditorPrefs.GetString(OverrideKey, "");
+          if(!string.IsNullOrEmpty(json))
+            JsonUtility.FromJsonOverwrite(json, _localOverride);
+        }
+        return _localOverride;
+      }
+    }
+
+    //NOTE: called by SettingsInspector after every edit, while IsOverriddenLocally -
+    //      persists to EditorPrefs (survives domain reloads/Editor restarts) instead of
+    //      AssetDatabase.SaveAssetIfDirty, since this Settings instance isn't a real asset
+    public static void SaveLocalOverride()
+    {
+      EditorPrefs.SetString(OverrideKey, JsonUtility.ToJson(_localOverride));
+    }
+#endif
 
     public static string ProjectRoot => Directory.GetParent(Application.dataPath).FullName;
 

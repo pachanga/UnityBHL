@@ -36,6 +36,8 @@ namespace UnityBHL
     //      Recompile On Play (drawn here) but above Result Resource Path (see DrawResultPath)
     public void DrawMainFields()
     {
+      DrawOverrideToggle();
+
       serializedObject.Update();
 
       var debugPortProp = serializedObject.FindProperty(nameof(Settings.debugPort));
@@ -179,13 +181,44 @@ namespace UnityBHL
       ApplySettings();
     }
 
-    //NOTE: ApplyModifiedProperties returns true only when something actually changed -
+    //NOTE: ApplyModifiedProperties returns true only when something actually changed.
+    //      While overridden locally, target is Settings.LocalOverride (not a real asset,
+    //      see Settings.Instance) - persist to EditorPrefs instead of AssetDatabase,
+    //      which would silently no-op on a non-asset ScriptableObject anyway. Otherwise
     //      SaveAssetIfDirty flushes just this asset to disk, not the whole project
     //      (unlike AssetDatabase.SaveAssets), so it's cheap enough to call on every edit
     void ApplySettings()
     {
-      if(serializedObject.ApplyModifiedProperties())
+      if(!serializedObject.ApplyModifiedProperties())
+        return;
+
+      if(Settings.IsOverriddenLocally && target == Settings.Instance)
+        Settings.SaveLocalOverride();
+      else
         AssetDatabase.SaveAssetIfDirty(target);
+    }
+
+    //NOTE: lets a developer keep their own values for everything in Settings (e.g. a
+    //      different debugPort, or postprocEnvVars pointing at a local checkout) without
+    //      touching the shared, git-tracked BHLSettings.asset - stored in EditorPrefs
+    //      (see Settings.IsOverriddenLocally), never committed
+    static void DrawOverrideToggle()
+    {
+      if(Settings.IsOverriddenLocally)
+      {
+        EditorGUILayout.HelpBox(
+          "Overriding settings locally (stored in EditorPrefs, not shared via git).",
+          MessageType.Warning);
+        if(GUILayout.Button("Stop Overriding", GUILayout.ExpandWidth(false)))
+          Settings.IsOverriddenLocally = false;
+      }
+      else
+      {
+        if(GUILayout.Button("Override Locally", GUILayout.ExpandWidth(false)))
+          Settings.IsOverriddenLocally = true;
+      }
+
+      EditorGUILayout.Space();
     }
 
     void CreateEmptyProj(string resolved)

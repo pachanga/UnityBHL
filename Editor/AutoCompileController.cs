@@ -16,20 +16,31 @@ namespace UnityBHL
   [InitializeOnLoad]
   public static class AutoCompileController
   {
-    const string PrefKey = "UnityBHL.AutoCompile";
-
     static ConcurrentDictionary<string, bool> _pendingFiles = new ConcurrentDictionary<string, bool>();
     static Thread _pollThread;
     static CancellationTokenSource _pollCts;
     static string _watchedProjFile;
     static DateTime _watchedProjMtime;
 
+    //NOTE: a real Settings field (Settings.recompileOnFileChanges) rather than its own
+    //      EditorPrefs key - lets it be a shared/git-tracked team default, while still
+    //      supporting a per-developer override via Settings.IsOverriddenLocally
     public static bool Enabled
     {
-      get => EditorPrefs.GetBool(PrefKey, false);
+      get => Settings.Instance != null && Settings.Instance.recompileOnFileChanges;
       set
       {
-        EditorPrefs.SetBool(PrefKey, value);
+        var settings = Settings.Instance;
+        if(settings != null)
+        {
+          settings.recompileOnFileChanges = value;
+          EditorUtility.SetDirty(settings);
+          if(Settings.IsOverriddenLocally)
+            Settings.SaveLocalOverride();
+          else
+            AssetDatabase.SaveAssetIfDirty(settings);
+        }
+
         if(value && !EditorApplication.isPlaying)
           Start();
         else
