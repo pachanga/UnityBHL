@@ -23,20 +23,20 @@ namespace UnityBHL
     //      embedded directly under Packages/ or resolved into Library/PackageCache via
     //      git/registry - Unity's virtual package filesystem understands that path either
     //      way, unlike a hardcoded PackageCache-only path
-    static Texture2D _icon;
-    internal static Texture2D Icon
+    static Texture2D LoadPackageTexture(string relative_path)
     {
-      get
-      {
-        if(_icon == null)
-        {
-          var packageInfo = PackageInfo.FindForAssembly(typeof(EditorCompiler).Assembly);
-          if(packageInfo != null)
-            _icon = AssetDatabase.LoadAssetAtPath<Texture2D>($"{packageInfo.assetPath}/Editor/Icons/bhl_logo.png");
-        }
-        return _icon;
-      }
+      var packageInfo = PackageInfo.FindForAssembly(typeof(EditorCompiler).Assembly);
+      return packageInfo == null ? null : AssetDatabase.LoadAssetAtPath<Texture2D>($"{packageInfo.assetPath}/{relative_path}");
     }
+
+    static Texture2D _icon;
+    internal static Texture2D Icon => _icon != null ? _icon : (_icon = LoadPackageTexture("Editor/Icons/bhl_logo.png"));
+
+    //NOTE: a separate, properly-downsized asset for tiny (16px) contexts like the
+    //      Project window row icon - GUI.DrawTexture scaling the 256px master down that
+    //      far (16x minification) produced a visible edge-bleed artifact
+    static Texture2D _iconSmall;
+    internal static Texture2D IconSmall => _iconSmall != null ? _iconSmall : (_iconSmall = LoadPackageTexture("Editor/Icons/bhl_logo_16.png"));
 
     //NOTE: resolved here (main thread, via LoadProjectConf) rather than read directly by
     //      Compile/UnityConsoleLogger, which may run on a background thread where

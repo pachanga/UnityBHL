@@ -13,7 +13,16 @@ namespace UnityBHL
   [InitializeOnLoad]
   static class BHLProjectIcons
   {
-    static readonly Texture2D ScriptIcon = LoadIcon("boo Script Icon", "TextAsset Icon");
+    //NOTE: the actual BHL logo, falling back to a built-in icon only if that's somehow
+    //      unavailable (e.g. package resolution failed) rather than drawing nothing.
+    //      IconSmall is a flattened, fully-opaque-square variant (no transparency at
+    //      all) for the tiny list-view row icon, so Unity's own default file icon
+    //      (still drawn underneath - we only ever overlay, never suppress it) can never
+    //      show through any part of our icon, only around it if our coverage falls
+    //      short (see the overdraw in OnProjectWindowItemOnGUI below); the full-res
+    //      logo is used everywhere else (grid tiles, About window, window tab icons)
+    static readonly Texture2D ScriptIconSmall = EditorCompiler.IconSmall != null ? EditorCompiler.IconSmall : LoadIcon("boo Script Icon", "TextAsset Icon");
+    static readonly Texture2D ScriptIconLarge = EditorCompiler.Icon != null ? EditorCompiler.Icon : LoadIcon("boo Script Icon", "TextAsset Icon");
     static readonly Texture2D ProjIcon = LoadIcon("AssemblyDefinitionAsset Icon", "SettingsIcon", "TextAsset Icon");
 
     static BHLProjectIcons()
@@ -41,23 +50,43 @@ namespace UnityBHL
       if(string.IsNullOrEmpty(path))
         return;
 
-      Texture2D icon;
-      if(Path.GetFileName(path).Equals("bhl.proj", StringComparison.OrdinalIgnoreCase))
-        icon = ProjIcon;
-      else if(path.EndsWith(".bhl", StringComparison.OrdinalIgnoreCase))
-        icon = ScriptIcon;
-      else
-        return;
-
-      if(icon == null)
+      //NOTE: excludes folders - a package folder like "com.bitgames.bhl" coincidentally
+      //      ends in ".bhl" too, purely as a naming accident, and isn't an actual .bhl file
+      bool isFolder = AssetDatabase.IsValidFolder(path);
+      bool isBhlProj = !isFolder && Path.GetFileName(path).Equals("bhl.proj", StringComparison.OrdinalIgnoreCase);
+      bool isBhlScript = !isFolder && path.EndsWith(".bhl", StringComparison.OrdinalIgnoreCase);
+      if(!isBhlProj && !isBhlScript)
         return;
 
       //NOTE: list-view rows are wide/short, grid-view tiles are tall/narrow (icon on top,
       //      label below) - this is the standard heuristic for telling them apart here
       bool isListView = selectionRect.width > selectionRect.height;
-      var iconRect = isListView
-        ? new Rect(selectionRect.x, selectionRect.y, 16f, 16f)
-        : new Rect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.width);
+
+      Texture2D icon;
+      if(isBhlProj)
+        icon = ProjIcon;
+      else
+        icon = isListView ? ScriptIconSmall : ScriptIconLarge;
+
+      if(icon == null)
+        return;
+
+      //NOTE: derive the icon slot size from the row/tile itself rather than hardcoding
+      //      16f - at small zoom levels Project window's "grid" mode is wider-than-tall
+      //      (isListView true here) but its actual icon size isn't always exactly 16px,
+      //      leaving a sliver of whatever's underneath visible when it wasn't
+      float iconSize = isListView ? selectionRect.height : selectionRect.width;
+
+      //NOTE: Unity draws its own default file icon for .bhl/bhl.proj underneath this
+      //      overlay (we only paint on top, never suppress it) - a couple of points of
+      //      deliberate overdraw guarantees full coverage regardless of any small
+      //      mismatch between our computed rect and Unity's actual internal icon slot,
+      //      rather than chasing pixel-perfect alignment with an unknown target
+      const float overdraw = 2f;
+      float x = Mathf.Round(selectionRect.x) - overdraw;
+      float y = Mathf.Round(selectionRect.y) - overdraw;
+      float size = Mathf.Round(iconSize) + overdraw * 2f;
+      var iconRect = new Rect(x, y, size, size);
 
       GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit);
     }
