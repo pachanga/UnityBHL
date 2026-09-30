@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.3] - 2026-09-30
+
+### Fixed
+- `CreateBHLScript`'s script-creation flow used `EndNameEditAction`/int instance IDs,
+  replaced by `AssetCreationEndAction`/`EntityId` in Unity 6000.4 and turned into a
+  compile error in 6000.6. Added a `CreateFileAction` shim that targets whichever API
+  the running Unity version actually has.
+
 ## [0.15.2] - 2026-09-29
 
 ### Changed

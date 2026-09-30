@@ -27,11 +27,11 @@ namespace UnityBHL
       Create("NewScript.bhl", ScriptableObject.CreateInstance<DoCreateEmptyScript>());
     }
 
-    static void Create(string defaultName, EndNameEditAction action)
+    static void Create(string defaultName, CreateFileAction action)
     {
       var icon = EditorGUIUtility.IconContent("TextAsset Icon").image as Texture2D;
       var path = AssetDatabase.GenerateUniqueAssetPath(ResolveTargetDir() + "/" + defaultName);
-      ProjectWindowUtil.StartNameEditingIfProjectWindowExists(0, action, path, icon, null);
+      action.StartNameEditing(path, icon);
     }
 
     //NOTE: a script created outside bhl.proj's src_dirs is invisible to the BHL compiler -
@@ -123,10 +123,44 @@ namespace UnityBHL
         "}\n";
     }
 
-    //NOTE: a class extending unity.BHLComponent - ScriptBHL attaches these to GameObjects
-    class DoCreateComponent : EndNameEditAction
+    //NOTE: AssetCreationEndAction (EntityId) replaced EndNameEditAction (int instance IDs) in
+    //      6000.4, and 6000.6 turned the old one into a compile error
+#if UNITY_6000_4_OR_NEWER
+    abstract class CreateFileAction : AssetCreationEndAction
+    {
+      public override void Action(EntityId entityId, string pathName, string resourceFile)
+      {
+        CreateFile(pathName);
+      }
+
+      public void StartNameEditing(string path, Texture2D icon)
+      {
+        ProjectWindowUtil.StartNameEditingIfProjectWindowExists(EntityId.None, this, path, icon, null);
+      }
+
+      protected abstract void CreateFile(string pathName);
+    }
+#else
+    abstract class CreateFileAction : EndNameEditAction
     {
       public override void Action(int instanceId, string pathName, string resourceFile)
+      {
+        CreateFile(pathName);
+      }
+
+      public void StartNameEditing(string path, Texture2D icon)
+      {
+        ProjectWindowUtil.StartNameEditingIfProjectWindowExists(0, this, path, icon, null);
+      }
+
+      protected abstract void CreateFile(string pathName);
+    }
+#endif
+
+    //NOTE: a class extending unity.BHLComponent - ScriptBHL attaches these to GameObjects
+    class DoCreateComponent : CreateFileAction
+    {
+      protected override void CreateFile(string pathName)
       {
         var class_name = Path.GetFileNameWithoutExtension(pathName);
         WriteAndShow(pathName, BuildComponentContent(class_name));
@@ -134,9 +168,9 @@ namespace UnityBHL
     }
 
     //NOTE: no template - just a blank .bhl file
-    class DoCreateEmptyScript : EndNameEditAction
+    class DoCreateEmptyScript : CreateFileAction
     {
-      public override void Action(int instanceId, string pathName, string resourceFile)
+      protected override void CreateFile(string pathName)
       {
         WriteAndShow(pathName, "");
       }
