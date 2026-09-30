@@ -5,6 +5,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-09-30
+
+### Changed
+- `VMCreator.MakeVM` now caches and reuses its `Types` instance across calls (when
+  explicit `Bindings` are configured) instead of running `Bindings.Register` on a fresh
+  one every time - `Types` is a shared, read-mostly declaration catalog once populated,
+  so this is safe, and skips redoing potentially-slow bindings registration per VM.
+
 ## [0.15.3] - 2026-09-30
 
 ### Fixed

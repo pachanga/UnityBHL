@@ -52,11 +52,17 @@ namespace UnityBHL
 #endif
   }
 
-  //NOTE: bundle-aware, for a Player build with no Editor driver - opt in via BHL.Configure(new VMCreator(bundle))
   public class VMCreator : IVMCreator
   {
     public BytecodeSource Bundle { get; }
     public IUserBindings Bindings { get; }
+
+    //NOTE: Types is a shared, read-mostly symbol/declaration catalog once Register() has
+    //      populated it - the actually-mutable per-VM state (gvars, resolved imports)
+    //      lives in Module/VM instead (see bhl's Module vs ModuleDeclared split), so
+    //      reusing one Types across every VM this creator makes is safe, and skips
+    //      re-running potentially-slow Bindings.Register() on each MakeVM() call
+    bhl.Types _types;
 
     public VMCreator(BytecodeSource bundle, IUserBindings bindings = null)
     {
@@ -64,18 +70,18 @@ namespace UnityBHL
       Bindings = bindings;
     }
 
-    //NOTE: with no explicit Bindings, defer to VM.FromBytecode's reflection-based
-    //      auto-discovery of whatever bindings the bundle declares as required. With
-    //      explicit Bindings, register them directly instead - the bundle-declared
-    //      bindings aren't consulted at all in that case
     public VM MakeVM()
     {
       if(Bindings == null)
         return VM.FromBytecode(Bundle.Stream);
 
-      var types = new bhl.Types();
-      Bindings.Register(types);
-      return new VM(types, new ModuleLoader(types, Bundle.Stream));
+      if(_types == null)
+      {
+        _types = new bhl.Types();
+        Bindings.Register(_types);
+      }
+
+      return new VM(_types, new ModuleLoader(_types, Bundle.Stream));
     }
   }
 
