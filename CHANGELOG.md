@@ -5,6 +5,21 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-06
+
+### Added
+- `BHLModuleBrowser` (Editor): reusable BHL module/function lookup and autocomplete -
+  `FindModuleFile`, `FindModuleCompletions`, `FindFuncCompletions` (caller-supplied
+  signature regex), `DrawCompletions` (layout and rect-based overloads), and composite
+  `DrawModuleField`/`DrawFuncField` helpers (label + BHL mark + field + dropdown, and
+  red-tint-on-invalid for func) for a plain `OnGUI()` caller. Extracted from ATF, which
+  now just calls these instead of its own copy of this logic.
+- `[BHLModuleField]`/`[BHLFuncField(moduleFieldName, funcPattern)]`: same autocomplete,
+  declarative attributes for a serialized `string` field, via `PropertyDrawer`s in
+  `Editor/BHLFieldDrawers.cs`.
+- `EditorCompiler.Icon`/`IconSmall` are now `public` (were `internal`), so a consumer
+  package in a different assembly can use the BHL logo mark too.
+
 ## [0.16.0] - 2026-09-30
 
 ### Changed

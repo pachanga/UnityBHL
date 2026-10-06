@@ -29,14 +29,16 @@ namespace UnityBHL
       return packageInfo == null ? null : AssetDatabase.LoadAssetAtPath<Texture2D>($"{packageInfo.assetPath}/{relative_path}");
     }
 
+    //NOTE: public - external consumer packages (e.g. a tool built on BHLModuleBrowser)
+    //      use these too, for their own BHL-related UI
     static Texture2D _icon;
-    internal static Texture2D Icon => _icon != null ? _icon : (_icon = LoadPackageTexture("Editor/Icons/bhl_logo.png"));
+    public static Texture2D Icon => _icon != null ? _icon : (_icon = LoadPackageTexture("Editor/Icons/bhl_logo.png"));
 
     //NOTE: a separate, properly-downsized asset for tiny (16px) contexts like the
     //      Project window row icon - GUI.DrawTexture scaling the 256px master down that
     //      far (16x minification) produced a visible edge-bleed artifact
     static Texture2D _iconSmall;
-    internal static Texture2D IconSmall => _iconSmall != null ? _iconSmall : (_iconSmall = LoadPackageTexture("Editor/Icons/bhl_logo_16.png"));
+    public static Texture2D IconSmall => _iconSmall != null ? _iconSmall : (_iconSmall = LoadPackageTexture("Editor/Icons/bhl_logo_16.png"));
 
     //NOTE: resolved here (main thread, via LoadProjectConf) rather than read directly by
     //      Compile/UnityConsoleLogger, which may run on a background thread where
