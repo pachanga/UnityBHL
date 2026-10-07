@@ -46,18 +46,24 @@ namespace UnityBHL
     //      includes a root with tens of thousands of unrelated files (e.g. generated
     //      level data living alongside real .bhl sources), that's genuinely expensive.
     //      FindModuleCompletions runs on every OnGUI call (a consumer like ATFWnd forces
-    //      ~10 repaints/sec via Repaint()), so the walk itself is cached briefly here -
-    //      only the in-memory filter below re-runs every call
-    const double ModuleListCacheTtl = 2.0;
+    //      ~10 repaints/sec via Repaint()), so the walk only actually runs once - lazily,
+    //      on first use - and is cached from then on, same as ClassIntrospection's
+    //      compile-once-until-Refresh approach; re-run only if the roots themselves
+    //      change (e.g. bhl.proj repointed in Settings) or Invalidate() is called
+    //      explicitly (e.g. a "Refresh" button, for a .bhl file added outside Unity)
     static List<string> _moduleListCache;
     static string _moduleListCacheRoots;
-    static double _moduleListCacheTime = double.NegativeInfinity;
+
+    //NOTE: forces the next FindModuleCompletions call to re-walk the search roots
+    public static void Invalidate()
+    {
+      _moduleListCache = null;
+    }
 
     static List<string> GetAllModuleNames()
     {
       var roots = string.Join("|", GetSearchRoots());
-      var now = EditorApplication.timeSinceStartup;
-      if(_moduleListCache != null && roots == _moduleListCacheRoots && now - _moduleListCacheTime < ModuleListCacheTtl)
+      if(_moduleListCache != null && roots == _moduleListCacheRoots)
         return _moduleListCache;
 
       var result = new List<string>();
@@ -80,7 +86,6 @@ namespace UnityBHL
 
       _moduleListCache = result;
       _moduleListCacheRoots = roots;
-      _moduleListCacheTime = now;
       return result;
     }
 
@@ -353,13 +358,18 @@ namespace UnityBHL
         GUILayout.Label(icon, GUILayout.Width(MarkSize), GUILayout.Height(MarkSize));
     }
 
-    //NOTE: mark + labeled field + dropdown in one call, recomputed every call (cheap,
-    //      bounded by max). For a serialized field, use [BHLModuleField] instead
+    //NOTE: mark + labeled field + dropdown in one call (completions filtered fresh every
+    //      call, cheap; the underlying module list itself is cached - see Invalidate()
+    //      above - so a "Refresh" button is offered here for a .bhl file added/removed
+    //      outside Unity, where nothing would otherwise trigger a re-scan). For a
+    //      serialized field, use [BHLModuleField] instead
     public static string DrawModuleField(string label, string value, int max = DefaultMaxCompletions)
     {
       EditorGUILayout.BeginHorizontal();
       DrawMark();
       var new_value = EditorGUILayout.TextField(label, value);
+      if(GUILayout.Button("Refresh", GUILayout.Width(60)))
+        Invalidate();
       EditorGUILayout.EndHorizontal();
 
       var completions = FindModuleCompletions(new_value, max);

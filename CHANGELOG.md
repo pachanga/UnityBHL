@@ -5,6 +5,23 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-10-07
+
+### Changed
+- `FindModuleCompletions`' directory-walk cache (added in 0.18.1) was a 2s TTL - it still
+  re-walked in the background every 2s regardless of whether anything was actually
+  typed or changed on disk. Replaced with a lazy, cache-until-invalidated approach (same
+  as `ClassIntrospection`): the walk now runs once, on first use, and only re-runs if the
+  search roots themselves change (e.g. `bhl.proj` repointed in Settings) or the new
+  `BHLModuleBrowser.Invalidate()` is called explicitly.
+
+### Added
+- `DrawModuleField` now has a "Refresh" button next to the field, calling the new
+  `Invalidate()` - the module list it draws from is cached (see above), so this is how a
+  consumer recovers from a `.bhl` file added/removed outside Unity (nothing else would
+  trigger a re-scan). `ScriptBHLInspector`'s fallback and `ATFWnd`'s Module field both
+  get this for free.
+
 ## [0.18.1] - 2026-10-07
 
 ### Fixed
