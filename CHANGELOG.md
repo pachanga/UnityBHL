@@ -5,6 +5,18 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1] - 2026-10-07
+
+### Fixed
+- `FindModuleCompletions` re-walked every `src_dirs`/`inc_dirs` root (recursively,
+  matching `*.bhl`) on every call - cheap for a small project, but the walk visits every
+  filesystem entry under each root, not just the matching ones, so a root containing tens
+  of thousands of unrelated files (e.g. generated data living alongside real sources)
+  made it genuinely slow. Since a consumer like `ATFWnd`'s Module field calls this on
+  every OnGUI repaint (forced at ~10/sec via `Repaint()`), that was visible as general UI
+  sluggishness in the whole window. The walk itself is now cached for 2s (keyed by the
+  current search roots) - only the in-memory substring filter re-runs every call.
+
 ## [0.18.0] - 2026-10-07
 
 ### Added

@@ -41,13 +41,26 @@ namespace UnityBHL
       return null;
     }
 
-    //NOTE: matches names containing 'partial', not just prefix
-    public static List<string> FindModuleCompletions(string partial, int max = DefaultMaxCompletions)
-    {
-      var result = new List<string>();
-      if(string.IsNullOrEmpty(partial))
-        return result;
+    //NOTE: the recursive *.bhl walk below has to visit every filesystem entry under each
+    //      root, not just the matching ones - in a project where src_dirs/inc_dirs
+    //      includes a root with tens of thousands of unrelated files (e.g. generated
+    //      level data living alongside real .bhl sources), that's genuinely expensive.
+    //      FindModuleCompletions runs on every OnGUI call (a consumer like ATFWnd forces
+    //      ~10 repaints/sec via Repaint()), so the walk itself is cached briefly here -
+    //      only the in-memory filter below re-runs every call
+    const double ModuleListCacheTtl = 2.0;
+    static List<string> _moduleListCache;
+    static string _moduleListCacheRoots;
+    static double _moduleListCacheTime = double.NegativeInfinity;
 
+    static List<string> GetAllModuleNames()
+    {
+      var roots = string.Join("|", GetSearchRoots());
+      var now = EditorApplication.timeSinceStartup;
+      if(_moduleListCache != null && roots == _moduleListCacheRoots && now - _moduleListCacheTime < ModuleListCacheTtl)
+        return _moduleListCache;
+
+      var result = new List<string>();
       try
       {
         foreach(var root in GetSearchRoots())
@@ -59,17 +72,34 @@ namespace UnityBHL
           foreach(var file in Directory.GetFiles(root, "*.bhl", SearchOption.AllDirectories))
           {
             var rel = file.Substring(trimmed.Length + 1).Replace('\\', '/');
-            var name = rel.Substring(0, rel.Length - 4); // strip .bhl
-            if(name != partial && name.Contains(partial))
-            {
-              result.Add(name);
-              if(result.Count >= max)
-                return result;
-            }
+            result.Add(rel.Substring(0, rel.Length - 4)); // strip .bhl
           }
         }
       }
       catch(Exception) {}
+
+      _moduleListCache = result;
+      _moduleListCacheRoots = roots;
+      _moduleListCacheTime = now;
+      return result;
+    }
+
+    //NOTE: matches names containing 'partial', not just prefix
+    public static List<string> FindModuleCompletions(string partial, int max = DefaultMaxCompletions)
+    {
+      var result = new List<string>();
+      if(string.IsNullOrEmpty(partial))
+        return result;
+
+      foreach(var name in GetAllModuleNames())
+      {
+        if(name != partial && name.Contains(partial))
+        {
+          result.Add(name);
+          if(result.Count >= max)
+            break;
+        }
+      }
 
       return result;
     }
