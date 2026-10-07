@@ -5,6 +5,61 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-07
+
+### Added
+- `ScriptBHL`'s own script icon (Inspector header, Hierarchy/Project rows, "Add
+  Component" search) is now the BHL logo, assigned via `MonoImporter.SetIcon` on editor
+  load (`ScriptBHLIconAssigner`) rather than a hand-edited `.meta`, and only when not
+  already set.
+- `BHLModuleBrowser.DrawMark` is now `public`, so a consumer with its own,
+  differently-sourced picker (like `ScriptBHLInspector`'s Class field below) can still
+  show the same icon.
+
+### Changed
+- `FindModuleFile`'s manual fallback search (combining the module name with each
+  `GetSearchRoots()` entry) was redundant - `TryMapModuleToFile`/`IncludePath.
+  TryIncludePaths` already searches those exact same roots the same way. Removed.
+- `FindFuncCompletions`/`DrawFuncField` can also match class declarations within their
+  (already known) module, gated by a new `BHLSymbolKind` filter (`All`/`Func`/`Class`,
+  defaulting to `Func` to keep prior behavior; `func_pattern` still only constrains the
+  `Func` half - class matching always uses the new `AnyClassPattern`). Dropdown rows show
+  each result's kind when `All`.
+- `ScriptBHLInspector`'s Class picker is now a type-to-search field with an autocomplete
+  dropdown (via `BHLModuleBrowser.DrawCompletions`), instead of only a button opening a
+  `GenericMenu` (still available via a "Browse..." button alongside it). Source stays
+  `ClassIntrospection.GetAllClasses()` (compiled, `BHLComponent`-filtered), not a text
+  scan - and since class names aren't unique across modules, the search text only
+  filters the dropdown; it doesn't commit `ModuleName`/`ClassName` directly, only
+  picking a specific (module, class) pair does.
+- Reverted the whole-project symbol search (`FindSymbolCompletions`/`FindSymbolModule`/
+  `DrawSymbolField`, added then removed within this same release) - it re-read and
+  regex-scanned every `.bhl` file under `GetSearchRoots()` on every GUI call, which is
+  expensive for a large project. Back to the cheaper two-step schema: pick a module first
+  (`DrawModuleField`, just matches file paths - no file content read), then a symbol
+  within that one already-known module (`DrawFuncField`, now also `BHLSymbolKind`-aware -
+  see above). ATF's Run panel now draws Module and Function as two fields again instead
+  of one combined row.
+
+### Fixed
+- `ScriptBHLInspector`'s no-compiled-classes fallback (Module/Class as plain fields)
+  never actually had autocomplete - both were plain `PropertyField`s, just drawn with the
+  same BHL icon mark as the real picker, which looked wired up but wasn't. Now uses
+  `BHLModuleBrowser.DrawModuleField`/`DrawFuncField` (the latter with the `Class` kind),
+  so Module autocompletes from file paths and Class scans the chosen module's file -
+  still manually editable, now for real with working completions.
+- `BHLModuleBrowser.GetSearchRoots` fell back to `bhl.proj`'s own containing folder when
+  `inc_dirs` wasn't configured - a UnityBHL-specific special case that often isn't where
+  scripts actually live. Now falls back to `src_dirs` instead, matching
+  `ProjectConf.Setup()`'s own `inc_dirs`-falls-back-to-`src_dirs` convention.
+- `FindFuncCompletions` only ever captured a symbol's bare name, ignoring any enclosing
+  `namespace X { ... }` - a func/class declared inside one couldn't be found/resolved by
+  its actual fully-qualified name (`Foo.Bar`). Scanning now tracks namespace nesting (via
+  brace counting, with comments and string-literal contents stripped first so braces or
+  keyword-looking text inside either don't corrupt it) and prefixes matches accordingly,
+  same as `ClassIntrospection`'s compiled-symbol-table walk already did for the Class
+  picker.
+
 ## [0.17.0] - 2026-10-06
 
 ### Added

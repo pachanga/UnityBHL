@@ -32,12 +32,15 @@ namespace UnityBHL
       serializedObject.ApplyModifiedProperties();
     }
 
-    //NOTE: a single Module+Class picker instead of a Module-then-Class cascade - Class
-    //      names aren't unique across modules, so both fields are still stored, just
-    //      picked together. Driven by a GenericMenu (not EditorGUILayout.Popup) so the
-    //      menu can group entries by module ("Module/Class (Module.bhl)") while the
-    //      closed-state button shows just the concise "Class (Module.bhl)" - Popup
-    //      always echoes the full option string, folder prefix included, when closed.
+    //NOTE: type-to-search + autocomplete dropdown, same selector style as
+    //      BHLModuleBrowser.DrawFuncField - but sourced from ClassIntrospection
+    //      (compiled, BHLComponent-filtered) rather than a raw text/regex scan, and
+    //      search text is kept separate from the committed ModuleName/ClassName rather
+    //      than driving them directly: class names aren't unique across modules, so
+    //      typing a full name alone is ambiguous - only picking a concrete (module,
+    //      class) pair (from the dropdown, or the full catalog via "Browse...") commits
+    string _classSearch = "";
+
     void DrawClassPicker(ScriptBHL script)
     {
       var moduleNameProp = serializedObject.FindProperty(nameof(ScriptBHL.ModuleName));
@@ -46,21 +49,64 @@ namespace UnityBHL
 
       if(all.Count == 0)
       {
-        EditorGUILayout.PropertyField(moduleNameProp, new GUIContent("Module"));
-        EditorGUILayout.PropertyField(classNameProp, new GUIContent("Class"));
-        EditorGUILayout.HelpBox("No modules/classes found - check BHLSettings' bhl.proj path, then Refresh.", MessageType.Info);
+        //NOTE: nothing compiled to search/pick from yet - falls back to
+        //      BHLModuleBrowser's own fields (a manual-override escape hatch): still
+        //      editable by hand, but with real file-based autocomplete (module names
+        //      from GetSearchRoots(), class names scanned from the chosen module file)
+        //      instead of ClassIntrospection's compiled, currently-empty catalog
+        moduleNameProp.stringValue = BHLModuleBrowser.DrawModuleField("Module", moduleNameProp.stringValue);
+        classNameProp.stringValue = BHLModuleBrowser.DrawFuncField(
+          "Class", moduleNameProp.stringValue, classNameProp.stringValue, out var _,
+          kind: BHLModuleBrowser.BHLSymbolKind.Class);
+
+        EditorGUILayout.HelpBox("No modules/classes found, check bhl.proj settings, then Refresh.", MessageType.Info);
         return;
       }
 
       bool hasSelection = !string.IsNullOrEmpty(moduleNameProp.stringValue) || !string.IsNullOrEmpty(classNameProp.stringValue);
       bool found = hasSelection && all.Any(e => e.Module == moduleNameProp.stringValue && e.Class == classNameProp.stringValue);
 
-      string buttonLabel = !hasSelection ? "<none>" : $"{classNameProp.stringValue} ({moduleNameProp.stringValue}.bhl)";
+      EditorGUILayout.BeginHorizontal();
+      _classSearch = EditorGUILayout.TextField("Class", _classSearch);
+      if(GUILayout.Button("Browse...", GUILayout.Width(70)))
+        ShowClassMenu(script, all, moduleNameProp.stringValue, classNameProp.stringValue);
+      EditorGUILayout.EndHorizontal();
+
+      var matches = new List<ClassIntrospection.ClassRef>();
+      if(!string.IsNullOrEmpty(_classSearch))
+      {
+        foreach(var entry in all)
+        {
+          if(!entry.Class.Contains(_classSearch))
+            continue;
+
+          matches.Add(entry);
+          if(matches.Count >= BHLModuleBrowser.DefaultMaxCompletions)
+            break;
+        }
+      }
+
+      var labels = new List<string>();
+      foreach(var m in matches)
+        labels.Add($"{m.Class}  ({m.Module}.bhl)");
+
+      BHLModuleBrowser.DrawCompletions(labels, picked =>
+      {
+        var idx = labels.IndexOf(picked);
+        if(idx >= 0)
+          SetClass(script, matches[idx].Module, matches[idx].Class);
+        _classSearch = "";
+        GUIUtility.keyboardControl = 0;
+      });
 
       EditorGUILayout.BeginHorizontal();
-      EditorGUILayout.PrefixLabel("Class");
-      if(GUILayout.Button(buttonLabel, EditorStyles.popup))
-        ShowClassMenu(script, all, moduleNameProp.stringValue, classNameProp.stringValue);
+      using(new EditorGUI.DisabledScope(true))
+        EditorGUILayout.TextField("Selected", hasSelection ? $"{classNameProp.stringValue} ({moduleNameProp.stringValue}.bhl)" : "<none>");
+      using(new EditorGUI.DisabledScope(!hasSelection))
+      {
+        if(GUILayout.Button("Clear", GUILayout.Width(50)))
+          SetClass(script, "", "");
+      }
       EditorGUILayout.EndHorizontal();
 
       if(hasSelection && !found)
@@ -72,6 +118,14 @@ namespace UnityBHL
       }
     }
 
+    static void SetClass(ScriptBHL script, string module, string cls)
+    {
+      Undo.RecordObject(script, "Set BHL Class");
+      script.ModuleName = module;
+      script.ClassName = cls;
+      EditorUtility.SetDirty(script);
+    }
+
     //NOTE: menu item callbacks fire on a later event, well after this Inspector frame -
     //      mutate the target directly (with Undo/SetDirty) rather than holding onto
     //      SerializedProperty references, which aren't safe to use that late
@@ -79,24 +133,14 @@ namespace UnityBHL
     {
       var menu = new GenericMenu();
 
-      menu.AddItem(new GUIContent("<none>"), string.IsNullOrEmpty(currentModule) && string.IsNullOrEmpty(currentClass), () =>
-      {
-        Undo.RecordObject(script, "Clear BHL Class");
-        script.ModuleName = "";
-        script.ClassName = "";
-        EditorUtility.SetDirty(script);
-      });
+      menu.AddItem(new GUIContent("<none>"), string.IsNullOrEmpty(currentModule) && string.IsNullOrEmpty(currentClass),
+        () => SetClass(script, "", ""));
 
       foreach(var entry in all)
       {
         bool isSelected = entry.Module == currentModule && entry.Class == currentClass;
-        menu.AddItem(new GUIContent($"{entry.Module}/{entry.Class} ({entry.Module}.bhl)"), isSelected, () =>
-        {
-          Undo.RecordObject(script, "Set BHL Class");
-          script.ModuleName = entry.Module;
-          script.ClassName = entry.Class;
-          EditorUtility.SetDirty(script);
-        });
+        menu.AddItem(new GUIContent($"{entry.Module}/{entry.Class} ({entry.Module}.bhl)"), isSelected,
+          () => SetClass(script, entry.Module, entry.Class));
       }
 
       menu.ShowAsContext();

@@ -56,9 +56,13 @@ namespace UnityBHL
       var module_prop = FindSibling(property, attr.ModuleFieldName);
       var module_name = module_prop?.stringValue;
 
-      var (completions, valid) = string.IsNullOrEmpty(module_name)
-        ? (new System.Collections.Generic.List<string>(), (bool?)null)
-        : BHLModuleBrowser.FindFuncCompletions(module_name, property.stringValue, attr.FuncPattern ?? BHLModuleBrowser.AnyFuncPattern);
+      var (found, valid) = string.IsNullOrEmpty(module_name)
+        ? (new System.Collections.Generic.List<(string name, BHLModuleBrowser.BHLSymbolKind kind)>(), (bool?)null)
+        : BHLModuleBrowser.FindFuncCompletions(module_name, property.stringValue, func_pattern: attr.FuncPattern ?? BHLModuleBrowser.AnyFuncPattern);
+
+      var completions = new System.Collections.Generic.List<string>();
+      foreach(var f in found)
+        completions.Add(f.name);
 
       var prev_color = GUI.color;
       if(valid == false)
@@ -89,18 +93,16 @@ namespace UnityBHL
 
         if(!string.IsNullOrEmpty(module_name))
         {
-          var (completions, _) = BHLModuleBrowser.FindFuncCompletions(module_name, property.stringValue, attr.FuncPattern ?? BHLModuleBrowser.AnyFuncPattern);
-          height += BHLModuleBrowser.GetCompletionsHeight(completions.Count);
+          var (found, _) = BHLModuleBrowser.FindFuncCompletions(module_name, property.stringValue, func_pattern: attr.FuncPattern ?? BHLModuleBrowser.AnyFuncPattern);
+          height += BHLModuleBrowser.GetCompletionsHeight(found.Count);
         }
       }
 
       return height;
     }
 
-    //NOTE: sibling lookup by replacing the leaf segment of property's own path - works
-    //      for a top-level field ("module"), a nested one ("someStruct.module"), and an
-    //      array/list element ("things.Array.data[2].module") alike, since the path's
-    //      last '.' always sits right before the leaf field name regardless of what precedes it
+    //NOTE: replaces the leaf segment of property's own path - works for top-level,
+    //      nested, and array-element fields alike
     static SerializedProperty FindSibling(SerializedProperty property, string sibling_name)
     {
       var path = property.propertyPath;
@@ -110,19 +112,14 @@ namespace UnityBHL
     }
   }
 
-  //NOTE: shared visual cue for [BHLModuleField]/[BHLFuncField] - the same small BHL logo
-  //      used for the .bhl Project window icon, docked at the field's right edge so these
-  //      fields are recognizable at a glance, even before anything's typed into them.
-  //      Drawn explicitly rather than via GUIContent(text, image, tooltip) - unlike a bare
-  //      EditorGUILayout.LabelField, EditorGUI.PropertyField doesn't render a value-type
-  //      field's (string/int/...) label image at all
+  //NOTE: BHL logo mark for [BHLModuleField]/[BHLFuncField] - drawn explicitly since
+  //      PropertyField doesn't render GUIContent's image for value-type fields
   static class BHLFieldIcon
   {
     const float Size = 16f;
     const float Gap = 2f;
 
-    //NOTE: draws the icon at rect's right edge and returns a shrunk rect (icon-width
-    //      narrower) for the actual field, so the two don't overlap
+    //NOTE: draws the icon at rect's right edge, returns a shrunk rect for the field
     public static Rect DrawAndShrink(Rect rect)
     {
       var icon = EditorCompiler.IconSmall;

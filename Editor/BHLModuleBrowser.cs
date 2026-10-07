@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -8,39 +9,26 @@ using UnityEngine;
 namespace UnityBHL
 {
 
-  //NOTE: reusable BHL module/function lookup + autocomplete, for any Editor tool that
-  //      needs to let the user target a specific module/function (e.g. a test runner) -
-  //      extracted from one such tool (ATF) once a second consumer needed the same logic
+  //NOTE: reusable BHL module/function lookup + autocomplete for Editor tools; extracted
+  //      from ATF once a second consumer needed the same logic
   public static class BHLModuleBrowser
   {
     public const int DefaultMaxCompletions = 8;
 
-    //NOTE: prefers bhl.proj's own inc_dirs (resolved relative to bhl.proj's directory),
-    //      falling back to bhl.proj's own directory if none are configured
+    //NOTE: inc_dirs, else src_dirs - same fallback ProjectConf.Setup() uses for inc_path.
+    //      Both already absolute/resolved by Setup(), which ReadFromFile always runs
     public static IEnumerable<string> GetSearchRoots()
     {
-      var settings = Settings.Instance;
-      if(settings == null)
+      var cfg = Settings.Instance?.BhlProj;
+      if(cfg == null)
         yield break;
 
-      var projDir = Path.GetDirectoryName(Path.GetFullPath(settings.ResolvedBhlProjPath));
-      if(projDir == null)
-        yield break;
-
-      var inc = settings.BhlProj?.inc_dirs;
-      if(inc != null && inc.Count > 0)
-      {
-        foreach(var dir in inc)
-          yield return Path.GetFullPath(Path.Combine(projDir, dir));
-      }
-      else
-      {
-        yield return projDir;
-      }
+      var dirs = cfg.inc_dirs.Count > 0 ? cfg.inc_dirs : cfg.src_dirs;
+      foreach(var dir in dirs)
+        yield return dir;
     }
 
-    //NOTE: prefers bhl.proj's own module->file mapping (handles includes/aliasing),
-    //      falling back to a plain path guess under the search roots
+    //NOTE: TryMapModuleToFile already searches these same roots - no separate fallback needed
     public static string FindModuleFile(string module_name)
     {
       if(string.IsNullOrEmpty(module_name))
@@ -50,19 +38,10 @@ namespace UnityBHL
       if(cfg != null && cfg.TryMapModuleToFile(module_name, out var file))
         return file;
 
-      var rel = module_name.Replace('/', Path.DirectorySeparatorChar) + ".bhl";
-      foreach(var root in GetSearchRoots())
-      {
-        var path = Path.Combine(root, rel);
-        if(File.Exists(path))
-          return path;
-      }
-
       return null;
     }
 
-    //NOTE: matches module names containing 'partial' (not just prefix), mirroring how
-    //      the original tool this was extracted from behaved
+    //NOTE: matches names containing 'partial', not just prefix
     public static List<string> FindModuleCompletions(string partial, int max = DefaultMaxCompletions)
     {
       var result = new List<string>();
@@ -96,16 +75,175 @@ namespace UnityBHL
     }
 
     public const string AnyFuncPattern = @"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(";
+    public const string AnyClassPattern = @"\bclass\s+([a-zA-Z_][a-zA-Z0-9_]*)\b";
 
-    //NOTE: func_pattern lets a caller constrain which functions count (its own Group(1)
-    //      must capture the function name) - e.g. a test runner that only wants entry
-    //      points shaped like 'func ... ([]string args)'. 'valid' is null if the module
-    //      file couldn't be found, true if 'partial' exactly matches a declared function
-    //      (or is empty), false otherwise - mirrors a text field's "is this usable" state
-    public static (List<string> completions, bool? valid) FindFuncCompletions(
-      string module_name, string partial, string func_pattern = AnyFuncPattern, int max = DefaultMaxCompletions)
+    //NOTE: also doubles as a per-result tag (FindFuncCompletions never tags a result
+    //      as All - only used as a parameter there to mean "search both")
+    public enum BHLSymbolKind
     {
-      var completions = new List<string>();
+      All,
+      Func,
+      Class
+    }
+
+    //NOTE: a func/class found while scanning a file, with its fully dot-qualified name
+    //      (enclosing namespace(s) included, e.g. "Foo.Bar")
+    readonly struct ScannedSymbol
+    {
+      public readonly string Name;
+      public readonly BHLSymbolKind Kind;
+      public ScannedSymbol(string name, BHLSymbolKind kind) { Name = name; Kind = kind; }
+    }
+
+    //NOTE: replaces comment/string-literal contents with spaces (preserving length and
+    //      newlines) so a stray '{'/'}' - or a keyword-looking word - inside either
+    //      doesn't corrupt the namespace-brace tracking below. Doesn't handle every
+    //      BHL lexical edge case (e.g. verbatim strings), just the common ones
+    static string StripCommentsAndStrings(string text)
+    {
+      var sb = new StringBuilder(text.Length);
+      int i = 0;
+      while(i < text.Length)
+      {
+        char c = text[i];
+
+        if(c == '/' && i + 1 < text.Length && text[i + 1] == '/')
+        {
+          while(i < text.Length && text[i] != '\n')
+          {
+            sb.Append(' ');
+            ++i;
+          }
+          continue;
+        }
+
+        if(c == '/' && i + 1 < text.Length && text[i + 1] == '*')
+        {
+          sb.Append(' ', 2);
+          i += 2;
+          while(i < text.Length && !(text[i] == '*' && i + 1 < text.Length && text[i + 1] == '/'))
+          {
+            sb.Append(text[i] == '\n' ? '\n' : ' ');
+            ++i;
+          }
+          if(i < text.Length)
+          {
+            sb.Append(' ', 2);
+            i += 2;
+          }
+          continue;
+        }
+
+        if(c == '"')
+        {
+          sb.Append(' ');
+          ++i;
+          while(i < text.Length && text[i] != '"')
+          {
+            //NOTE: an escaped quote (\") doesn't end the string
+            if(text[i] == '\\' && i + 1 < text.Length)
+            {
+              sb.Append(' ', 2);
+              i += 2;
+              continue;
+            }
+            sb.Append(text[i] == '\n' ? '\n' : ' ');
+            ++i;
+          }
+          if(i < text.Length)
+          {
+            sb.Append(' ');
+            ++i;
+          }
+          continue;
+        }
+
+        sb.Append(c);
+        ++i;
+      }
+      return sb.ToString();
+    }
+
+    static readonly Regex NamespaceBlockPattern = new Regex(@"\bnamespace\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\{");
+
+    //NOTE: finds every `namespace Name { ... }` block's full extent (via plain brace
+    //      counting - safe here since comments/strings are already stripped) so a
+    //      symbol found inside one can be prefixed with its name. Nested namespaces
+    //      produce nested (start, end) ranges
+    static List<(int start, int end, string name)> FindNamespaceBlocks(string stripped_text)
+    {
+      var result = new List<(int start, int end, string name)>();
+
+      foreach(Match m in NamespaceBlockPattern.Matches(stripped_text))
+      {
+        int brace_pos = m.Index + m.Length - 1;
+        int depth = 1;
+        int j = brace_pos + 1;
+        while(j < stripped_text.Length && depth > 0)
+        {
+          if(stripped_text[j] == '{')
+            ++depth;
+          else if(stripped_text[j] == '}')
+            --depth;
+          ++j;
+        }
+
+        result.Add((brace_pos, j, m.Groups[1].Value));
+      }
+
+      return result;
+    }
+
+    //NOTE: dot-joined names of every namespace block enclosing 'position', outermost first
+    static string GetNamespacePrefix(List<(int start, int end, string name)> blocks, int position)
+    {
+      if(blocks.Count == 0)
+        return "";
+
+      var enclosing = new List<(int start, string name)>();
+      foreach(var b in blocks)
+        if(position >= b.start && position < b.end)
+          enclosing.Add((b.start, b.name));
+
+      if(enclosing.Count == 0)
+        return "";
+
+      enclosing.Sort((a, b) => a.start.CompareTo(b.start));
+
+      var sb = new StringBuilder();
+      foreach(var e in enclosing)
+      {
+        sb.Append(e.name);
+        sb.Append('.');
+      }
+      return sb.ToString();
+    }
+
+    //NOTE: every func_pattern/AnyClassPattern match in 'text', as (fully-qualified name,
+    //      kind) - used by FindFuncCompletions so namespace-prefixing works correctly
+    static IEnumerable<ScannedSymbol> ScanSymbols(string text, BHLSymbolKind kind, string func_pattern)
+    {
+      var stripped = StripCommentsAndStrings(text);
+      var blocks = FindNamespaceBlocks(stripped);
+
+      if(kind == BHLSymbolKind.All || kind == BHLSymbolKind.Func)
+        foreach(Match m in Regex.Matches(stripped, func_pattern))
+          yield return new ScannedSymbol(GetNamespacePrefix(blocks, m.Index) + m.Groups[1].Value, BHLSymbolKind.Func);
+
+      if(kind == BHLSymbolKind.All || kind == BHLSymbolKind.Class)
+        foreach(Match m in Regex.Matches(stripped, AnyClassPattern))
+          yield return new ScannedSymbol(GetNamespacePrefix(blocks, m.Index) + m.Groups[1].Value, BHLSymbolKind.Class);
+    }
+
+    //NOTE: kind/func_pattern constrain which symbols count (for Func, Group(1) must
+    //      capture the name; class matching always uses AnyClassPattern). Scoped to a
+    //      single already-known module file - cheap, no project-wide scanning.
+    //      valid: null = module file not found, true = exact match (or partial empty), false = no match
+    public static (List<(string name, BHLSymbolKind kind)> completions, bool? valid) FindFuncCompletions(
+      string module_name, string partial, BHLSymbolKind kind = BHLSymbolKind.Func,
+      string func_pattern = AnyFuncPattern, int max = DefaultMaxCompletions)
+    {
+      var completions = new List<(string name, BHLSymbolKind kind)>();
 
       var file_path = FindModuleFile(module_name);
       if(file_path == null)
@@ -114,11 +252,10 @@ namespace UnityBHL
       try
       {
         var text = File.ReadAllText(file_path);
-        var matches = Regex.Matches(text, func_pattern);
         bool found_exact = string.IsNullOrEmpty(partial);
-        foreach(Match m in matches)
+        foreach(var sym in ScanSymbols(text, kind, func_pattern))
         {
-          var name = m.Groups[1].Value;
+          var name = sym.Name;
           if(name == partial)
           {
             found_exact = true;
@@ -126,8 +263,8 @@ namespace UnityBHL
           }
           if(!string.IsNullOrEmpty(partial) && !name.Contains(partial))
             continue;
-          if(!completions.Contains(name) && completions.Count < max)
-            completions.Add(name);
+          if(!completions.Exists(c => c.name == name) && completions.Count < max)
+            completions.Add((name, sym.Kind));
         }
         return (completions, found_exact);
       }
@@ -137,16 +274,13 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: height DrawCompletions(Rect, ...) below needs for 'count' rows - exposed so a
-    //      non-layout caller (e.g. a PropertyDrawer.GetPropertyHeight) can reserve space
+    //NOTE: height for 'count' rows - lets a non-layout caller (e.g. GetPropertyHeight) reserve space
     public static float GetCompletionsHeight(int count)
     {
       return count == 0 ? 0f : count * (EditorGUIUtility.singleLineHeight + 2) + 4;
     }
 
-    //NOTE: rect-based primitive - draws nothing if the list is empty. The layout-based
-    //      overload below (for a plain OnGUI()) reserves its own rect and delegates here,
-    //      so both it and non-layout callers (e.g. a PropertyDrawer) share one code path
+    //NOTE: rect-based primitive; the layout overload below reserves its own rect and delegates here
     public static void DrawCompletions(Rect rect, List<string> list, Action<string> on_pick)
     {
       if(list.Count == 0)
@@ -166,8 +300,7 @@ namespace UnityBHL
       }
     }
 
-    //NOTE: small reusable "dropdown of buttons below a text field" widget, for a plain
-    //      OnGUI() caller (e.g. a custom EditorWindow) - draws nothing if the list is empty
+    //NOTE: layout-based convenience for a plain OnGUI() caller (e.g. a custom EditorWindow)
     public static void DrawCompletions(List<string> list, Action<string> on_pick)
     {
       if(list.Count == 0)
@@ -179,22 +312,19 @@ namespace UnityBHL
 
     const float MarkSize = 16f;
 
-    //NOTE: the same BHL logo used for the .bhl Project window icon, as a visual cue that
-    //      a field has BHL autocomplete - drawn explicitly rather than via GUIContent's
-    //      image, which EditorGUI/EditorGUILayout field controls don't render for a
-    //      value-type field (string/int/...)
-    static void DrawMark()
+    //NOTE: drawn explicitly - GUIContent's image isn't rendered for value-type fields.
+    //      Public so a consumer with its own, differently-sourced picker (e.g.
+    //      ScriptBHLInspector's Class field, backed by ClassIntrospection rather than
+    //      this class's own Find*Completions) can still show the same visual cue
+    public static void DrawMark()
     {
       var icon = EditorCompiler.IconSmall;
       if(icon != null)
         GUILayout.Label(icon, GUILayout.Width(MarkSize), GUILayout.Height(MarkSize));
     }
 
-    //NOTE: a BHL module name field - the mark, the label+text field, and the autocomplete
-    //      dropdown, all in one call. Recomputes completions every call rather than
-    //      caching across frames (same as BHLModuleFieldDrawer) - GetSearchRoots/
-    //      FindModuleCompletions are cheap and bounded (max), so this is fine for typical
-    //      project sizes. For a serialized field, use [BHLModuleField] instead
+    //NOTE: mark + labeled field + dropdown in one call, recomputed every call (cheap,
+    //      bounded by max). For a serialized field, use [BHLModuleField] instead
     public static string DrawModuleField(string label, string value, int max = DefaultMaxCompletions)
     {
       EditorGUILayout.BeginHorizontal();
@@ -212,18 +342,16 @@ namespace UnityBHL
       return new_value;
     }
 
-    //NOTE: a BHL function name field, resolved against 'module_name' (e.g. a sibling
-    //      DrawModuleField's current value) - same func_pattern/'valid' semantics as
-    //      FindFuncCompletions, additionally used here to tint the field when the current
-    //      text doesn't match a declared function. For a serialized field, use
-    //      [BHLFuncField] instead
+    //NOTE: same, resolved against module_name; also red-tints the field when invalid.
+    //      For a serialized field, use [BHLFuncField] instead. kind lets a caller also
+    //      match class declarations within the module (tagged in the dropdown when All)
     public static string DrawFuncField(string label, string module_name, string value, out bool? valid,
-      string func_pattern = AnyFuncPattern, int max = DefaultMaxCompletions)
+      BHLSymbolKind kind = BHLSymbolKind.Func, string func_pattern = AnyFuncPattern, int max = DefaultMaxCompletions)
     {
-      List<string> completions;
+      List<(string name, BHLSymbolKind kind)> completions;
       (completions, valid) = string.IsNullOrEmpty(module_name)
-        ? (new List<string>(), (bool?)null)
-        : FindFuncCompletions(module_name, value, func_pattern, max);
+        ? (new List<(string name, BHLSymbolKind kind)>(), (bool?)null)
+        : FindFuncCompletions(module_name, value, kind, func_pattern, max);
 
       var prev_bg = GUI.backgroundColor;
       if(valid == false)
@@ -236,9 +364,15 @@ namespace UnityBHL
 
       GUI.backgroundColor = prev_bg;
 
-      DrawCompletions(completions, picked =>
+      var labels = new List<string>();
+      foreach(var c in completions)
+        labels.Add(kind == BHLSymbolKind.All ? $"{c.name} [{c.kind}]" : c.name);
+
+      DrawCompletions(labels, picked =>
       {
-        new_value = picked;
+        var idx = labels.IndexOf(picked);
+        if(idx >= 0)
+          new_value = completions[idx].name;
         GUIUtility.keyboardControl = 0;
       });
 
