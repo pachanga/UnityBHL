@@ -5,6 +5,21 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2026-10-07
+
+### Added
+- `DrawModuleField`/`[BHLModuleField]` now red-tint the field when the typed name doesn't
+  exactly match an existing module, same as `DrawFuncField`/`[BHLFuncField]` already did -
+  previously a partial match showed completions below but the field itself gave no
+  indication that the current value wasn't a real, committed module.
+
+### Fixed
+- `DrawFuncField`/`[BHLFuncField]` only red-tinted on an outright mismatch (`valid ==
+  false`), not on `valid == null` (no module selected, or the module itself doesn't
+  resolve) - so a symbol name typed in with no valid module behind it looked exactly as
+  "fine" as a correct one. Now tinted whenever `valid != true` and something's actually
+  been typed (still untinted while genuinely empty, same as before).
+
 ## [0.19.1] - 2026-10-07
 
 ### Changed

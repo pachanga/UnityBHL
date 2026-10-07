@@ -361,16 +361,27 @@ namespace UnityBHL
     //NOTE: mark + labeled field + dropdown in one call (completions filtered fresh every
     //      call, cheap; the underlying module list itself is cached - see Invalidate()
     //      above - so a "Refresh" button is offered here for a .bhl file added/removed
-    //      outside Unity, where nothing would otherwise trigger a re-scan). For a
+    //      outside Unity, where nothing would otherwise trigger a re-scan). Also
+    //      red-tints the field when the typed name doesn't exactly match an existing
+    //      module, same as DrawFuncField - a partial match can still show completions
+    //      below without the field itself looking like a valid, committed value. For a
     //      serialized field, use [BHLModuleField] instead
     public static string DrawModuleField(string label, string value, int max = DefaultMaxCompletions)
     {
+      bool valid = string.IsNullOrEmpty(value) || FindModuleFile(value) != null;
+
+      var prev_bg = GUI.backgroundColor;
+      if(!valid)
+        GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
+
       EditorGUILayout.BeginHorizontal();
       DrawMark();
       var new_value = EditorGUILayout.TextField(label, value);
       if(GUILayout.Button("Refresh", GUILayout.Width(60)))
         Invalidate();
       EditorGUILayout.EndHorizontal();
+
+      GUI.backgroundColor = prev_bg;
 
       var completions = FindModuleCompletions(new_value, max);
       DrawCompletions(completions, picked =>
@@ -393,8 +404,12 @@ namespace UnityBHL
         ? (new List<(string name, BHLSymbolKind kind)>(), (bool?)null)
         : FindFuncCompletions(module_name, value, kind, func_pattern, max);
 
+      //NOTE: valid == null means "couldn't even check" (no module, or module doesn't
+      //      resolve) - that's still worth flagging once the user has actually typed a
+      //      name here, same as an outright mismatch (valid == false). A still-empty
+      //      field isn't tinted either way - nothing to complain about yet
       var prev_bg = GUI.backgroundColor;
-      if(valid == false)
+      if(valid != true && !string.IsNullOrEmpty(value))
         GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
 
       EditorGUILayout.BeginHorizontal();

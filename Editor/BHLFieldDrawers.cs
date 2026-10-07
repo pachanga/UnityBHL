@@ -10,7 +10,16 @@ namespace UnityBHL
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
       var field_rect = new Rect(position.x, position.y, position.width, EditorGUIUtility.singleLineHeight);
+
+      bool valid = property.propertyType != SerializedPropertyType.String
+        || string.IsNullOrEmpty(property.stringValue)
+        || BHLModuleBrowser.FindModuleFile(property.stringValue) != null;
+
+      var prev_color = GUI.color;
+      if(!valid)
+        GUI.color = new Color(1f, 0.6f, 0.6f);
       EditorGUI.PropertyField(BHLFieldIcon.DrawAndShrink(field_rect), property, label);
+      GUI.color = prev_color;
 
       if(property.propertyType != SerializedPropertyType.String)
         return;
@@ -64,8 +73,11 @@ namespace UnityBHL
       foreach(var f in found)
         completions.Add(f.name);
 
+      //NOTE: valid == null means "couldn't even check" (no module, or module doesn't
+      //      resolve) - still worth flagging once a name is actually typed here, same as
+      //      DrawFuncField
       var prev_color = GUI.color;
-      if(valid == false)
+      if(valid != true && !string.IsNullOrEmpty(property.stringValue))
         GUI.color = new Color(1f, 0.6f, 0.6f);
       EditorGUI.PropertyField(BHLFieldIcon.DrawAndShrink(field_rect), property, label);
       GUI.color = prev_color;
