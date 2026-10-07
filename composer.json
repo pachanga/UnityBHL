@@ -1,6 +1,6 @@
 {
   "name": "bit/unitybhl",
-  "description": "Unity SDK for BHL scripting typed language",
+  "description": "Unity SDK for BHL scripting language",
   "homepage": "https://github.com/pachanga/UnityBHL",
   "require": {
     "php": ">=8.1"
