@@ -5,6 +5,18 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.21.0] - 2026-10-08
+
+### Changed
+- Compile errors were shown in three places at once (Unity Console, the Control Panel's
+  inline list, and `BHLErrorWindow`'s popup - the popup used to skip itself whenever the
+  Control Panel happened to be open, since the Control Panel showed the same list
+  inline). The Control Panel no longer shows errors inline; `BHLErrorWindow` is now the
+  one popup, shown unconditionally, and still duplicates to Unity's Console as before.
+- Control Panel: Recompile/Force Recompile buttons moved above the Settings section
+  (previously below it), so they're reachable without the Settings foldout being open or
+  scrolling past it.
+
 ## [0.20.0] - 2026-10-07
 
 ### Added

@@ -24,12 +24,6 @@ namespace UnityBHL
 
     void OnInspectorUpdate() => Repaint();
 
-    public static void RepaintIfOpen()
-    {
-      if(HasOpenInstances<ControlPanel>())
-        GetWindow<ControlPanel>("BHL Control Panel", focus: false).Repaint();
-    }
-
     void OnDisable()
     {
       if(_settingsEditor != null)
@@ -47,9 +41,6 @@ namespace UnityBHL
       _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
       DrawDebugStatus();
-      EditorGUILayout.Space();
-
-      DrawSettings();
       EditorGUILayout.Space();
 
       EditorGUILayout.BeginHorizontal();
@@ -70,8 +61,9 @@ namespace UnityBHL
       }
 
       EditorGUILayout.EndHorizontal();
+      EditorGUILayout.Space();
 
-      DrawErrors();
+      DrawSettings();
 
       EditorGUILayout.EndScrollView();
 
@@ -101,18 +93,6 @@ namespace UnityBHL
         return;
 
       EditorGUILayout.LabelField(string.Join("   ", parts), EditorStyles.centeredGreyMiniLabel);
-    }
-
-    //NOTE: same per-error format as BHLErrorWindow (shared via DrawErrorsList), so an
-    //      open Control Panel shows errors identically to the popup
-    void DrawErrors()
-    {
-      if(EditorCompiler.LastErrors.Count == 0)
-        return;
-
-      EditorGUILayout.Space();
-      GUILayout.Label($"=== Errors ({EditorCompiler.LastErrors.Count}) ===");
-      BHLErrorWindow.DrawErrorsList();
     }
 
     void DrawSettings()

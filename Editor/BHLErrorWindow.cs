@@ -7,24 +7,18 @@ namespace UnityBHL
 {
 
   //NOTE: pops up on any compile failure (Rebuild, background Recompile, or the live-reload
-  //      path) via EditorCompiler.LogCompileErrors - not just visible if the Control Panel
-  //      happens to be open
+  //      path) via EditorCompiler.LogCompileErrors - the sole UI surface for errors (the
+  //      Control Panel used to also show them inline, which just duplicated this window
+  //      whenever both happened to be visible at once). Errors still duplicate to Unity's
+  //      own Console too (see LogCompileErrors) - this popup exists for the "Open" button,
+  //      which reliably jumps to .bhl files even when they live outside the Unity project,
+  //      unlike double-clicking a Console entry
   public class BHLErrorWindow : EditorWindow
   {
     Vector2 _scroll;
 
-    //NOTE: skipped if the Control Panel is already open - it shows the same error
-    //      list inline (DrawErrorsList), so the popup would just be redundant
     public static void ShowErrors()
     {
-      if(HasOpenInstances<ControlPanel>())
-      {
-        //NOTE: relying on OnInspectorUpdate's periodic Repaint isn't immediate enough
-        //      (can lag until the window is focused) - force it right when errors change
-        ControlPanel.RepaintIfOpen();
-        return;
-      }
-
       var window = GetWindow<BHLErrorWindow>(utility: true, title: "BHL Errors");
       window.minSize = new Vector2(520, 200);
       window.Show();
@@ -41,8 +35,6 @@ namespace UnityBHL
 
       if(HasOpenInstances<BHLErrorWindow>())
         GetWindow<BHLErrorWindow>().Close();
-
-      ControlPanel.RepaintIfOpen();
     }
 
     void OnGUI()
@@ -58,9 +50,7 @@ namespace UnityBHL
       EditorGUILayout.EndScrollView();
     }
 
-    //NOTE: shared with ControlPanel, so an open Control Panel shows errors in the same
-    //      format as this popup, instead of duplicating the per-error drawing code
-    public static void DrawErrorsList()
+    static void DrawErrorsList()
     {
       var errors = EditorCompiler.LastErrors;
       for(int i = 0; i < errors.Count; ++i)
