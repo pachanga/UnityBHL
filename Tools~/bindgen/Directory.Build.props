@@ -1,0 +1,4 @@
+<!-- stops MSBuild from importing the Directory.Build.props of the project the package is installed in
+     (e.g. one changing the output path), so the tool is built the same way everywhere -->
+<Project>
+</Project>
