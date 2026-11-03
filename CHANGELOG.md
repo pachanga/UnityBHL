@@ -5,6 +5,22 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `Tools~/bindgen`: generates the canonical BHL bindings registration .cs (the format the BHL
+  compiler reads) from C# declarations, parsing only: `[BhlBind]` binds static methods by name,
+  `[BhlCustom]` interfaces declare custom functions and coroutines with hand written `Script_*`
+  classes, `[BhlClass]` interfaces declare classes (members by signature or by `nameof`). The
+  output is split by declarations file and into slices of 20, configured by `bhl_bindgen.json`
+  next to bhl.proj. Needs the .NET SDK
+- `BindGen` editor postprocessor: regenerates the bindings when a file they're made of changes,
+  `BHL/Generate Bindings` menu item
+- `BitGames.BhlTask` asmdef (moved from the `com.bitgames.bhltask` package, namespace
+  `BitGames.BHL` kept): C# functions bound as BHL coroutines by returning `BhlStep`, `BhlTask`,
+  `BhlFinallyTask` or `IEnumerator<BhlStep>`, with its Roslyn analyzer; `ToBhlTask(UniTask)` only
+  when the project has UniTask. bindgen binds such functions as coroutines by their return type
+
 ## [0.21.0] - 2026-10-08
 
 ### Changed

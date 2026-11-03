@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>BitGames.BhlTask.Analyzer</RootNamespace>
+    <AssemblyName>BitGames.BhlTask.Analyzer</AssemblyName>
+    <LangVersion>9</LangVersion>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!-- Unity loads the analyzer from the folder of the BitGames.BhlTask asmdef: it applies to the assemblies referencing it -->
+    <UnityAnalyzersDir>$(MSBuildThisFileDirectory)../../Runtime/Task/Analyzers/</UnityAnalyzersDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep in sync with the Roslyn version supported by the project's Unity -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="CopyToUnity" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(UnityAnalyzersDir)" />
+  </Target>
+
+</Project>

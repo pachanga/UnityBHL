@@ -1,0 +1,146 @@
+using System; using System.Collections.Generic; using bhl; using BitGames.BHL; using UnityEngine; using Cysharp.Threading.Tasks;
+using Coroutine = bhl.Coroutine;
+
+//NOTE: the call of a binding is made the way the generated code makes it (Call*), ticked and destroyed the
+//      way the VM does it (Tick, CoroutinePool.Del); allocations are measured with the pools warm
+static class P {
+  static int fails;
+  static void Check(bool c, string m) { Console.WriteLine((c ? "ok   " : "FAIL ") + m); if(!c) fails++; }
+  static string log = "";
+  static int n;
+  // BhlTask
+  static async BhlTask Steps() { log += "a"; await BhlTask.Yield(); log += "b"; await BhlTask.Yield(); log += "c"; }
+  static async BhlTask<int> Nested() { await Steps(); await BhlTask.WaitSeconds(1f); return 42; }
+  static async BhlTask CheapGuarded() { try { log += "["; await BhlTask.WaitSeconds(100f); log += "never"; } finally { log += "]"; } }
+  static async BhlFinallyTask FinGuarded() { try { log += "["; await BhlTask.WaitSeconds(100f); log += "never"; } finally { log += "]"; } }
+  static async BhlFinallyTask FinOverCheap() { try { log += "["; await Wait(100f); log += "never"; } finally { log += "]"; } }
+  static async BhlTask CheapOverFin() { log += "<"; await FinGuarded(); log += "never"; }
+  static async BhlFinallyTask FinAwaitInFinally() { try { await BhlTask.Yield(); } finally { log += "f"; try { await BhlTask.Yield(); } catch(OperationCanceledException) { log += "c"; } } }
+  static async BhlTask Throws() { await BhlTask.Yield(); throw new InvalidOperationException("boom"); }
+  static async BhlTask ThrowsSync() { throw new InvalidOperationException("sync boom"); }
+  static async BhlTask<int> Sync() { return 7; }
+  static async BhlTask Wait(float s) { await BhlTask.WaitSeconds(s); }
+  static BhlTask WaitPass(float s) => BhlTask.WaitSeconds(s);
+  static async BhlFinallyTask FinWait(float s) { await FinWaitInner(s); }
+  static async BhlFinallyTask FinWaitInner(float s) { await BhlTask.WaitSeconds(s); }
+  static async BhlTask<int> WaitInt(float s) { await Wait(s); return 1; }
+  static async BhlTask Twice() { var t = Steps(); await t; await t; }
+  static async BhlTask Foreign(System.Threading.Tasks.Task t) { await t; }
+  static async BhlTask ForgetBoom() { Throws().Forget(); await BhlTask.WaitSeconds(10f); }
+  static async BhlTask ForgetOk() { Steps().Forget(); log += "+"; await BhlTask.Yield(); await BhlTask.Yield(); await BhlTask.Yield(); log += "!"; }
+  static async BhlTask ForgetPending() { Wait(100f).Forget(); }
+  static async BhlTask<int> FromUni(StubSource<int> s) { log += "u"; int v = await new UniTask<int>(s).ToBhlTask(); log += "v"; await BhlTask.Yield(); log += "w"; return v; }
+  static async BhlFinallyTask FromUniFin(StubSource<bool> s) { try { await new UniTask(s).ToBhlTask(); log += "never"; } finally { log += "]"; } }
+  static async BhlTask FromUniCheap(StubSource<bool> s) { await new UniTask(s).ToBhlTask(); log += "never"; }
+  static async BhlTask<int> FromSys(System.Threading.Tasks.Task<int> t) { int v = await t.ToBhlTask(); return v + 1; }
+  // iterators
+  static IEnumerator<BhlStep> IterSteps() { log += "a"; yield return BhlStep.Yield; log += "b"; yield return default; log += "c"; }
+  static IEnumerator<BhlStep> IterNested() { log += "<"; yield return BhlStep.Run(IterSteps()); yield return BhlStep.WaitSeconds(1f); yield return Wait(0.5f); log += ">"; }
+  static IEnumerator<BhlStep<int>> IterReturn() { yield return BhlStep.Run(IterSteps()); yield return BhlStep<int>.Return(9); log += "never"; }
+  static IEnumerator<BhlStep> IterGuarded() { try { log += "["; yield return BhlStep.Run(IterInnerGuarded()); log += "never"; } finally { log += "]"; } }
+  static IEnumerator<BhlStep> IterInnerGuarded() { try { log += "("; yield return BhlStep.WaitSeconds(100f); } finally { log += ")"; } }
+  static IEnumerator<BhlStep> IterThrows() { yield return default; throw new InvalidOperationException("iter boom"); }
+  static IEnumerator<BhlStep> IterAwaitThrows() { yield return Throws(); }
+  static IEnumerator<BhlStep> IterWait(float s) { yield return BhlStep.WaitSeconds(s); }
+  static IEnumerator<BhlStep> IterWrap(float s) { yield return BhlStep.Run(IterWait(s)); }
+
+  static VM.ExecState E = new VM.ExecState();
+  static int sum;
+  static Coroutine Call(Func<BhlTask> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t); } finally { s.Exit(); } }
+  static Coroutine CallF(Func<BhlFinallyTask> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t); } finally { s.Exit(); } }
+  static Coroutine CallT<T>(Func<BhlTask<T>> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t, static (exec, v) => exec.pushed.Add(v)); } finally { s.Exit(); } }
+  static Coroutine CallInt(Func<BhlTask<int>> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t, static (exec, v) => sum += v); } finally { s.Exit(); } }
+  static Coroutine CallI(Func<IEnumerator<BhlStep>> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t); } finally { s.Exit(); } }
+  static Coroutine CallIT(Func<IEnumerator<BhlStep<int>>> f) { var s = BhlTaskScope.Enter(); try { var t = f(); return BhlTaskCoroutine.New(E, s, t, static (exec, v) => exec.pushed.Add(v)); } finally { s.Exit(); } }
+  static Coroutine CallS(BhlStep step) { var s = BhlTaskScope.Enter(); try { return BhlTaskCoroutine.New(E, s, step); } finally { s.Exit(); } }
+  static bool Tick(Coroutine c) { E.status = BHS.SUCCESS; c.Tick(E); return E.status == BHS.RUNNING; }
+  static int Run(Coroutine c, int max = 1000) { for(int i = 1; i <= max; ++i) { bool r; try { r = Tick(c); } catch { CoroutinePool.Del(E, c); throw; } if(!r) { CoroutinePool.Del(E, c); return i; } Time.time += 0.25f; } return -1; }
+  static void Cancel(Coroutine c, int ticks) { for(int i = 0; i < ticks; ++i) { Tick(c); Time.time += 0.25f; } CoroutinePool.Del(E, c); }
+  static string Err(Action a) { try { a(); } catch(Exception e) { return e.GetType().Name + ":" + e.Message; } return null; }
+
+  static void Main() {
+    for(int pass = 0; pass < 2; ++pass) {
+      Console.WriteLine("== pass " + pass);
+      log = ""; var c = Call(Steps); Check(log == "a", "call runs to the first await: " + log);
+      int ticks = Run(c); Check(ticks == 3 && log == "abc", $"yield = one tick each: ticks={ticks} log={log}");
+      E.pushed.Clear(); log = ""; Time.time = 0; ticks = Run(CallT(Nested));
+      Check(log == "abc" && E.pushed.Count == 1 && (int)E.pushed[0] == 42, $"nested + WaitSeconds + result: ticks={ticks} log={log}");
+      E.pushed.Clear(); ticks = Run(CallT(Sync)); Check(ticks == 1 && (int)E.pushed[0] == 7, "sync completion in the first tick");
+      Check(Err(() => Run(Call(Throws))) == "InvalidOperationException:boom", "exception rethrown by Tick");
+      Check(Err(() => Run(Call(ThrowsSync))) == "InvalidOperationException:sync boom", "sync exception");
+      Check(Err(() => Run(Call(Twice)))?.Contains("after its result was taken") == true, "awaited twice throws");
+      var tcs = new System.Threading.Tasks.TaskCompletionSource<bool>();
+      Check(Err(() => Run(Call(() => Foreign(tcs.Task))))?.Contains("ToBhlTask") == true, "foreign await rejected");
+      // cancellation
+      log = ""; Time.time = 0; Cancel(Call(CheapGuarded), 2); Check(log == "[", "cheap cancel: not resumed, finally skipped: " + log);
+      log = ""; Time.time = 0; Cancel(CallF(FinGuarded), 2); Check(log == "[]", "BhlFinallyTask cancel: finally runs: " + log);
+      log = ""; Time.time = 0; Cancel(CallF(FinOverCheap), 2); Check(log == "[]", "BhlFinallyTask over a BhlTask: the BhlTask is faulted, finally runs: " + log);
+      log = ""; Time.time = 0; Cancel(Call(CheapOverFin), 2); Check(log == "<[]", "BhlTask over a BhlFinallyTask: inner finally runs, outer not resumed: " + log);
+      log = ""; Cancel(CallF(FinAwaitInFinally), 1); Check(log == "fc", "await in finally of a cancelled BhlFinallyTask throws at once: " + log);
+      // Forget
+      Time.time = 0; Check(Err(() => Run(Call(ForgetBoom))) == "InvalidOperationException:boom", "forgotten exception fails the call");
+      log = ""; ticks = Run(Call(ForgetOk)); Check(log == "a+bc!" && ticks == 4, $"forgotten runs on: ticks={ticks} log={log}");
+      Debug.logged = 0; ticks = Run(Call(ForgetPending)); Check(ticks == 1 && Debug.logged == 0, $"pending forgotten dropped with the call, nothing logged: ticks={ticks}");
+      // ToBhlTask
+      log = ""; E.pushed.Clear(); var us = new StubSource<int>(); c = CallT(() => FromUni(us)); Tick(c); Tick(c); Check(log == "u", "unitask pending: " + log);
+      us.Complete(5); Check(log == "u", "unitask completion waits for the tick: " + log);
+      ticks = Run(c); Check(log == "uvw" && (int)E.pushed[0] == 5 && ticks == 2 && us.taken == 1, $"unitask result in scope: ticks={ticks} log={log} taken={us.taken}");
+      us = new StubSource<int>(); us.Fail(new InvalidOperationException("uni boom"));
+      Check(Err(() => Run(CallT(() => FromUni(us)))) == "InvalidOperationException:uni boom", "completed failed unitask");
+      us = new StubSource<int>(); c = CallT(() => FromUni(us)); Tick(c); us.Fail(new InvalidOperationException("late boom"));
+      Check(Err(() => Run(c)) == "InvalidOperationException:late boom", "failed unitask");
+      log = ""; var vs = new StubSource<bool>(); c = CallF(() => FromUniFin(vs)); Tick(c); CoroutinePool.Del(E, c);
+      Check(log == "]" && vs.taken == 0, "BhlFinallyTask cancel over unitask: finally runs: " + log);
+      log = ""; Run(Call(Steps)); vs.Complete(true); Check(vs.taken == 1 && log == "abc", "late unitask released, scope reused untouched: " + log);
+      log = ""; vs = new StubSource<bool>(); c = Call(() => FromUniCheap(vs)); Tick(c); CoroutinePool.Del(E, c); vs.Complete(true); Check(log == "" && vs.taken == 1, "BhlTask cancel over unitask: dropped, unitask released later");
+      var tc = new System.Threading.Tasks.TaskCompletionSource<int>(); E.pushed.Clear(); c = CallT(() => FromSys(tc.Task)); Tick(c); tc.SetResult(3);
+      ticks = Run(c); Check(E.pushed.Count == 1 && (int)E.pushed[0] == 4, $"Task.ToBhlTask: ticks={ticks} pushed={string.Join(",", E.pushed)}");
+      // iterators
+      log = ""; c = CallI(IterSteps); Check(log == "", "iterator runs nothing at the call");
+      ticks = Run(c); Check(ticks == 3 && log == "abc", $"iterator yield = one tick: ticks={ticks} log={log}");
+      log = ""; Time.time = 0; ticks = Run(CallI(IterNested)); Check(log == "<abc>", $"nested + wait + await task: ticks={ticks} log={log}");
+      log = ""; E.pushed.Clear(); ticks = Run(CallIT(IterReturn)); Check(log == "abc" && (int)E.pushed[0] == 9, $"iterator return value: ticks={ticks} log={log}");
+      log = ""; Time.time = 0; Cancel(CallI(IterGuarded), 2); Check(log == "[()]", "iterator cancel disposes, finally runs: " + log);
+      Check(Err(() => Run(CallI(IterThrows))) == "InvalidOperationException:iter boom", "iterator exception");
+      Check(Err(() => Run(CallI(IterAwaitThrows))) == "InvalidOperationException:boom", "iterator awaited task exception");
+      Time.time = 0; ticks = Run(CallS(BhlStep.WaitSeconds(1f))); Check(ticks == 5, "single step binding: ticks=" + ticks);
+    }
+
+    const int N = 1000;
+    var u = new StubSource<int>[N]; for(int i = 0; i < N; ++i) u[i] = new StubSource<int>();
+    for(int w = 0; w < 100; ++w) {
+      Time.time = 0; Run(Call(static () => Wait(1f))); Run(CallInt(static () => WaitInt(1f))); Run(Call(static () => ForgetOk2())); var s = new StubSource<int>(); var cc = CallInt(() => FromUni2(s)); Tick(cc); s.Complete(1); Run(cc);
+      Cancel(Call(static () => Wait(100f)), 2); Cancel(Call(static () => ForgetPending()), 2); Cancel(CallF(static () => FinWait(100f)), 2); Cancel(Call(static () => WaitPass(100f)), 2);
+      Run(CallI(static () => IterWait(1f))); Run(CallI(static () => IterWrap(1f))); Run(CallS(BhlStep.WaitSeconds(1f))); Cancel(CallI(static () => IterWrap(100f)), 2);
+    }
+    var r = new Dictionary<string, long>();
+    void M(string k, Action a) { long b0 = GC.GetAllocatedBytesForCurrentThread(); for(int i = 0; i < N; ++i) a(); r[k] = (GC.GetAllocatedBytesForCurrentThread() - b0) / N; }
+    for(int rep = 0; rep < 2; ++rep) {
+      M("BhlTask run", () => { Time.time = 0; Run(Call(static () => Wait(1f))); });
+      M("BhlTask<int> run", () => { Time.time = 0; Run(CallInt(static () => WaitInt(1f))); });
+      M("Forget run", () => Run(Call(static () => ForgetOk2())));
+      int ui = 0; M("ToBhlTask(UniTask) run", () => { cur = u[ui++]; var cc = CallInt(static () => FromUni2(cur)); Tick(cc); cur.Complete(1); Run(cc); });
+      M("BhlTask cancel (wrapper)", () => { Time.time = 0; Cancel(Call(static () => Wait(100f)), 2); });
+      M("BhlTask cancel (passthrough)", () => { Time.time = 0; Cancel(Call(static () => WaitPass(100f)), 2); });
+      M("BhlTask cancel + forgotten", () => { Time.time = 0; Cancel(Call(static () => ForgetPending()), 2); });
+      M("BhlFinallyTask cancel (2 levels)", () => { Time.time = 0; Cancel(CallF(static () => FinWait(100f)), 2); });
+      M("iterator run (1 level)", () => { Time.time = 0; Run(CallI(static () => IterWait(1f))); });
+      M("iterator run (2 levels)", () => { Time.time = 0; Run(CallI(static () => IterWrap(1f))); });
+      M("iterator cancel (2 levels)", () => { Time.time = 0; Cancel(CallI(static () => IterWrap(100f)), 2); });
+      M("single step run", () => { Time.time = 0; Run(CallS(BhlStep.WaitSeconds(1f))); });
+      for(int i = 0; i < N; ++i) u[i] = new StubSource<int>();
+    }
+    foreach(var kv in r) Console.WriteLine($"alloc {kv.Key}: {kv.Value}B");
+#if !DEBUG
+    foreach(var k in new[] { "BhlTask run", "BhlTask<int> run", "Forget run", "ToBhlTask(UniTask) run", "BhlTask cancel (wrapper)",
+      "BhlTask cancel (passthrough)", "BhlTask cancel + forgotten", "single step run" })
+      Check(r[k] == 0, "no allocations: " + k);
+#endif
+    Console.WriteLine(fails == 0 ? "all passed" : fails + " failed");
+    Environment.Exit(fails);
+  }
+  static StubSource<int> cur;
+  static async BhlTask Steps2() { ++n; await BhlTask.Yield(); ++n; await BhlTask.Yield(); ++n; }
+  static async BhlTask ForgetOk2() { Steps2().Forget(); await BhlTask.Yield(); await BhlTask.Yield(); await BhlTask.Yield(); }
+  static async BhlTask<int> FromUni2(StubSource<int> s) { int v = await new UniTask<int>(s).ToBhlTask(); await BhlTask.Yield(); return v; }
+}

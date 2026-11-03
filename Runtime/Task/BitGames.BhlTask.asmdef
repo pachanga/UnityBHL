@@ -1,0 +1,23 @@
+{
+  "name": "BitGames.BhlTask",
+  "rootNamespace": "BitGames.BHL",
+  "references": [
+    "bhl",
+    "UniTask"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.cysharp.unitask",
+      "expression": "0.0.0",
+      "define": "BHL_UNITASK"
+    }
+  ],
+  "noEngineReferences": false
+}

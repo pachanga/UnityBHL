@@ -210,6 +210,31 @@ public class Generator
 
   static readonly TypeRef void_type = new TypeRef { Kind = Kind.Void, Cs = "void", Bhl = "void" };
 
+  static readonly TypeDecl no_result = new TypeDecl();
+
+  //NOTE: the result type of a BhlTask form: no_result for BhlStep, BhlTask, BhlFinallyTask, IEnumerator<BhlStep>,
+  //      T for BhlTask<T>, BhlFinallyTask<T>, IEnumerator<BhlStep<T>>, null if it's not one
+  static TypeDecl TaskResult(TypeDecl t)
+  {
+    bool Generic1(TypeDecl d) => d.GenericArgs != null && d.GenericArgs.Count == 1;
+    if(t.Name == "BhlStep" || t.Name == "BhlTask" || t.Name == "BhlFinallyTask")
+    {
+      if(t.GenericArgs == null)
+        return no_result;
+      if(t.Name != "BhlStep" && Generic1(t))
+        return t.GenericArgs[0];
+    }
+    else if(t.Name == "IEnumerator" && Generic1(t) && t.GenericArgs[0].Name == "BhlStep")
+    {
+      var step = t.GenericArgs[0];
+      if(step.GenericArgs == null)
+        return no_result;
+      if(Generic1(step))
+        return step.GenericArgs[0];
+    }
+    return null;
+  }
+
   TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false)
   {
     if(t.Keyword != null)
@@ -369,12 +394,15 @@ public class Generator
     public MethodDecl Decl;
     public List<(string name, TypeRef type, string def)> Args;
     public TypeRef Ret;
+    //NOTE: returns a BhlTask form (BitGames.BhlTask of UnityBHL), bound as a coroutine, Ret is its result
+    public bool IsTask;
 
+    public bool IsCoroutine => Decl.IsCoroutine || IsTask;
     public string Name => Decl.Name;
     public string Partial => "Script_" + Decl.Name;
     public bool HasDisposableArgs => Args.Any(a => DisposeArg(a.type, "") != null);
     //NOTE: a builtin or any returned by a non coroutine is pushed directly, others by the generated ReturnValue(..)
-    public bool HasReturnValue => Ret.Kind != Kind.Void && (Decl.IsCoroutine || (Ret.Kind != Kind.Builtin && Ret.Kind != Kind.Any));
+    public bool HasReturnValue => Ret.Kind != Kind.Void && (IsCoroutine || (Ret.Kind != Kind.Builtin && Ret.Kind != Kind.Any));
     public List<TypeRef> RetItems => Ret.Kind == Kind.Void ? new List<TypeRef>() : Ret.Kind == Kind.Tuple ? Ret.Items : new List<TypeRef> { Ret };
   }
 
@@ -387,11 +415,21 @@ public class Generator
     }
     if(m.IsCoroutine && !m.IsCustom)
       throw new GenException(m.Pos, $"a coroutine is bound only as a custom one, declare '{m.Name}' in a [BhlCustom] interface");
+    var task_result = TaskResult(m.ReturnType);
     var f = new Func {
       Decl = m,
       Args = m.Params.Select(p => (name: p.Name, type: Resolve(p.Type, false, p.IsCoroutine), def: p.Default)).ToList(),
-      Ret = Resolve(m.ReturnType, true),
+      IsTask = task_result != null,
+      Ret = task_result == null ? Resolve(m.ReturnType, true) : task_result == no_result ? void_type : Resolve(task_result, true),
     };
+    if(f.IsTask)
+    {
+      if(m.IsCustom)
+        throw new GenException(m.ReturnType.Pos, "a custom binding can't return a BhlTask, bind the method directly");
+      //NOTE: the coroutine outlives the call of the method, the args would be released while the task still uses them
+      foreach(var a in f.Args.Where(a => DisposeArg(a.type, "") != null))
+        throw new GenException(m.Params.First(p => p.Name == a.name).Pos, $"a BhlTask coroutine can't take '{a.type.Cs}' yet: the arg would be released before the task completes");
+    }
     foreach(var p in m.Params.Where(p => p.IsCoroutine))
     {
       if(f.Args.First(a => a.name == p.Name).type.Kind != Kind.Func)
@@ -719,7 +757,7 @@ public class Generator
     sb.Append("    }\n");
     sb.Append("    #endif\n\n");
 
-    var attrib = f.Decl.IsCoroutine ? "FuncAttrib.Coro" : "FuncAttrib.None";
+    var attrib = f.IsCoroutine ? "FuncAttrib.Coro" : "FuncAttrib.None";
     sb.Append($"    var fn = new FuncSymbolNative(new Origin(), \"{f.Name}\", {attrib}, {TypeRefCode(f.Ret)}, {f.Args.Count(a => a.def != null)},\n");
     sb.Append("      #if !BHL_FRONT\n");
     sb.Append($"      {local_fn}\n");
@@ -747,6 +785,11 @@ public class Generator
     var call_args = f.Args.Select(a => "__" + a.name);
     if(self_arg)
       call_args = call_args.Prepend("__self");
+    if(f.IsTask)
+    {
+      EmitTaskCall(sb, f, $"{callee}({string.Join(", ", call_args)})", self != null);
+      return;
+    }
     sb.Append("      ");
     if(f.Ret.Kind != Kind.Void)
       sb.Append("var return_val = ");
@@ -762,6 +805,26 @@ public class Generator
         sb.Append($"      {dispose}\n");
     }
     sb.Append("      return null;\n");
+  }
+
+  //NOTE: as metagen_bhl_bind binds a direct @bhl_coroutine: the scope makes the task live as long as the call,
+  //      the result is pushed when the task completes
+  static void EmitTaskCall(StringBuilder sb, Func f, string call, bool has_self)
+  {
+    sb.Append("      var scope = global::BitGames.BHL.BhlTaskScope.Enter();\n");
+    sb.Append("      try\n      {\n");
+    sb.Append($"        var task = {call};\n");
+    if(has_self)
+      sb.Append("        dv_self._refc?.Release();\n");
+    sb.Append("        return global::BitGames.BHL.BhlTaskCoroutine.New(exec, scope, task");
+    if(f.Ret.Kind != Kind.Void)
+    {
+      sb.Append(", static (exec, return_val) =>\n        {\n");
+      ReturnVal(sb, f.Ret, "return_val", "          ");
+      sb.Append("        }");
+    }
+    sb.Append(");\n");
+    sb.Append("      }\n      finally\n      {\n        scope.Exit();\n      }\n");
   }
 
   //NOTE: calls the hand written Script_<Name>, as metagen_bhl_bind does for @bhl_bind_type:custom
