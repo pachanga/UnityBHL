@@ -31,11 +31,11 @@ public static class BindConv
 
   //NOTE: a BHL array is wrapped, a native list is passed as is; the result keeps a reference of the array
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static IList<T> ToList<T>(in Val v, IType proxy)
+  public static IList<T> ToList<T>(in Val v, NativeListTypeSymbol<T> proxy)
   {
     IList<T> res;
     if(v.obj is ValList vl)
-      res = ValList<T>.New(vl, ((NativeListTypeSymbol<T>)proxy).Val2Native);
+      res = ValList<T>.New(vl, proxy.Val2Native);
     else
       res = (IList<T>)v.obj;
     v._refc?.Retain();
@@ -70,7 +70,7 @@ public static class BindConv
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static IList<T> PopList<T>(VM.ExecState exec, IType proxy)
+  public static IList<T> PopList<T>(VM.ExecState exec, NativeListTypeSymbol<T> proxy)
   {
     var dv = exec.stack.Pop();
     var res = ToList<T>(dv, proxy);

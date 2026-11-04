@@ -351,26 +351,33 @@ internal class Generator
     }
   }
 
-  static string Val2Native(TypeRef t, string val, string native)
+  //NOTE: the native value of a Val, null for a custom_rw type, it's read by its Decode(..)
+  static string Val2NativeExpr(TypeRef t, string val)
   {
     switch(t.Kind)
     {
       case Kind.Builtin:
         switch(t.Cs)
         {
-          case "double": return $"{native} = {val}.num;";
-          case "string": return $"{native} = {val}.str;";
-          case "bool": return $"{native} = {val}.bval;";
-          default: return $"{native} = ({t.Cs}){val}.num;";
+          case "double": return $"{val}.num";
+          case "string": return $"{val}.str";
+          case "bool": return $"{val}.bval";
+          default: return $"({t.Cs}){val}.num";
         }
       case Kind.Enum:
-        return $"{native} = ({t.Cs})((int){val}.num);";
+        return $"({t.Cs})((int){val}.num)";
       case Kind.CustomRw:
-        return $"{val}.Decode(ref {native});";
+        return null;
       default:
-        var conv = ConvExpr(t, "To", val);
-        return conv != null ? $"{native} = {conv};" : $"{native} = ({t.Cs}){val}.obj;";
+        return ConvExpr(t, "To", val) ?? $"({t.Cs}){val}.obj";
     }
+  }
+
+  static string Val2Native(TypeRef t, string val, string native)
+  {
+    if(t.Kind == Kind.CustomRw)
+      return $"{val}.Decode(ref {native});";
+    return $"{native} = {Val2NativeExpr(t, val)};";
   }
 
   static string Native2Val(TypeRef t, string native, string val)
@@ -561,8 +568,8 @@ internal class Generator
     if(proxies.Count > 0)
     {
       sb.Append("#if !BHL_FRONT\n");
-      foreach(var name in proxies.Keys)
-        sb.Append($"internal static IType t_{name};\n");
+      foreach(var kv in proxies)
+        sb.Append($"internal static NativeListTypeSymbol<{kv.Value.Native}> t_{kv.Key};\n");
       sb.Append("#endif\n\n");
     }
 
@@ -764,14 +771,18 @@ internal class Generator
     sb.Append("#else\n    object\n#endif\n");
     sb.Append($"    >(new Origin(), \"{name}\",\n");
     sb.Append("#if !BHL_FRONT\n");
-    sb.Append($"      (v) => {{ {item.Native} tmp = default; {Val2Native(item, "v", "tmp")} return tmp; }},\n");
+    var v2n = Val2NativeExpr(item, "v");
+    if(v2n != null)
+      sb.Append($"      (v) => {v2n},\n");
+    else
+      sb.Append($"      (v) => {{ {item.Native} tmp = default; {Val2Native(item, "v", "tmp")} return tmp; }},\n");
     sb.Append($"      (itype, n) => {{ var v = new Val(); {Native2Val(item, "n", "v")} return v; }},\n");
     sb.Append("#else\n      null, null,\n#endif\n");
     sb.Append($"      {TypeRefCode(item)}\n    );\n");
     sb.Append("    cl.Setup();\n");
     sb.Append("    types.ns.Define(cl);\n  }\n");
     sb.Append("  #if !BHL_FRONT\n");
-    sb.Append($"  t_{name} = (IType)types.ns.Resolve(\"{name}\");\n");
+    sb.Append($"  t_{name} = (NativeListTypeSymbol<{item.Native}>)types.ns.Resolve(\"{name}\");\n");
     sb.Append("  #endif\n");
   }
 
