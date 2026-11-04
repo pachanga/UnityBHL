@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of having their bodies inline, plain values are read as before; regenerate the bindings
 - bindgen: the native list types are kept in typed fields (`NativeListTypeSymbol<T>`), an array
   argument no longer casts it on each call; their conversions are one expression lambdas
+- bindgen: a native list type is defined by `NativeListTypeSymbol.DefineOnce(..)` of bhl instead of
+  a generated block, which needs a bhl version having it
 
 ## [0.22.0] - 2026-11-04
 

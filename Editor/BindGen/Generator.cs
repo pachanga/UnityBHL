@@ -765,25 +765,18 @@ internal class Generator
   //NOTE: the same native list type as metagen_bhl_bind defines, whichever registers first defines it
   static void EmitProxy(StringBuilder sb, string name, TypeRef item)
   {
-    sb.Append($"  if(types.ns.Resolve(\"{name}\") == null)\n  {{\n");
-    sb.Append("    var cl = new NativeListTypeSymbol<\n#if !BHL_FRONT\n");
-    sb.Append($"    {item.Native}\n");
-    sb.Append("#else\n    object\n#endif\n");
-    sb.Append($"    >(new Origin(), \"{name}\",\n");
     sb.Append("#if !BHL_FRONT\n");
+    sb.Append($"  t_{name} = NativeListTypeSymbol.DefineOnce<{item.Native}>(types.ns, \"{name}\",\n");
     var v2n = Val2NativeExpr(item, "v");
     if(v2n != null)
-      sb.Append($"      (v) => {v2n},\n");
+      sb.Append($"    (v) => {v2n},\n");
     else
-      sb.Append($"      (v) => {{ {item.Native} tmp = default; {Val2Native(item, "v", "tmp")} return tmp; }},\n");
-    sb.Append($"      (itype, n) => {{ var v = new Val(); {Native2Val(item, "n", "v")} return v; }},\n");
-    sb.Append("#else\n      null, null,\n#endif\n");
-    sb.Append($"      {TypeRefCode(item)}\n    );\n");
-    sb.Append("    cl.Setup();\n");
-    sb.Append("    types.ns.Define(cl);\n  }\n");
-    sb.Append("  #if !BHL_FRONT\n");
-    sb.Append($"  t_{name} = (NativeListTypeSymbol<{item.Native}>)types.ns.Resolve(\"{name}\");\n");
-    sb.Append("  #endif\n");
+      sb.Append($"    (v) => {{ {item.Native} tmp = default; {Val2Native(item, "v", "tmp")} return tmp; }},\n");
+    sb.Append($"    (itype, n) => {{ var v = new Val(); {Native2Val(item, "n", "v")} return v; }},\n");
+    sb.Append($"    {TypeRefCode(item)});\n");
+    sb.Append("#else\n");
+    sb.Append($"  NativeListTypeSymbol.DefineOnce(types.ns, \"{name}\", {TypeRefCode(item)});\n");
+    sb.Append("#endif\n");
   }
 
   //NOTE: args are popped in reverse order, a default one only when it was passed
