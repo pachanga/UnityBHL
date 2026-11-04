@@ -5,7 +5,7 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.23.0] - 2026-11-04
 
 ### Added
 - bindgen: `[BhlBind(typeof(T))]` without names binds all the public and internal static methods of `T`,
@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   argument no longer casts it on each call; their conversions are one expression lambdas
 - bindgen: a native list type is defined by `NativeListTypeSymbol.DefineOnce(..)` of bhl instead of
   a generated block, which needs a bhl version having it
+- `com.bitgames.bhl` 3.0.0-beta8: the generated bindings use its `NativeListTypeSymbol.DefineOnce`
+  and `SetList`
 
 ### Fixed
 - bindgen: a native function returning its array argument gives BHL its own array back
