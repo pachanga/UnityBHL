@@ -1,28 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
-using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace UnityBHL
 {
-  //NOTE: runs the bindings generator (Tools~/bindgen) when a file the bindings are made of changes, so
+  //NOTE: runs the bindings generator (BindGen/) when a file the bindings are made of changes, so
   //      [BhlBind]/[BhlClass]/[BhlCustom] declarations take effect without the console. The generator is
-  //      configured by bhl_bindgen.json next to bhl.proj, without it nothing happens. It's a dotnet tool
-  //      for now, so the dotnet SDK is needed
+  //      configured by bhl_bindgen.json next to bhl.proj, without it nothing happens. It runs in-process,
+  //      gamectl runs the same code as a dotnet tool (Tools~/bindgen)
   public class BindGen : AssetPostprocessor
   {
-    [Serializable]
-    class Conf
-    {
-      public string result_dir;
-    }
-
     static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlCustom)\b", RegexOptions.Multiline);
 
     [MenuItem("BHL/Generate Bindings")]
@@ -48,8 +39,8 @@ namespace UnityBHL
     //NOTE: the main output file, it lists the files the output is made of
     static string ResultPath(string conf_path)
     {
-      var conf = JsonUtility.FromJson<Conf>(File.ReadAllText(conf_path));
-      return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(conf_path), conf.result_dir, "register.cs"));
+      var conf = JsonUtility.FromJson<Config>(File.ReadAllText(conf_path));
+      return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(conf_path), conf.result_dir, Generator.MainFile));
     }
 
     static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] moved_from)
@@ -99,91 +90,19 @@ namespace UnityBHL
 
     static void Generate()
     {
-      var conf_path = ConfPath();
-      var tool_dir = Path.Combine(PackageInfo.FindForAssembly(typeof(BindGen).Assembly).resolvedPath, "Tools~/bindgen");
-      var dll = Path.Combine(tool_dir, "bin/Release/net8.0/bindgen.dll");
-
-      var dotnet = FindDotnet();
-      if(dotnet == null)
-      {
-        Debug.LogError("[BHL] bindgen: the dotnet SDK is not found, install it or put dotnet into PATH");
-        return;
-      }
-
-      //NOTE: from scratch, gamectl builds it too, maybe by another dotnet SDK, and an incremental build
-      //      over the output of another SDK loses files of it
-      if(IsStale(tool_dir, dll) && Run(dotnet, $"build -c Release --no-incremental \"{Path.Combine(tool_dir, "bindgen.csproj")}\"", "Building the bindings generator", out var build_out) != 0)
-      {
-        Debug.LogError("[BHL] bindgen: building the generator failed\n" + build_out);
-        return;
-      }
-
-      if(Run(dotnet, $"\"{dll}\" \"{conf_path}\"", "Generating BHL bindings", out var output) != 0)
-      {
-        Debug.LogError("[BHL] bindgen: " + output);
-        return;
-      }
-
-      //NOTE: the generator writes the files only if they changed
-      var stats = Regex.Match(output, @"(\d+) written, (\d+) deleted");
-      if(stats.Success && (stats.Groups[1].Value != "0" || stats.Groups[2].Value != "0"))
-      {
-        Debug.Log("[BHL] " + output.Trim());
-        AssetDatabase.Refresh();
-      }
-    }
-
-    static bool IsStale(string tool_dir, string dll)
-    {
-      if(!File.Exists(dll))
-        return true;
-      var built = File.GetLastWriteTimeUtc(dll);
-      return Directory.GetFiles(tool_dir, "*.cs").Concat(Directory.GetFiles(tool_dir, "*.csproj")).Concat(Directory.GetFiles(tool_dir, "*.props"))
-        .Any(f => File.GetLastWriteTimeUtc(f) > built);
-    }
-
-    static int Run(string exe, string args, string title, out string output)
-    {
-      EditorUtility.DisplayProgressBar("BHL", title, 0.5f);
       try
       {
-        var psi = new ProcessStartInfo(exe, args) {
-          UseShellExecute = false,
-          RedirectStandardOutput = true,
-          RedirectStandardError = true,
-          CreateNoWindow = true,
-        };
-        using(var p = Process.Start(psi))
-        {
-          var stderr = p.StandardError.ReadToEndAsync();
-          var stdout = p.StandardOutput.ReadToEnd();
-          p.WaitForExit();
-          output = stdout + stderr.Result;
-          return p.ExitCode;
-        }
+        var conf = Config.Load(ConfPath(), JsonUtility.FromJson<Config>);
+        var (summary, changed) = new Generator(conf, new HandParser(conf.defines)).Run();
+        if(!changed)
+          return;
+        Debug.Log("[BHL] " + summary);
+        AssetDatabase.Refresh();
       }
-      finally
+      catch(GenException e)
       {
-        EditorUtility.ClearProgressBar();
+        Debug.LogError("[BHL] bindgen: " + e.Message);
       }
-    }
-
-    //NOTE: an editor started from the Dock/Hub doesn't get the shell's PATH on macOS, so the usual
-    //      install locations are checked as well
-    static string FindDotnet()
-    {
-      var exe = Application.platform == RuntimePlatform.WindowsEditor ? "dotnet.exe" : "dotnet";
-      var dirs = new List<string>();
-      var root = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-      if(!string.IsNullOrEmpty(root))
-        dirs.Add(root);
-      dirs.AddRange((Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator));
-      dirs.AddRange(new[] {
-        "/usr/local/share/dotnet", "/opt/homebrew/bin", "/usr/local/bin", "/usr/share/dotnet",
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
-      });
-      return dirs.Where(d => !string.IsNullOrEmpty(d)).Select(d => Path.Combine(d, exe)).FirstOrDefault(File.Exists);
     }
   }
 }

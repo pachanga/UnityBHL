@@ -2,37 +2,41 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 
-public class Config
+//NOTE: bhl_bindgen.json; the fields are named as in it, so both Unity's JsonUtility and System.Text.Json read it
+[Serializable]
+internal class Config
 {
-  public string Namespace { get; set; }
-  public string RegisterClass { get; set; }
-  public List<string> Decls { get; set; } = new List<string>();
-  public List<string> Sources { get; set; } = new List<string>();
+  //NOTE: set by the JSON reader
+#pragma warning disable CS0649
+  public string @namespace;
+  public string register_class;
+  public List<string> decls = new List<string>();
+  public List<string> sources = new List<string>();
   //NOTE: the dir of the output files, the generated ones no longer produced are deleted from it
-  public string ResultDir { get; set; }
-  public List<string> Imports { get; set; } = new List<string>();
-  public List<string> Defines { get; set; } = new List<string>();
+  public string result_dir;
+  public List<string> imports = new List<string>();
+  public List<string> defines = new List<string>();
   //NOTE: types marshalled with Val.Encode/Decode (@bhl_custom_rw in meta)
-  public List<string> CustomRw { get; set; } = new List<string>();
+  public List<string> custom_rw = new List<string>();
+#pragma warning restore CS0649
 
   //NOTE: the dir of the config, its paths are relative to it
-  public string Dir;
-  public List<string> DeclFiles = new List<string>();
-  public List<string> SourceFiles = new List<string>();
+  [NonSerialized] public string Dir;
+  [NonSerialized] public List<string> DeclFiles = new List<string>();
+  [NonSerialized] public List<string> SourceFiles = new List<string>();
 
-  public static Config Load(string path)
+  //NOTE: from_json is the JSON reader of the host, comments aren't supported by Unity's one
+  public static Config Load(string path, Func<string, Config> from_json)
   {
-    var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, ReadCommentHandling = JsonCommentHandling.Skip };
-    var conf = JsonSerializer.Deserialize<Config>(File.ReadAllText(path), opts);
+    var conf = from_json(File.ReadAllText(path));
     var dir = Path.GetDirectoryName(Path.GetFullPath(path));
     conf.Dir = Norm(dir);
-    if(string.IsNullOrEmpty(conf.Namespace) || string.IsNullOrEmpty(conf.RegisterClass) || string.IsNullOrEmpty(conf.ResultDir))
+    if(string.IsNullOrEmpty(conf.@namespace) || string.IsNullOrEmpty(conf.register_class) || string.IsNullOrEmpty(conf.result_dir))
       throw new GenException($"{path}: 'namespace', 'register_class' and 'result_dir' are required");
-    conf.ResultDir = Norm(Path.GetFullPath(Path.Combine(dir, conf.ResultDir)));
-    conf.DeclFiles = conf.Decls.SelectMany(p => Glob(dir, p)).Distinct().ToList();
-    conf.SourceFiles = conf.Sources.SelectMany(p => Glob(dir, p)).Distinct().ToList();
+    conf.result_dir = Norm(Path.GetFullPath(Path.Combine(dir, conf.result_dir)));
+    conf.DeclFiles = conf.decls.SelectMany(p => Glob(dir, p)).Distinct().ToList();
+    conf.SourceFiles = conf.sources.SelectMany(p => Glob(dir, p)).Distinct().ToList();
     return conf;
   }
 

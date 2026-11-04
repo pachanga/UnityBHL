@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-public class Generator
+internal class Generator
 {
   readonly Config conf;
   readonly ICsParser parser;
@@ -29,7 +29,37 @@ public class Generator
     this.parser = parser;
   }
 
-  public void Collect()
+  //NOTE: generates and writes the output, returns the summary and whether a file was written or deleted
+  public (string summary, bool changed) Run()
+  {
+    Collect();
+    var files = Emit();
+
+    Directory.CreateDirectory(conf.result_dir);
+    int written = files.Count(kv => WriteIfChanged(Path.Combine(conf.result_dir, kv.Key), kv.Value));
+    //NOTE: only the generated files, recognized by the header, anything else in the dir is left as is
+    int deleted = 0;
+    foreach(var file in Directory.GetFiles(conf.result_dir, "*.cs"))
+    {
+      if(files.ContainsKey(Path.GetFileName(file)) || File.ReadLines(file).FirstOrDefault() != Header)
+        continue;
+      File.Delete(file);
+      ++deleted;
+    }
+    return ($"bindgen: {FuncsCount} funcs, {ClassesCount} classes -> {conf.result_dir} ({files.Count} files, {written} written, {deleted} deleted)",
+      written + deleted > 0);
+  }
+
+  //NOTE: an unchanged output isn't touched, so neither Unity nor the BHL compiler rebuild anything
+  static bool WriteIfChanged(string path, string content)
+  {
+    if(File.Exists(path) && File.ReadAllText(path) == content)
+      return false;
+    File.WriteAllText(path, content);
+    return true;
+  }
+
+  void Collect()
   {
     foreach(var file in conf.DeclFiles)
       parser.ParseDecls(file, File.ReadAllText(file), decls);
@@ -258,7 +288,7 @@ public class Generator
       if(item.Kind != Kind.Any && item.Kind != Kind.Arr && item.Kind != Kind.AnyArr)
         return new TypeRef { Kind = Kind.Arr, Cs = t.Text, Items = new List<TypeRef> { item },
           Proxy = "List_" + (item.Kind == Kind.Builtin ? meta_names[item.Cs] : item.Bhl),
-          ProxyField = $"{conf.RegisterClass}.t_List_" + (item.Kind == Kind.Builtin ? meta_names[item.Cs] : item.Bhl) };
+          ProxyField = $"{conf.register_class}.t_List_" + (item.Kind == Kind.Builtin ? meta_names[item.Cs] : item.Bhl) };
     }
     else if(t.Name == "Action" || (t.Name == "Func" && t.GenericArgs != null))
     {
@@ -273,7 +303,7 @@ public class Generator
     }
     else if(t.Name != null && t.GenericArgs == null)
     {
-      var kind = t.Name == "Val" ? Kind.Any : conf.CustomRw.Contains(t.Name) ? Kind.CustomRw : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
+      var kind = t.Name == "Val" ? Kind.Any : conf.custom_rw.Contains(t.Name) ? Kind.CustomRw : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
       return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : t.Name };
     }
     throw new GenException(t.Pos, $"type '{t.Text}' is not supported");
@@ -474,7 +504,7 @@ public class Generator
   }
 
   //NOTE: the output files by their names
-  public Dictionary<string, string> Emit()
+  Dictionary<string, string> Emit()
   {
     var resolved = funcs.Select(f => (f: ResolveFunc(f.m), f.decl_file)).ToList();
     var classes = decls.Classes.Select(ResolveClass).ToList();
@@ -612,12 +642,12 @@ public class Generator
     foreach(var u in header_usings)
       sb.Append($"using {u};\n");
     sb.Append("#if !BHL_FRONT\n");
-    foreach(var imp in conf.Imports.Concat(imports).Except(header_usings).Distinct())
+    foreach(var imp in conf.imports.Concat(imports).Except(header_usings).Distinct())
       sb.Append($"using {imp};\n");
     sb.Append("#endif\n");
     sb.Append("using Types = bhl.Types;\n\n");
-    sb.Append($"namespace {conf.Namespace} {{\n\n");
-    sb.Append($"static public partial class {conf.RegisterClass} {{\n\n");
+    sb.Append($"namespace {conf.@namespace} {{\n\n");
+    sb.Append($"static public partial class {conf.register_class} {{\n\n");
   }
 
   string EmitSlice(Slice slice)

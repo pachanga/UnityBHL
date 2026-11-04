@@ -11,6 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- the generator itself is in the Editor assembly, the Unity editor runs it in-process -->
+    <Compile Include="../../Editor/BindGen/*.cs" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
 

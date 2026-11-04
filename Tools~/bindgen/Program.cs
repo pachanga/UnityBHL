@@ -4,12 +4,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 
 //NOTE: generates the BHL bindings registration .cs from C# sources, parsing only (nothing is compiled):
 //      [BhlBind(typeof(T), nameof(T.M), ...)] in the decls files binds static methods of T found in the sources.
 //      The output is the canonical bindings format the BHL compiler reads (bhl docs/csharp-bindings.md).
 //      usage: bindgen [--parser=hand|roslyn|both] <config.json>, paths in the config are relative to it
-public static class Program
+internal static class Program
 {
   public static int Main(string[] args)
   {
@@ -23,26 +24,12 @@ public static class Program
 
     try
     {
-      var conf = Config.Load(args[args.Length - 1]);
-      ICsParser parser = parser_name == "roslyn" ? new RoslynParser(conf.Defines) :
-        parser_name == "both" ? new BothParser(new HandParser(conf.Defines), new RoslynParser(conf.Defines)) :
-        new HandParser(conf.Defines);
-      var gen = new Generator(conf, parser);
-      gen.Collect();
-      var files = gen.Emit();
-
-      Directory.CreateDirectory(conf.ResultDir);
-      int written = files.Count(kv => WriteIfChanged(Path.Combine(conf.ResultDir, kv.Key), kv.Value));
-      //NOTE: only the generated files, recognized by the header, anything else in the dir is left as is
-      int deleted = 0;
-      foreach(var file in Directory.GetFiles(conf.ResultDir, "*.cs"))
-      {
-        if(files.ContainsKey(Path.GetFileName(file)) || File.ReadLines(file).FirstOrDefault() != Generator.Header)
-          continue;
-        File.Delete(file);
-        ++deleted;
-      }
-      Console.WriteLine($"bindgen: {gen.FuncsCount} funcs, {gen.ClassesCount} classes -> {conf.ResultDir} ({files.Count} files, {written} written, {deleted} deleted)");
+      var json_opts = new JsonSerializerOptions { IncludeFields = true, ReadCommentHandling = JsonCommentHandling.Skip };
+      var conf = Config.Load(args[args.Length - 1], json => JsonSerializer.Deserialize<Config>(json, json_opts));
+      ICsParser parser = parser_name == "roslyn" ? new RoslynParser(conf.defines) :
+        parser_name == "both" ? new BothParser(new HandParser(conf.defines), new RoslynParser(conf.defines)) :
+        new HandParser(conf.defines);
+      Console.WriteLine(new Generator(conf, parser).Run().summary);
       return 0;
     }
     catch(GenException e)
@@ -50,15 +37,6 @@ public static class Program
       Console.Error.WriteLine(e.Message);
       return 1;
     }
-  }
-
-  //NOTE: an unchanged output isn't touched, so neither Unity nor the BHL compiler rebuild anything
-  static bool WriteIfChanged(string path, string content)
-  {
-    if(File.Exists(path) && File.ReadAllText(path) == content)
-      return false;
-    File.WriteAllText(path, content);
-    return true;
   }
 }
 

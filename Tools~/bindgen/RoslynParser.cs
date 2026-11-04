@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-public class RoslynParser : ICsParser
+internal class RoslynParser : ICsParser
 {
   readonly CSharpParseOptions parse_opts;
 

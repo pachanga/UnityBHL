@@ -4,7 +4,7 @@ using System.Collections.Generic;
 //NOTE: what a parser extracts from C# sources; the generator works only with this model,
 //      so parsers (Roslyn, hand written) are interchangeable and comparable
 
-public class SrcPos
+internal class SrcPos
 {
   public string File;
   public int Line;
@@ -13,7 +13,7 @@ public class SrcPos
   public override string ToString() => $"{File}({Line},{Col})";
 }
 
-public class GenException : Exception
+internal class GenException : Exception
 {
   public GenException(string msg) : base(msg) {}
 
@@ -21,7 +21,7 @@ public class GenException : Exception
 }
 
 //NOTE: a type as written in the source, not resolved yet
-public class TypeDecl
+internal class TypeDecl
 {
   public string Text;
   //NOTE: a predefined type keyword (int, void, ...)
@@ -34,7 +34,7 @@ public class TypeDecl
   public SrcPos Pos;
 }
 
-public class ParamDecl
+internal class ParamDecl
 {
   public string Name;
   public TypeDecl Type;
@@ -47,7 +47,7 @@ public class ParamDecl
   public SrcPos Pos;
 }
 
-public class MethodDecl
+internal class MethodDecl
 {
   public string Name;
   //NOTE: the full name of the declaring class, null for a custom one
@@ -69,7 +69,7 @@ public class MethodDecl
 }
 
 //NOTE: a property of a [BhlClass] interface
-public class FieldDecl
+internal class FieldDecl
 {
   public string Name;
   public TypeDecl Type;
@@ -82,7 +82,7 @@ public class FieldDecl
 }
 
 //NOTE: a member named in [BhlClass("Name", typeof(T), nameof(T.Member), nameof(Script.<Name>_Method), ..)]
-public class MemberRef
+internal class MemberRef
 {
   //NOTE: the short name of the qualifying type, null if not qualified
   public string Type;
@@ -91,7 +91,7 @@ public class MemberRef
 }
 
 //NOTE: [BhlClass("Name", typeof(T), members.., Parent = "..", New = true)] interface
-public class ClassDecl
+internal class ClassDecl
 {
   public string Name;
   public TypeDecl NativeType;
@@ -105,14 +105,14 @@ public class ClassDecl
 }
 
 //NOTE: one name of [BhlBind(typeof(Type), nameof(Type.Name), ...)]
-public class BindDecl
+internal class BindDecl
 {
   public string Type;
   public string Name;
   public SrcPos Pos;
 }
 
-public class CsDecls
+internal class CsDecls
 {
   public List<BindDecl> Binds = new List<BindDecl>();
   public List<MethodDecl> Customs = new List<MethodDecl>();
@@ -124,7 +124,7 @@ public class CsDecls
   public Dictionary<(string type, string name), FieldDecl> Fields = new Dictionary<(string, string), FieldDecl>();
 }
 
-public interface ICsParser
+internal interface ICsParser
 {
   void ParseDecls(string file, string src, CsDecls decls);
   //NOTE: collects enums and the members of the bound types

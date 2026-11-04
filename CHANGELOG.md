@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[BhlCustom]` interfaces declare custom functions and coroutines with hand written `Script_*`
   classes, `[BhlClass]` interfaces declare classes (members by signature or by `nameof`). The
   output is split by declarations file and into slices of 20, configured by `bhl_bindgen.json`
-  next to bhl.proj. Needs the .NET SDK. C# is read by a hand written parser of declarations only
-  (no Roslyn needed at run time); `--parser=roslyn` uses Roslyn, `--parser=both` checks one by the other
-- `BindGen` editor postprocessor: regenerates the bindings when a file they're made of changes,
-  `BHL/Generate Bindings` menu item
+  next to bhl.proj. C# is read by a hand written parser of declarations only. The generator is in
+  the Editor assembly (`Editor/BindGen`); the tool runs it from the console and needs the .NET SDK,
+  `--parser=roslyn` uses Roslyn instead, `--parser=both` checks one by the other
+- `BindGen` editor postprocessor: regenerates the bindings in-process, without the .NET SDK, when
+  a file they're made of changes; `BHL/Generate Bindings` menu item
 - `BitGames.BhlTask` asmdef (moved from the `com.bitgames.bhltask` package, namespace
   `BitGames.BHL` kept): C# functions bound as BHL coroutines by returning `BhlStep`, `BhlTask`,
   `BhlFinallyTask` or `IEnumerator<BhlStep>`, with its Roslyn analyzer; `ToBhlTask(UniTask)` only

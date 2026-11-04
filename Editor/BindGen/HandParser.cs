@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 //NOTE: a hand written C# parser of just what the bindings need: usings, namespaces, type declarations,
 //      attributes and member signatures; bodies and initializers are skipped by bracket balance. It needs
 //      no Roslyn, so it can run inside Unity. It fills the model as RoslynParser does, --parser=both checks it
-public class HandParser : ICsParser
+internal class HandParser : ICsParser
 {
   readonly HashSet<string> defines;
 
