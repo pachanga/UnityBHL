@@ -330,6 +330,27 @@ internal class Generator
     return $"types.T(\"{t.Bhl}\")";
   }
 
+  const string Conv = "global::UnityBHL.BindConv.";
+
+  //NOTE: the native value by a BindConv rule, op is "To" (src is a Val) or "Pop" (src is the exec);
+  //      null for a plain value, read from a field of the Val by the generated code itself
+  static string ConvExpr(TypeRef t, string op, string src)
+  {
+    switch(t.Kind)
+    {
+      case Kind.Any:
+        return $"{Conv}{op}Any({src})";
+      case Kind.Arr:
+        return $"{Conv}{op}List<{t.Items[0].Cs}>({src}, {t.ProxyField})";
+      case Kind.AnyArr:
+        return $"{Conv}{op}AnyList({src})";
+      case Kind.Func:
+        return $"{Conv}{op}Func({src})";
+      default:
+        return null;
+    }
+  }
+
   static string Val2Native(TypeRef t, string val, string native)
   {
     switch(t.Kind)
@@ -342,22 +363,13 @@ internal class Generator
           case "bool": return $"{native} = {val}.bval;";
           default: return $"{native} = ({t.Cs}){val}.num;";
         }
-      case Kind.Any:
-        return $"{native} = {val}; {native}._refc?.Retain();";
       case Kind.Enum:
         return $"{native} = ({t.Cs})((int){val}.num);";
       case Kind.CustomRw:
         return $"{val}.Decode(ref {native});";
-      //NOTE: a BHL array is wrapped, a native list is passed as is
-      case Kind.Arr:
-        return $"if({val}.obj is ValList vl) {native} = ValList<{t.Items[0].Cs}>.New(vl, ((NativeListTypeSymbol<{t.Items[0].Cs}>){t.ProxyField}).Val2Native); " +
-          $"else {native} = ({t.Cs}){val}.obj; {val}._refc?.Retain();";
-      case Kind.AnyArr:
-        return $"{native} = (IList){val}.obj; {val}._refc?.Retain();";
-      case Kind.Func:
-        return $"{native} = (VM.FuncPtr){val}.obj; {native}.Retain();";
       default:
-        return $"{native} = ({t.Cs}){val}.obj;";
+        var conv = ConvExpr(t, "To", val);
+        return conv != null ? $"{native} = {conv};" : $"{native} = ({t.Cs}){val}.obj;";
     }
   }
 
@@ -776,7 +788,11 @@ internal class Generator
         ++default_counter;
         sb.Append($"{indent}if(!args_info.IsDefaultArgUsed({defaults - default_counter}))\n");
       }
-      sb.Append($"{indent}{{ var dv = exec.stack.Pop(); {Val2Native(a.type, "dv", prefix + a.name)} dv._refc?.Release(); }}\n");
+      var pop = ConvExpr(a.type, "Pop", "exec");
+      if(pop != null)
+        sb.Append($"{indent}{prefix}{a.name} = {pop};\n");
+      else
+        sb.Append($"{indent}{{ var dv = exec.stack.Pop(); {Val2Native(a.type, "dv", prefix + a.name)} dv._refc?.Release(); }}\n");
       if(a.def != null)
         sb.Append($"{indent}else\n{indent}  {prefix}{a.name} = {a.def};\n");
     }

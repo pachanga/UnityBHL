@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Except = new[] { nameof(T.M), ... }` leaves some out; a method which can't be bound (generic,
   overloaded, of an unsupported type) fails the generation
 
+### Changed
+- bindgen: the generated code converts `any`, arrays and functions by the helpers of `UnityBHL.BindConv`
+  instead of having their bodies inline, plain values are read as before; regenerate the bindings
+
 ## [0.22.0] - 2026-11-04
 
 ### Added
