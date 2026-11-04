@@ -19,18 +19,14 @@ func ATF_WaitSeconds(
 )
 ```
 
-C#-функция возвращает одну из четырёх форм, сгенерированный код выбирает корутину по типу:
+C#-функция возвращает одну из двух форм:
 
 | Возвращает | Для чего | Отмена |
 |---|---|---|
-| `BhlStep` | один шаг: `BhlStep.WaitSeconds(s)`, `BhlStep.Yield` | без аллокаций |
 | `BhlTask`, `BhlTask<T>` | async-функция, по умолчанию | не возобновляется: без исключений и аллокаций, `finally` не выполняется |
 | `BhlFinallyTask`, `BhlFinallyTask<T>` | async-функция с `finally` / `using` вокруг `await` | `OperationCanceledException`: `finally` выполняется, ~1 KB на функцию в цепочке |
-| `IEnumerator<BhlStep>`, `IEnumerator<BhlStep<T>>` | итератор (`yield return`) | `Dispose`: `finally` выполняется без исключений |
 
 ```csharp
-public static BhlStep ATF_Yield() => BhlStep.Yield;
-
 public static BhlTask ATF_WaitSeconds(float seconds) => BhlTask.WaitSeconds(seconds);
 
 public static async BhlTask<bool> Tap(Vector3 pos)
@@ -38,25 +34,16 @@ public static async BhlTask<bool> Tap(Vector3 pos)
   await BhlTask.Yield();
   return await ATFBot.Input.Tap(pos).ToBhlTask();
 }
-
-public static IEnumerator<BhlStep> ATF_WaitFrames(int frames)
-{
-  for(int i = 0; i < frames; ++i)
-    yield return BhlStep.Yield;
-}
 ```
 
-Возвращаемое значение биндинга — `BhlTask<T>`, `BhlFinallyTask<T>` или итератор
-`IEnumerator<BhlStep<T>>`, который заканчивается `yield return BhlStep<T>.Return(v)`.
+Возвращаемое значение биндинга — `BhlTask<T>` или `BhlFinallyTask<T>`.
 
 ## API
 
 | | |
 |---|---|
-| `await BhlTask.Yield()`, `yield return BhlStep.Yield` | следующий тик вызова, как `yield()` в BHL |
-| `await BhlTask.WaitSeconds(s)`, `yield return BhlStep.WaitSeconds(s)` | масштабированное время (`Time.time`) |
-| `yield return BhlStep.Run(Child())` | вложенный итератор |
-| `yield return task` | ждать `BhlTask` из итератора (без результата) |
+| `await BhlTask.Yield()` | следующий тик вызова, как `yield()` в BHL |
+| `await BhlTask.WaitSeconds(s)` | масштабированное время (`Time.time`) |
 | `task.Forget()` | задача идёт без ожидания; её исключение роняет вызов BHL |
 | `uniTask.ToBhlTask()`, `task.ToBhlTask()` | ждать `UniTask` (если в проекте есть `com.cysharp.unitask`: define `BHL_UNITASK` из `versionDefines` asmdef) или `System.Threading.Tasks.Task` |
 | `BhlTask.CompletedTask`, `new BhlTask<T>(v)`, `FromException(e)` | готовые задачи |
@@ -82,8 +69,6 @@ public static IEnumerator<BhlStep> ATF_WaitFrames(int frames)
   `await` в его `finally` во время отмены сразу бросает то же исключение. Смешанные цепочки
   работают: `BhlTask`, который ждёт `BhlFinallyTask`, падает с исключением, сам не
   возобновляясь; `BhlFinallyTask` поверх `BhlTask` и поверх `ToBhlTask` получает исключение.
-- **Итератор** отменяется `Dispose` от вложенного к корню: `finally` выполняется без исключений.
-  Исключение из `finally` во время отмены бросить некуда, оно уходит в `Debug.LogException`.
 - `ToBhlTask` не останавливает чужую задачу — передай ей свой `CancellationToken`. Её результат
   забирается всё равно, когда она закончится.
 - Исключение забытой задачи во время отмены тоже уходит в `Debug.LogException`;
@@ -98,20 +83,15 @@ public static IEnumerator<BhlStep> ATF_WaitFrames(int frames)
 
 | | Release | Debug |
 |---|---|---|
-| `BhlStep` | 0 | 0 |
 | `BhlTask` (старт, тики, завершение, `Forget`, `ToBhlTask(UniTask)`) | 0 | ~64 B на async-функцию |
 | отмена `BhlTask` | 0 | 0 |
 | отмена `BhlFinallyTask` | ~1 KB на функцию в цепочке | столько же |
-| итератор | ~50 B на итератор в цепочке | столько же |
-| отмена итератора | 0 | 0 |
 
 - Debug: компилятор делает state machine классом. Редактор с Code Optimization = Debug
   аллоцирует, Release-плеер — нет.
-- Итератор компилятор всегда создаёт через `new`, это не обойти.
 - **Каждый лишний кадр стоит:** async-обёртка, которая только ждёт другую задачу, — это раннер,
-  64 B в Debug и ещё одно исключение при отмене `BhlFinallyTask`; вложенный итератор — ещё ~50 B.
-  Пиши passthrough (`=> BhlTask.WaitSeconds(s)`) и шаги (`BhlStep.WaitSeconds`); анализатор
-  подсказывает (`BHLT005`).
+  64 B в Debug и ещё одно исключение при отмене `BhlFinallyTask`. Пиши passthrough
+  (`=> BhlTask.WaitSeconds(s)`); анализатор подсказывает (`BHLT005`).
 - Аллоцируют ещё: исключения и `FromException`, `ToBhlTask(Task)`, первые вызовы, пока растут пулы,
   задача, которую не ждали и не забыли через `Forget`.
 
@@ -124,7 +104,7 @@ Unity применяет его к сборкам, которые ссылают
 |---|---|---|
 | `BHLT001` | error | в `BhlTask` / `BhlFinallyTask`-функции ждут чужую задачу — нужен `ToBhlTask()` |
 | `BHLT002` | error | в `BhlTask`-функции `await` внутри `try` с `finally`, `using` или после `using var` |
-| `BHLT003` | error | результат `BhlTask`, `BhlStep` или итератора шагов выброшен |
+| `BHLT003` | error | результат `BhlTask` выброшен |
 | `BHLT004` | warning | одну задачу ждут или забывают больше одного раза |
 | `BHLT005` | warning | async-функция только ждёт задачу того же типа — лишний кадр |
 
@@ -152,7 +132,7 @@ Unity проекта.
 `Tests~/BitGames.BhlTask.Tests` — консольная программа: рантайм BhlTask собирается обычным dotnet со
 стабами Unity, VM и UniTask (`Stubs.cs`, `UniTaskStub.cs`). Вызов биндинга делается так же, как в
 сгенерированном коде, тики и уничтожение — как в VM. Проверяются поведение (тики, результат, исключения,
-отмена всех форм, смешанные цепочки, `Forget`, `ToBhlTask`) и аллокации; в Release нулевые аллокации —
+отмена обеих форм, смешанные цепочки, `Forget`, `ToBhlTask`) и аллокации; в Release нулевые аллокации —
 часть проверок. Код возврата — число упавших проверок.
 
 ```sh
@@ -168,8 +148,7 @@ Runtime/Task/BhlTask.cs           BhlTask, BhlFinallyTask, их awaiter
 Runtime/Task/BhlTaskSource.cs     пуловые источники: раннер state machine, наблюдатель Forget, builder'ы
 Runtime/Task/BhlTaskScope.cs      очередь продолжений вызова и его пуловые объекты, отмена
 Runtime/Task/BhlTaskForeign.cs    ToBhlTask для UniTask (если он есть в проекте) и Task
-Runtime/Task/BhlStep.cs           шаги итераторов
-Runtime/Task/BhlTaskCoroutine.cs  корутины bhl: для задачи и для итератора
+Runtime/Task/BhlTaskCoroutine.cs  корутина bhl для задачи
 Runtime/Task/Analyzers/           dll анализатора
 Analyzer~/                   исходники анализатора и тесты
 Tests~/                      тесты рантайма

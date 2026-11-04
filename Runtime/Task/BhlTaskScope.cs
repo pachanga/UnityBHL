@@ -70,7 +70,7 @@ public sealed class BhlTaskScope
     prev = null;
   }
 
-  //NOTE: makes the scope current while an iterator of the call runs
+  //NOTE: makes the scope current while the continuations of the call run
   internal BhlTaskScope Activate()
   {
     var prevScope = current;

@@ -19,8 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BindGen` editor postprocessor: regenerates the bindings in-process, without the .NET SDK, when
   a file they're made of changes; `BHL/Generate Bindings` menu item
 - `BitGames.BhlTask` asmdef (moved from the `com.bitgames.bhltask` package, namespace
-  `BitGames.BHL` kept): C# functions bound as BHL coroutines by returning `BhlStep`, `BhlTask`,
-  `BhlFinallyTask` or `IEnumerator<BhlStep>`, with its Roslyn analyzer; `ToBhlTask(UniTask)` only
+  `BitGames.BHL` kept): C# functions bound as BHL coroutines by returning `BhlTask` or
+  `BhlFinallyTask`, with its Roslyn analyzer; the iterator forms of the package (`BhlStep`,
+  `IEnumerator<BhlStep>`) are dropped, async covers them; `ToBhlTask(UniTask)` only
   when the project has UniTask. bindgen binds such functions as coroutines by their return type
 
 ## [0.21.0] - 2026-10-08

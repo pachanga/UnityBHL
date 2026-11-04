@@ -27,8 +27,8 @@ class MyScript : unity.BHLComponent
 
 ## BhlTask
 
-C# functions bound as BHL coroutines without `Script_*` classes: a static function returning
-`BhlStep`, `BhlTask`, `BhlFinallyTask` or an `IEnumerator<BhlStep>` iterator, whose awaits run in
+C# functions bound as BHL coroutines without `Script_*` classes: an async static function returning
+`BhlTask` or `BhlFinallyTask`, whose awaits run in
 the ticks of the BHL call awaiting it and are cancelled with it. A separate asmdef
 `BitGames.BhlTask` (namespace `BitGames.BHL`) with a Roslyn analyzer; `ToBhlTask(UniTask)` only when
 the project has UniTask. Details, in Russian: [Documentation~/bhltask.md](Documentation~/bhltask.md).

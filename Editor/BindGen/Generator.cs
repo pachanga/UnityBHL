@@ -242,27 +242,15 @@ internal class Generator
 
   static readonly TypeDecl no_result = new TypeDecl();
 
-  //NOTE: the result type of a BhlTask form: no_result for BhlStep, BhlTask, BhlFinallyTask, IEnumerator<BhlStep>,
-  //      T for BhlTask<T>, BhlFinallyTask<T>, IEnumerator<BhlStep<T>>, null if it's not one
+  //NOTE: the result type of a BhlTask form: no_result for BhlTask, BhlFinallyTask, T for BhlTask<T>,
+  //      BhlFinallyTask<T>, null if it's not one
   static TypeDecl TaskResult(TypeDecl t)
   {
-    bool Generic1(TypeDecl d) => d.GenericArgs != null && d.GenericArgs.Count == 1;
-    if(t.Name == "BhlStep" || t.Name == "BhlTask" || t.Name == "BhlFinallyTask")
-    {
-      if(t.GenericArgs == null)
-        return no_result;
-      if(t.Name != "BhlStep" && Generic1(t))
-        return t.GenericArgs[0];
-    }
-    else if(t.Name == "IEnumerator" && Generic1(t) && t.GenericArgs[0].Name == "BhlStep")
-    {
-      var step = t.GenericArgs[0];
-      if(step.GenericArgs == null)
-        return no_result;
-      if(Generic1(step))
-        return step.GenericArgs[0];
-    }
-    return null;
+    if(t.Name != "BhlTask" && t.Name != "BhlFinallyTask")
+      return null;
+    if(t.GenericArgs == null)
+      return no_result;
+    return t.GenericArgs.Count == 1 ? t.GenericArgs[0] : null;
   }
 
   TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false)

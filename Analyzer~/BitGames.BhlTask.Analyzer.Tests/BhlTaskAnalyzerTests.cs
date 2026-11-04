@@ -67,12 +67,6 @@ namespace BitGames.BHL
     public Awaiter GetAwaiter() => default;
   }
 
-  public struct BhlStep
-  {
-    public static BhlStep Yield => default;
-    public static BhlStep Run(IEnumerator<BhlStep> child) => default;
-  }
-
   public static class Ext
   {
     public static BhlTask ToBhlTask(this Task t) => default;
@@ -143,19 +137,16 @@ static class C
     await RunAsync(Usings + @"
 static class C
 {
-  static IEnumerator<BhlStep> It() { yield return BhlStep.Yield; }
   static async BhlTask A()
   {
     {|#0:BhlTask.WaitSeconds(1)|};
     BhlTask.WaitSeconds(1).Forget();
-    {|#1:It()|};
-    var stack = new Stack<IEnumerator<BhlStep>>();
-    stack.Push(It());
+    var stack = new Stack<BhlTask>();
+    stack.Push(BhlTask.WaitSeconds(1));
     stack.Pop();
     await BhlTask.WaitSeconds(1);
   }
-}", Diag(BhlTaskAnalyzer.DiscardedTaskId).WithLocation(0).WithArguments("BhlTask", "await it or call Forget()"),
-    Diag(BhlTaskAnalyzer.DiscardedTaskId).WithLocation(1).WithArguments("iterator", "an iterator does nothing until it runs: yield return BhlStep.Run(...)"));
+}", Diag(BhlTaskAnalyzer.DiscardedTaskId).WithLocation(0).WithArguments("BhlTask", "await it or call Forget()"));
   }
 
   [Test]

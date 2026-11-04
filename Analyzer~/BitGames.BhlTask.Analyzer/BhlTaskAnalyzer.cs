@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace BitGames.BhlTask.Analyzer
 {
 
-//NOTE: the dangerous uses of BhlTask (com.bitgames.bhltask). The rules are local to a function: every
+//NOTE: the dangerous uses of BhlTask (BitGames.BhlTask of UnityBHL). The rules are local to a function: every
 //      function of a chain is checked in its own assembly, so the chain is safe when each link is, no
 //      interprocedural analysis is needed (Roslyn sees the bodies of one compilation only anyway)
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -33,7 +33,7 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
   static readonly DiagnosticDescriptor FinallyInBhlTaskRule = new DiagnosticDescriptor(
     FinallyInBhlTaskId,
     "Await inside finally or using of a BhlTask function",
-    "The {0} around this await won't run if the BHL call is cancelled: a cancelled BhlTask is not resumed; return BhlFinallyTask or IEnumerator<BhlStep> instead",
+    "The {0} around this await won't run if the BHL call is cancelled: a cancelled BhlTask is not resumed; return BhlFinallyTask instead",
     Category, DiagnosticSeverity.Error, isEnabledByDefault: true);
 
   static readonly DiagnosticDescriptor DiscardedTaskRule = new DiagnosticDescriptor(
@@ -90,20 +90,6 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
       default:
         return TaskKind.None;
     }
-  }
-
-  static bool IsStep(ITypeSymbol type)
-  {
-    return type is INamedTypeSymbol named &&
-      named.ContainingNamespace?.ToDisplayString() == Ns &&
-      (named.OriginalDefinition.MetadataName == "BhlStep" || named.OriginalDefinition.MetadataName == "BhlStep`1");
-  }
-
-  static bool IsStepIterator(ITypeSymbol type)
-  {
-    return type is INamedTypeSymbol named &&
-      named.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IEnumerator<T>" &&
-      IsStep(named.TypeArguments[0]);
   }
 
   static bool IsOwnAwaiter(ITypeSymbol awaiter)
@@ -194,7 +180,7 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
     if(!(stmt.Expression is InvocationExpressionSyntax invocation))
       return;
 
-    //NOTE: the declared return type: a collection of tasks (Stack<IEnumerator<BhlStep>>.Pop) creates nothing
+    //NOTE: the declared return type: a collection of tasks (Stack<BhlTask>.Pop) creates nothing
     var method = context.SemanticModel.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
     var type = method?.OriginalDefinition.ReturnType;
     if(type == null || type is ITypeParameterSymbol)
@@ -202,10 +188,6 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
 
     if(GetTaskKind(type) != TaskKind.None)
       context.ReportDiagnostic(Diagnostic.Create(DiscardedTaskRule, invocation.GetLocation(), type.Name, "await it or call Forget()"));
-    else if(IsStepIterator(type))
-      context.ReportDiagnostic(Diagnostic.Create(DiscardedTaskRule, invocation.GetLocation(), "iterator", "an iterator does nothing until it runs: yield return BhlStep.Run(...)"));
-    else if(IsStep(type))
-      context.ReportDiagnostic(Diagnostic.Create(DiscardedTaskRule, invocation.GetLocation(), type.Name, "yield return it"));
   }
 
   void AnalyzeFunction(SyntaxNodeAnalysisContext context)
@@ -220,7 +202,7 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
     if(body == null)
       return;
 
-    if(GetTaskKind(symbol.ReturnType) != TaskKind.None || IsStepIterator(symbol.ReturnType))
+    if(GetTaskKind(symbol.ReturnType) != TaskKind.None)
       CheckConsumedTwice(context, function, body);
 
     if(symbol.IsAsync && GetTaskKind(symbol.ReturnType) != TaskKind.None && !(function is AnonymousFunctionExpressionSyntax))
@@ -242,7 +224,7 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
     }
   }
 
-  //NOTE: an await, a Forget() or a yield return of the same local more than once (a loop isn't counted)
+  //NOTE: an await or a Forget() of the same local more than once (a loop isn't counted)
   static void CheckConsumedTwice(SyntaxNodeAnalysisContext context, SyntaxNode function, SyntaxNode body)
   {
     var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
@@ -264,7 +246,7 @@ public class BhlTaskAnalyzer : DiagnosticAnalyzer
   static bool IsConsumed(IdentifierNameSyntax id)
   {
     var parent = id.Parent;
-    if(parent is AwaitExpressionSyntax || parent is YieldStatementSyntax)
+    if(parent is AwaitExpressionSyntax)
       return true;
     return parent is MemberAccessExpressionSyntax member && member.Expression == id &&
       member.Name.Identifier.Text == "Forget" && member.Parent is InvocationExpressionSyntax;
