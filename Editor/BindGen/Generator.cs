@@ -399,8 +399,9 @@ internal class Generator
         return $"{val}.SetInt((int){native});";
       case Kind.CustomRw:
         return $"{val}.Encode({native});";
+      //NOTE: a native function returning its array argument gives BHL its own array back
       case Kind.Arr:
-        return $"{val}.SetObj({native}, {t.ProxyField});";
+        return $"{t.ProxyField}.SetList(ref {val}, {native});";
       default:
         return $"{val}.SetObjNoRefc({native}, Types_{t.Bhl}.Value);";
     }

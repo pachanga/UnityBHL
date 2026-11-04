@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bindgen: a native list type is defined by `NativeListTypeSymbol.DefineOnce(..)` of bhl instead of
   a generated block, which needs a bhl version having it
 
+### Fixed
+- bindgen: a native function returning its array argument gives BHL its own array back
+  (`NativeListTypeSymbol<T>.SetList` of bhl), it used to hand over the adapter released after the call
+
 ## [0.22.0] - 2026-11-04
 
 ### Added

@@ -29,13 +29,14 @@ public static class BindConv
     return res;
   }
 
-  //NOTE: a BHL array is wrapped, a native list is passed as is; the result keeps a reference of the array
+  //NOTE: a BHL array is wrapped, a native list is passed as is; the result keeps a reference of the array,
+  //      the wrapper knows the array's type to go back as it (NativeListTypeSymbol<T>.SetList)
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static IList<T> ToList<T>(in Val v, NativeListTypeSymbol<T> proxy)
   {
     IList<T> res;
     if(v.obj is ValList vl)
-      res = ValList<T>.New(vl, proxy.Val2Native);
+      res = ValList<T>.New(vl, proxy.Val2Native, v.type);
     else
       res = (IList<T>)v.obj;
     v._refc?.Retain();
