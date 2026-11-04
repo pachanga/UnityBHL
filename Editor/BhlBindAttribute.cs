@@ -3,11 +3,15 @@ using System;
 namespace UnityBHL
 {
 //NOTE: read (not compiled) by the bindings generator (Tools~/bindgen): binds the listed static methods
-//      of the type as BHL functions named as the methods, e.g. [BhlBind(typeof(Script), nameof(Script.Vibrate))].
+//      of the type as BHL functions named as the methods, e.g. [BhlBind(typeof(Script), nameof(Script.Vibrate))];
+//      without names - all its public and internal static methods but the Except ones:
+//      [BhlBind(typeof(HapticsBind), Except = new[] { nameof(HapticsBind.Helper) })].
 //      Editor only, so the declarations never get into a player build
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = true)]
 public class BhlBindAttribute : Attribute
 {
+  public string[] Except;
+
   public BhlBindAttribute(Type type, params string[] names) {}
 }
 

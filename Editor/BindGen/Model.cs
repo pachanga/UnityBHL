@@ -56,6 +56,8 @@ internal class MethodDecl
   public bool IsCustom;
   //NOTE: [BhlCoroutine]
   public bool IsCoroutine;
+  //NOTE: has type parameters, such a method isn't bindable
+  public bool IsGeneric;
   //NOTE: a class method: [BhlNative("..")], the native member called on self instead of Name
   public string Native;
   //NOTE: a class method bound to the static SelfArgType.<Class>_<Name>(self, ..)
@@ -112,9 +114,18 @@ internal class BindDecl
   public SrcPos Pos;
 }
 
+//NOTE: [BhlBind(typeof(Type), Except = new[] { nameof(Type.Name), .. })], all the static methods of the type
+internal class BindAllDecl
+{
+  public string Type;
+  public List<BindDecl> Except = new List<BindDecl>();
+  public SrcPos Pos;
+}
+
 internal class CsDecls
 {
   public List<BindDecl> Binds = new List<BindDecl>();
+  public List<BindAllDecl> BindAlls = new List<BindAllDecl>();
   public List<MethodDecl> Customs = new List<MethodDecl>();
   public List<ClassDecl> Classes = new List<ClassDecl>();
   public HashSet<string> Enums = new HashSet<string>();

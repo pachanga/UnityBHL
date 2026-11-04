@@ -5,6 +5,13 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- bindgen: `[BhlBind(typeof(T))]` without names binds all the public and internal static methods of `T`,
+  `Except = new[] { nameof(T.M), ... }` leaves some out; a method which can't be bound (generic,
+  overloaded, of an unsupported type) fails the generation
+
 ## [0.22.0] - 2026-11-04
 
 ### Added

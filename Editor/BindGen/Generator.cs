@@ -64,7 +64,7 @@ internal class Generator
     foreach(var file in conf.DeclFiles)
       parser.ParseDecls(file, File.ReadAllText(file), decls);
 
-    var types = new HashSet<string>(decls.Binds.Select(b => b.Type));
+    var types = new HashSet<string>(decls.Binds.Select(b => b.Type).Concat(decls.BindAlls.Select(b => b.Type)));
     foreach(var c in decls.Classes.Where(c => c.MemberRefs.Count > 0))
     {
       types.Add(c.NativeType.Name);
@@ -79,6 +79,9 @@ internal class Generator
       parser.ParseSource(file, src, types, decls);
     }
 
+    foreach(var all in decls.BindAlls)
+      decls.Binds.AddRange(BindAll(all));
+
     var seen = new HashSet<string>();
     foreach(var b in decls.Binds)
     {
@@ -88,6 +91,8 @@ internal class Generator
         throw new GenException(b.Pos, $"static method '{b.Type}.{b.Name}' is not found in the sources");
       if(found.Count > 1)
         throw new GenException(found[1].Pos, $"'{b.Type}.{b.Name}' is overloaded, BHL has no overloads");
+      if(found[0].IsGeneric)
+        throw new GenException(found[0].Pos, $"'{b.Type}.{b.Name}' is generic, it can't be bound");
       AddFunc(found[0], b.Pos.File);
     }
 
@@ -173,6 +178,21 @@ internal class Generator
       if(!header_usings.Contains(u) && !imports.Contains(u))
         imports.Add(u);
     }
+  }
+
+  //NOTE: the static methods of the type in the order of the sources, each bound at the position of the
+  //      declaration; a method which can't be bound fails the generation, Except leaves it out
+  //      shortcut: a new file with methods of the type isn't a dep of the output, the editor regenerates
+  //      on the next change of a dep
+  List<BindDecl> BindAll(BindAllDecl all)
+  {
+    var statics = decls.Methods.Where(kv => kv.Key.type == all.Type && kv.Value.Any(m => m.IsStatic)).Select(kv => kv.Key.name).ToList();
+    if(statics.Count == 0)
+      throw new GenException(all.Pos, $"no static methods of '{all.Type}' are found in the sources");
+    foreach(var e in all.Except.Where(e => !statics.Contains(e.Name)))
+      throw new GenException(e.Pos, $"static method '{all.Type}.{e.Name}' is not found in the sources");
+    return statics.Where(name => !all.Except.Any(e => e.Name == name))
+      .Select(name => new BindDecl { Type = all.Type, Name = name, Pos = all.Pos }).ToList();
   }
 
   void AddFunc(MethodDecl m, string decl_file)

@@ -52,13 +52,35 @@ internal class RoslynParser : ICsParser
         continue;
 
       var args = attr.ArgumentList?.Arguments;
-      if(args == null || args.Value.Count < 2 || !(args.Value[0].Expression is TypeOfExpressionSyntax type_of))
+      if(args == null || args.Value.Count < 1 || !(args.Value[0].Expression is TypeOfExpressionSyntax type_of) || args.Value[0].NameEquals != null)
         throw new GenException(Pos(attr), "expected [BhlBind(typeof(T), nameof(T.M), ...)]");
 
       var type = LastName(type_of.Type);
-      foreach(var arg in args.Value.Skip(1))
+      var names = args.Value.Skip(1).Where(a => a.NameEquals == null).ToList();
+      var except = args.Value.Skip(1).Where(a => a.NameEquals != null).ToList();
+      if(except.Count > 1 || except.Count == 1 && (except[0].NameEquals.Name.Identifier.Text != "Except" || ArrayItems(except[0].Expression) == null || names.Count > 0))
+        throw new GenException(Pos(except.Last()), "expected Except = new[] { nameof(T.M), ... } without the names to bind");
+      foreach(var arg in names)
         decls.Binds.Add(new BindDecl { Type = type, Name = MemberName(arg.Expression), Pos = Pos(arg) });
+      if(names.Count == 0)
+      {
+        decls.BindAlls.Add(new BindAllDecl {
+          Type = type,
+          Except = except.SelectMany(a => ArrayItems(a.Expression)).Select(e => new BindDecl { Type = type, Name = MemberName(e), Pos = Pos(e) }).ToList(),
+          Pos = Pos(attr),
+        });
+      }
     }
+  }
+
+  //NOTE: the items of new[] { .. } or new T[] { .. }, null if it's not one
+  static IEnumerable<ExpressionSyntax> ArrayItems(ExpressionSyntax expr)
+  {
+    if(expr is ImplicitArrayCreationExpressionSyntax implicit_arr)
+      return implicit_arr.Initializer.Expressions;
+    if(expr is ArrayCreationExpressionSyntax arr && arr.Initializer != null)
+      return arr.Initializer.Expressions;
+    return null;
   }
 
   static bool IsAttr(AttributeSyntax attr, string name)
@@ -160,6 +182,7 @@ internal class RoslynParser : ICsParser
       Target = target,
       IsStatic = m.Modifiers.Any(SyntaxKind.StaticKeyword),
       IsCoroutine = HasAttr(m.AttributeLists, "BhlCoroutine"),
+      IsGeneric = m.TypeParameterList != null,
       ReturnType = Type(m.ReturnType),
       Params = m.ParameterList.Parameters.Select(p => new ParamDecl {
         Name = p.Identifier.Text,

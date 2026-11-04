@@ -41,14 +41,26 @@ internal class HandParser : ICsParser
         continue;
 
       var args = attr.Args;
-      if(args == null || args.Count < 2 || args[0].Expr.TypeOf == null)
+      if(args == null || args.Count < 1 || args[0].Expr.TypeOf == null || args[0].NameEquals != null)
         throw new GenException(attr.Pos, "expected [BhlBind(typeof(T), nameof(T.M), ...)]");
 
       var type_of = args[0].Expr.TypeOf;
       if(type_of.Name == null)
         throw new GenException(type_of.Pos, $"expected a name, got '{type_of.Text}'");
-      foreach(var arg in args.Skip(1))
+      var names = args.Skip(1).Where(a => a.NameEquals == null).ToList();
+      var except = args.Skip(1).Where(a => a.NameEquals != null).ToList();
+      if(except.Count > 1 || except.Count == 1 && (except[0].NameEquals != "Except" || except[0].Expr.Items == null || names.Count > 0))
+        throw new GenException(except.Last().Pos, "expected Except = new[] { nameof(T.M), ... } without the names to bind");
+      foreach(var arg in names)
         decls.Binds.Add(new BindDecl { Type = type_of.Name, Name = MemberName(arg.Expr), Pos = arg.Pos });
+      if(names.Count == 0)
+      {
+        decls.BindAlls.Add(new BindAllDecl {
+          Type = type_of.Name,
+          Except = except.SelectMany(a => a.Expr.Items).Select(e => new BindDecl { Type = type_of.Name, Name = MemberName(e), Pos = e.Pos }).ToList(),
+          Pos = attr.Pos,
+        });
+      }
     }
   }
 
@@ -204,6 +216,7 @@ internal class HandParser : ICsParser
       Target = target,
       IsStatic = m.Mods.Contains("static"),
       IsCoroutine = HasAttr(m.Attrs, "BhlCoroutine"),
+      IsGeneric = m.IsGeneric,
       ReturnType = m.Type,
       Params = m.Params.Select(p => new ParamDecl {
         Name = p.Name,
@@ -230,6 +243,8 @@ internal class HandParser : ICsParser
     //NOTE: the names of nameof(A.B.C), the last one is a member access if NameOfMember
     public List<string> NameOf;
     public bool NameOfMember;
+    //NOTE: the items of new[] { .. } or new T[] { .. }
+    public List<Expr> Items;
     public SrcPos Pos;
   }
 
@@ -270,6 +285,7 @@ internal class HandParser : ICsParser
     public List<(string name, SrcPos pos)> Vars;
     //NOTE: null for an expression bodied property
     public List<(string kind, List<string> mods)> Accessors;
+    public bool IsGeneric;
     //NOTE: the start of the declaration, its attributes included
     public SrcPos Pos;
   }
@@ -920,7 +936,8 @@ internal class HandParser : ICsParser
       if(Is("<") || Is("("))
       {
         m.Kind = MemberKind.Method;
-        if(Is("<"))
+        m.IsGeneric = Is("<");
+        if(m.IsGeneric)
           SkipAngles();
         m.Params = Params();
         //NOTE: type parameter constraints
@@ -1179,6 +1196,14 @@ internal class HandParser : ICsParser
           e.TypeOf = type;
         p = save;
       }
+      else if(count >= 5 && first.Text == "new" && toks[to - 1].Text == "}")
+      {
+        int k = from + 1;
+        if(toks[k].Kind == Tk.Id)
+          ++k;
+        if(toks[k].Text == "[" && toks[k + 1].Text == "]" && toks[k + 2].Text == "{")
+          e.Items = Items(k + 3, to - 1);
+      }
       else if(count >= 4 && first.Text == "nameof" && toks[from + 1].Text == "(" && toks[to - 1].Text == ")")
       {
         //NOTE: names separated by '.' or '::'
@@ -1200,6 +1225,26 @@ internal class HandParser : ICsParser
         }
       }
       return e;
+    }
+
+    //NOTE: the comma separated expressions of [from, to), a trailing comma allowed
+    List<Expr> Items(int from, int to)
+    {
+      var items = new List<Expr>();
+      int save = p;
+      p = from;
+      while(p < to)
+      {
+        int start = p;
+        SkipTo(",", "}");
+        if(p == start)
+          throw Error(Cur, "expression expected");
+        items.Add(Expr(start, p));
+        if(p < to)
+          Expect(",");
+      }
+      p = save;
+      return items;
     }
 
     //NOTE: Keyword, Name and GenericArgs, TupleItems are set as Roslyn's syntax has them: an array, a nullable,
