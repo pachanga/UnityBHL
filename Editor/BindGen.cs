@@ -16,16 +16,19 @@ namespace UnityBHL
   {
     static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlCustom)\b", RegexOptions.Multiline);
 
-    [MenuItem("BHL/Generate Bindings")]
-    static void GenerateMenu()
+    const string ConfName = "bhl_bindgen.json";
+
+    //NOTE: the project generates bindings: it has bhl_bindgen.json next to bhl.proj (the Control Panel shows its button then)
+    internal static bool IsConfigured => ConfPath() != null;
+
+    //NOTE: the Generate Bindings button of the Control Panel: unlike a change of a file, it says so when nothing has changed
+    internal static void GenerateNow()
     {
       if(ConfPath() == null)
         Debug.LogError($"[BHL] bindgen: no {ConfName} next to bhl.proj");
-      else
-        Generate();
+      else if(!Generate())
+        Debug.Log("[BHL] bindgen: the bindings are up to date");
     }
-
-    const string ConfName = "bhl_bindgen.json";
 
     static string ConfPath()
     {
@@ -88,20 +91,23 @@ namespace UnityBHL
       return decl_attr.IsMatch(File.ReadAllText(path));
     }
 
-    static void Generate()
+    //NOTE: true if the bindings have changed (or the generation failed: it's said)
+    static bool Generate()
     {
       try
       {
         var conf = Config.Load(ConfPath(), JsonUtility.FromJson<Config>);
         var (summary, changed) = new Generator(conf, new HandParser(conf.defines)).Run();
         if(!changed)
-          return;
+          return false;
         Debug.Log("[BHL] " + summary);
         AssetDatabase.Refresh();
+        return true;
       }
       catch(GenException e)
       {
         Debug.LogError("[BHL] bindgen: " + e.Message);
+        return true;
       }
     }
   }

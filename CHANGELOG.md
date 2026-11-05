@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- bindgen: the `Generate Bindings` button of the Control Panel (shown when the project has `bhl_bindgen.json`
+  next to bhl.proj) instead of the `BHL/Generate Bindings` menu item; it says when the bindings are up to date
+
 ## [0.23.0] - 2026-11-04
 
 ### Added
