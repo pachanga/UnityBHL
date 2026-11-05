@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 #if BHL_UNITASK
 using Cysharp.Threading.Tasks;
@@ -89,13 +90,17 @@ public static class BhlTaskForeignExtensions
 }
 
 //NOTE: a pooled source completed by a foreign task: back to the pool once its result is taken (or the
-//      call is cancelled) and the foreign task is done, the foreign result is always taken
+//      call is cancelled) and the foreign task is done, the foreign result is always taken. The foreign
+//      task may complete on another thread (a Task without a synchronization context): it posts to the
+//      scope by PostRemote, or releases the source there when the call is over
 abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlCancelResumable
 {
   BhlTaskCore<T> core;
   BhlTaskScope scope;
   short scopeVersion;
-  bool isForeignPending;
+  //NOTE: the result not taken yet and the foreign task pending, each is done once (maybe on different
+  //      threads), the last one returns the source to the pool (of its thread)
+  int holds;
   bool isTaken;
   protected readonly Action onForeignCompleted;
   readonly Action onScopeTick;
@@ -116,7 +121,8 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
   {
     this.scope = scope;
     scopeVersion = scope.Version;
-    isForeignPending = true;
+    holds = 2;
+    isTaken = false;
     scope.Track(this, core.Version);
     Subscribe();
     return core.Version;
@@ -131,8 +137,7 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
     core.ValidateCompleted(token);
     var result = core.Result;
     var error = core.Error;
-    isTaken = true;
-    TryReturn();
+    Take();
 
     error?.Throw();
     return result;
@@ -150,19 +155,14 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
   {
     if(version != core.Version)
       return;
-    isTaken = true;
-    TryReturn();
+    Take();
   }
 
-  //NOTE: outside of the call
+  //NOTE: outside of the call, maybe on another thread
   void OnForeignCompleted()
   {
-    if(scope.Version == scopeVersion && !scope.IsCancelled)
-    {
-      scope.Post(onScopeTick);
-      return;
-    }
-    ReleaseForeign();
+    if(!scope.PostRemote(onScopeTick, scopeVersion))
+      ReleaseForeign();
   }
 
   //NOTE: in the tick of the call, or in its cancellation when it came in between
@@ -174,7 +174,6 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
       return;
     }
 
-    isForeignPending = false;
     T result;
     try
     {
@@ -182,15 +181,16 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
     }
     catch(Exception e)
     {
+      Drop();
       core.SetException(e);
       return;
     }
+    Drop();
     core.SetResult(result);
   }
 
   void ReleaseForeign()
   {
-    isForeignPending = false;
     try
     {
       TakeForeignResult();
@@ -199,16 +199,24 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
     {
       //NOTE: nobody waits for the result anymore
     }
-    TryReturn();
+    Drop();
   }
 
-  void TryReturn()
+  //NOTE: in the thread of the call
+  void Take()
   {
-    if(!isTaken || isForeignPending)
+    if(isTaken)
+      return;
+    isTaken = true;
+    Drop();
+  }
+
+  void Drop()
+  {
+    if(Interlocked.Decrement(ref holds) != 0)
       return;
     core.Reset();
     scope = null;
-    isTaken = false;
     ReturnToPool();
   }
 }
@@ -216,14 +224,15 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
 #if BHL_UNITASK
 sealed class BhlUniTaskSource : BhlForeignSource<BhlTaskVoid>
 {
-  static readonly Stack<BhlUniTaskSource> pool = new Stack<BhlUniTaskSource>();
+  [ThreadStatic] static Stack<BhlUniTaskSource> pool;
 
   UniTask.Awaiter awaiter;
 
   public static BhlTask<BhlTaskVoid> Create(UniTask.Awaiter awaiter)
   {
     var scope = BhlTaskScope.Require();
-    var source = pool.Count > 0 ? pool.Pop() : new BhlUniTaskSource();
+    var p = pool ??= new Stack<BhlUniTaskSource>();
+    var source = p.Count > 0 ? p.Pop() : new BhlUniTaskSource();
     source.awaiter = awaiter;
     return new BhlTask<BhlTaskVoid>(source, source.Start(scope));
   }
@@ -238,19 +247,20 @@ sealed class BhlUniTaskSource : BhlForeignSource<BhlTaskVoid>
     return default;
   }
 
-  protected override void ReturnToPool() => pool.Push(this);
+  protected override void ReturnToPool() => (pool ??= new Stack<BhlUniTaskSource>()).Push(this);
 }
 
 sealed class BhlUniTaskSource<T> : BhlForeignSource<T>
 {
-  static readonly Stack<BhlUniTaskSource<T>> pool = new Stack<BhlUniTaskSource<T>>();
+  [ThreadStatic] static Stack<BhlUniTaskSource<T>> pool;
 
   UniTask<T>.Awaiter awaiter;
 
   public static BhlTask<T> Create(UniTask<T>.Awaiter awaiter)
   {
     var scope = BhlTaskScope.Require();
-    var source = pool.Count > 0 ? pool.Pop() : new BhlUniTaskSource<T>();
+    var p = pool ??= new Stack<BhlUniTaskSource<T>>();
+    var source = p.Count > 0 ? p.Pop() : new BhlUniTaskSource<T>();
     source.awaiter = awaiter;
     return new BhlTask<T>(source, source.Start(scope));
   }
@@ -264,20 +274,21 @@ sealed class BhlUniTaskSource<T> : BhlForeignSource<T>
     return a.GetResult();
   }
 
-  protected override void ReturnToPool() => pool.Push(this);
+  protected override void ReturnToPool() => (pool ??= new Stack<BhlUniTaskSource<T>>()).Push(this);
 }
 #endif
 
 sealed class BhlSystemTaskSource : BhlForeignSource<BhlTaskVoid>
 {
-  static readonly Stack<BhlSystemTaskSource> pool = new Stack<BhlSystemTaskSource>();
+  [ThreadStatic] static Stack<BhlSystemTaskSource> pool;
 
   Task task;
 
   public static BhlTask<BhlTaskVoid> Create(Task task)
   {
     var scope = BhlTaskScope.Require();
-    var source = pool.Count > 0 ? pool.Pop() : new BhlSystemTaskSource();
+    var p = pool ??= new Stack<BhlSystemTaskSource>();
+    var source = p.Count > 0 ? p.Pop() : new BhlSystemTaskSource();
     source.task = task;
     return new BhlTask<BhlTaskVoid>(source, source.Start(scope));
   }
@@ -292,19 +303,20 @@ sealed class BhlSystemTaskSource : BhlForeignSource<BhlTaskVoid>
     return default;
   }
 
-  protected override void ReturnToPool() => pool.Push(this);
+  protected override void ReturnToPool() => (pool ??= new Stack<BhlSystemTaskSource>()).Push(this);
 }
 
 sealed class BhlSystemTaskSource<T> : BhlForeignSource<T>
 {
-  static readonly Stack<BhlSystemTaskSource<T>> pool = new Stack<BhlSystemTaskSource<T>>();
+  [ThreadStatic] static Stack<BhlSystemTaskSource<T>> pool;
 
   Task<T> task;
 
   public static BhlTask<T> Create(Task<T> task)
   {
     var scope = BhlTaskScope.Require();
-    var source = pool.Count > 0 ? pool.Pop() : new BhlSystemTaskSource<T>();
+    var p = pool ??= new Stack<BhlSystemTaskSource<T>>();
+    var source = p.Count > 0 ? p.Pop() : new BhlSystemTaskSource<T>();
     source.task = task;
     return new BhlTask<T>(source, source.Start(scope));
   }
@@ -318,7 +330,7 @@ sealed class BhlSystemTaskSource<T> : BhlForeignSource<T>
     return t.GetAwaiter().GetResult();
   }
 
-  protected override void ReturnToPool() => pool.Push(this);
+  protected override void ReturnToPool() => (pool ??= new Stack<BhlSystemTaskSource<T>>()).Push(this);
 }
 
 }

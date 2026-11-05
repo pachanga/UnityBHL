@@ -5,6 +5,17 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- BhlTask: a tick of an async function costs less (about 10 ns more than a pooled `Coroutine` per tick instead
+  of 12 on .NET 8): the one continuation of a tick is kept without the queue lists
+
+### Fixed
+- BhlTask is thread safe for a VM per thread, as bhl: its pools are per thread (they were shared by all the
+  threads), a foreign `Task` completed on another thread (no `SynchronizationContext`, e.g. in a worker thread)
+  posts its result to the call under a lock instead of touching the queue of the call while it ticks
+
 ## [0.24.0] - 2026-11-05
 
 ### Changed

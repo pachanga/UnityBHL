@@ -105,7 +105,7 @@ interface IBhlTaskRunner<T> : IBhlTaskSource<T>
 sealed class BhlTaskRunner<TStateMachine, T> : IBhlTaskRunner<T>, IBhlTaskScopeItem, IBhlCancelResumable
   where TStateMachine : IAsyncStateMachine
 {
-  static readonly Stack<BhlTaskRunner<TStateMachine, T>> pool = new Stack<BhlTaskRunner<TStateMachine, T>>();
+  [ThreadStatic] static Stack<BhlTaskRunner<TStateMachine, T>> pool;
 
   public TStateMachine stateMachine;
   BhlTaskCore<T> core;
@@ -123,7 +123,8 @@ sealed class BhlTaskRunner<TStateMachine, T> : IBhlTaskRunner<T>, IBhlTaskScopeI
 
   public static BhlTaskRunner<TStateMachine, T> Rent(bool resumesOnCancel)
   {
-    var runner = pool.Count > 0 ? pool.Pop() : new BhlTaskRunner<TStateMachine, T>();
+    var p = pool ??= new Stack<BhlTaskRunner<TStateMachine, T>>();
+    var runner = p.Count > 0 ? p.Pop() : new BhlTaskRunner<TStateMachine, T>();
     runner.resumesOnCancel = resumesOnCancel;
     runner.scope = BhlTaskScope.Current;
     runner.scope?.Track(runner, runner.core.Version);
@@ -181,7 +182,7 @@ sealed class BhlTaskRunner<TStateMachine, T> : IBhlTaskRunner<T>, IBhlTaskScopeI
     core.Reset();
     stateMachine = default;
     scope = null;
-    pool.Push(this);
+    (pool ??= new Stack<BhlTaskRunner<TStateMachine, T>>()).Push(this);
   }
 }
 
@@ -209,7 +210,7 @@ sealed class BhlTaskErrorSource<T> : IBhlTaskSource<T>
 //NOTE: observes a forgotten task, so its exception fails the BHL call and its source gets back to the pool
 sealed class BhlTaskForget<T> : IBhlTaskScopeItem
 {
-  static readonly Stack<BhlTaskForget<T>> pool = new Stack<BhlTaskForget<T>>();
+  [ThreadStatic] static Stack<BhlTaskForget<T>> pool;
 
   IBhlTaskSource<T> source;
   short token;
@@ -226,7 +227,8 @@ sealed class BhlTaskForget<T> : IBhlTaskScopeItem
   public static void Observe(IBhlTaskSource<T> source, short token)
   {
     var scope = BhlTaskScope.Require();
-    var observer = pool.Count > 0 ? pool.Pop() : new BhlTaskForget<T>();
+    var p = pool ??= new Stack<BhlTaskForget<T>>();
+    var observer = p.Count > 0 ? p.Pop() : new BhlTaskForget<T>();
     observer.source = source;
     observer.token = token;
     observer.scope = scope;
@@ -266,7 +268,7 @@ sealed class BhlTaskForget<T> : IBhlTaskScopeItem
     ++version;
     source = null;
     scope = null;
-    pool.Push(this);
+    (pool ??= new Stack<BhlTaskForget<T>>()).Push(this);
   }
 }
 

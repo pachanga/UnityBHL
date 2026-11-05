@@ -110,10 +110,64 @@ static class P {
       "BhlTask cancel (passthrough)", "BhlTask cancel + forgotten" })
       Check(r[k] == 0, "no allocations: " + k);
 #endif
+    Threads();
     Console.WriteLine(fails == 0 ? "all passed" : fails + " failed");
     Environment.Exit(fails);
   }
   static StubSource<int> cur;
+
+  //NOTE: VMs on several threads at once, each ticks its own calls: plain, cancelled, BhlFinallyTask cancelled,
+  //      and awaiting a Task completed by a thread pool thread while the call ticks or is cancelled
+  static async BhlTask<int> CountYields(int n) { int k = 0; for(int i = 0; i < n; ++i) { await BhlTask.Yield(); ++k; } return k; }
+  static async BhlFinallyTask<int> FinYields(int n) { try { return await CountYields(n); } finally { } }
+  static async BhlTask<int> FromTask(System.Threading.Tasks.Task<int> t) { int v = await t.ToBhlTask(); await BhlTask.Yield(); return v; }
+  static void Threads() {
+    const int T = 8, CALLS = 3000;
+    var errors = new System.Collections.Concurrent.ConcurrentQueue<string>();
+    var threads = new System.Threading.Thread[T];
+    for(int t = 0; t < T; ++t) {
+      int seed = t;
+      threads[t] = new System.Threading.Thread(() => {
+        var e = new VM.ExecState();
+        var rnd = new Random(seed);
+        bool TickT(Coroutine c) { e.status = BHS.SUCCESS; c.Tick(e); return e.status == BHS.RUNNING; }
+        try {
+          for(int i = 0; i < CALLS; ++i) {
+            int n = 1 + rnd.Next(5);
+            int kind = rnd.Next(4);
+            var tcs = new System.Threading.Tasks.TaskCompletionSource<int>();
+            var s = BhlTaskScope.Enter();
+            Coroutine c;
+            try {
+              c = kind == 0 ? BhlTaskCoroutine.New(e, s, CountYields(n), static (exec, v) => exec.pushed.Add(v)) :
+                  kind == 1 ? BhlTaskCoroutine.New(e, s, FinYields(n), static (exec, v) => exec.pushed.Add(v)) :
+                  BhlTaskCoroutine.New(e, s, FromTask(tcs.Task), static (exec, v) => exec.pushed.Add(v));
+            } finally { s.Exit(); }
+            if(kind >= 2) {
+              int spin = rnd.Next(2000);
+              System.Threading.Tasks.Task.Run(() => { System.Threading.Thread.SpinWait(spin); tcs.SetResult(n); });
+            }
+            bool cancel = rnd.Next(3) == 0;
+            e.pushed.Clear();
+            int ticks = 0;
+            while(true) {
+              if(cancel && ticks == 1) { CoroutinePool.Del(e, c); break; }
+              if(!TickT(c)) { CoroutinePool.Del(e, c); break; }
+              if(++ticks > 1000000) { errors.Enqueue("never completes"); CoroutinePool.Del(e, c); break; }
+            }
+            if(!cancel && (e.pushed.Count != 1 || (int)e.pushed[0] != n))
+              errors.Enqueue($"kind {kind}: expected {n}, pushed {string.Join(",", e.pushed)}");
+            if(kind >= 2)
+              tcs.Task.Wait();
+          }
+        } catch(Exception ex) { errors.Enqueue(ex.GetType().Name + ": " + ex.Message); }
+      });
+    }
+    foreach(var th in threads) th.Start();
+    foreach(var th in threads) th.Join();
+    errors.TryPeek(out var first);
+    Check(errors.IsEmpty, $"threads: {T} x {CALLS} calls at once: " + (first ?? "") + (errors.Count > 1 ? $" (+{errors.Count - 1} more)" : ""));
+  }
   static async BhlTask Steps2() { ++n; await BhlTask.Yield(); ++n; await BhlTask.Yield(); ++n; }
   static async BhlTask ForgetOk2() { Steps2().Forget(); await BhlTask.Yield(); await BhlTask.Yield(); await BhlTask.Yield(); }
   static async BhlTask<int> FromUni2(StubSource<int> s) { int v = await new UniTask<int>(s).ToBhlTask(); await BhlTask.Yield(); return v; }

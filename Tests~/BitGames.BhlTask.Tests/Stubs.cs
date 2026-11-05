@@ -56,20 +56,23 @@ public abstract class Coroutine
   {}
 }
 
-//NOTE: pooled as in the VM, so allocations of the runtime are measured alone
+//NOTE: pooled as in the VM (per thread too), so allocations of the runtime are measured alone
 public static class CoroutinePool
 {
   static class Holder<T>
   {
-    public static readonly Stack<Coroutine> pool = new Stack<Coroutine>();
+    [ThreadStatic] static Stack<Coroutine> _pool;
+    public static Stack<Coroutine> pool => _pool ??= new Stack<Coroutine>();
   }
 
-  static readonly Dictionary<Type, Stack<Coroutine>> pools = new Dictionary<Type, Stack<Coroutine>>();
+  [ThreadStatic] static Dictionary<Type, Stack<Coroutine>> _pools;
+  static Dictionary<Type, Stack<Coroutine>> pools => _pools ??= new Dictionary<Type, Stack<Coroutine>>();
 
   public static T New<T>(VM vm) where T : Coroutine, new()
   {
-    pools[typeof(T)] = Holder<T>.pool;
-    return Holder<T>.pool.Count > 0 ? (T)Holder<T>.pool.Pop() : new T();
+    var pool = Holder<T>.pool;
+    pools[typeof(T)] = pool;
+    return pool.Count > 0 ? (T)pool.Pop() : new T();
   }
 
   public static void Del(VM.ExecState exec, Coroutine coro)
