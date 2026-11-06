@@ -15,6 +15,10 @@ namespace UnityBHL
     bool _showSettings = true;
     Editor _settingsEditor;
 
+    //NOTE: the tickbox next to Recompile, remembered in EditorPrefs (it replaced the Force Recompile button of the panel; the BHL/Force Recompile
+    //      menu item is still there)
+    const string ForceRecompilePrefKey = "UnityBHL.ControlPanel.ForceRecompile";
+
     static Task<byte[]> _pendingCompile;
     static int _compileStep;
     static bool _allowHotReload;
@@ -47,17 +51,19 @@ namespace UnityBHL
 
       using(new EditorGUI.DisabledScope(_pendingCompile != null))
       {
+        bool force = EditorPrefs.GetBool(ForceRecompilePrefKey, false);
         var recompileContent = new GUIContent(
           _pendingCompile != null ? "Compiling..." : "Recompile",
-          "Incremental compile - skips unchanged files, no-ops entirely if nothing changed.");
+          force
+            ? "Bypasses the compile cache - recompiles every file regardless of what changed (Force is ticked)."
+            : "Incremental compile - skips unchanged files, no-ops entirely if nothing changed.");
         if(GUILayout.Button(recompileContent))
-          Recompile();
+          Recompile(force: force);
 
-        var forceContent = new GUIContent(
-          _pendingCompile != null ? "Compiling..." : "Force Recompile",
-          "Bypasses the compile cache - recompiles every file regardless of what changed.");
-        if(GUILayout.Button(forceContent, GUILayout.Width(120)))
-          Recompile(force: true);
+        var forceContent = new GUIContent("Force", "Recompile bypasses the compile cache - every file is recompiled regardless of what changed.");
+        bool newForce = EditorGUILayout.ToggleLeft(forceContent, force, GUILayout.Width(60));
+        if(newForce != force)
+          EditorPrefs.SetBool(ForceRecompilePrefKey, newForce);
       }
 
       EditorGUILayout.EndHorizontal();
