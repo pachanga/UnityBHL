@@ -181,6 +181,7 @@ sealed class BhlTaskRunner<TStateMachine, T> : IBhlTaskRunner<T>, IBhlTaskScopeI
   {
     core.Reset();
     stateMachine = default;
+    scope?.Untrack();
     scope = null;
     (pool ??= new Stack<BhlTaskRunner<TStateMachine, T>>()).Push(this);
   }
@@ -267,6 +268,7 @@ sealed class BhlTaskForget<T> : IBhlTaskScopeItem
   {
     ++version;
     source = null;
+    scope?.Untrack();
     scope = null;
     (pool ??= new Stack<BhlTaskForget<T>>()).Push(this);
   }

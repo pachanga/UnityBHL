@@ -5,7 +5,24 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.27.0] - 2026-11-07
+
+### Changed
+- BhlTask: a call costs less to start and to end, which is what a short call mostly pays (a tick of a
+  parked function was already about 7 ns over a pooled `Coroutine`, a call about 14 ns without an await
+  and 31 ns with one). On .NET 10/arm64: a call without an await 37 -> 28 ns, with one yield 56 -> 50 ns
+  - `Cancel()` and `Release()` took `remoteLock` once each (about 4.5 ns per uncontended acquire) to
+    race with a foreign task (`ToBhlTask`) completing on another thread. A scope which never hosted a
+    foreign source was never handed to another thread, so it now takes no locks at all; one which did
+    keeps taking them for the rest of its life (it's pooled, and a late `PostRemote` may still come for
+    an old version of it)
+  - a call which ran to its end skips the cancellation walk: the scope counts the tracked objects which
+    haven't pooled themselves yet instead of looking at the stale entries. Foreign sources never
+    decrement that count, so they always take the full path
+  - a tick of a call without a foreign source doesn't read `hasRemote` (volatile) any more, and
+    `BhlTask.Yield()` takes the scope once instead of the awaiter reading the thread static again when
+    it suspends and when it resumes. Both measure ~0.2 ns on .NET, they're for IL2CPP where a thread
+    static and a volatile read cost more
 
 ### Fixed
 - The .NET build (`Runtime/UnityBHL.csproj`, `NO_UNITY`) compiles again: `BHLFieldAttributes.cs` is excluded,

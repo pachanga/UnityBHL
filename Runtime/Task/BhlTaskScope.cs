@@ -48,6 +48,15 @@ public sealed class BhlTaskScope
   readonly object remoteLock = new object();
   readonly List<Action> remote = new List<Action>();
   volatile bool hasRemote;
+  //NOTE: set when a foreign source attaches (always on the thread of the call), so a call which never
+  //      awaits one skips the volatile read of hasRemote in every tick
+  bool usesRemote;
+  //NOTE: as usesRemote, but never reset: once a foreign source has had this scope, another thread may
+  //      still hold it and post to it late, so the locks stay. A scope which never hosted one was never
+  //      seen by another thread at all - nothing can race with its teardown, and it takes no locks
+  bool everRemote;
+  //NOTE: tracked objects which have not gone back to the pool yet
+  int liveItems;
 
   public bool IsCancelled { get; private set; }
 
@@ -95,20 +104,32 @@ public sealed class BhlTaskScope
 
   internal void Release()
   {
-    lock(remoteLock)
+    if(everRemote)
     {
-      ++version;
-      IsCancelled = false;
-      remote.Clear();
-      hasRemote = false;
+      lock(remoteLock)
+        ReleaseRemoteState();
     }
+    else
+      ReleaseRemoteState();
+
     error = null;
     canceled = null;
+    liveItems = 0;
     first = null;
     queue.Clear();
     running.Clear();
     items.Clear();
     (pool ??= new Stack<BhlTaskScope>()).Push(this);
+  }
+
+  //NOTE: under remoteLock when everRemote
+  void ReleaseRemoteState()
+  {
+    ++version;
+    IsCancelled = false;
+    remote.Clear();
+    hasRemote = false;
+    usesRemote = false;
   }
 
   internal void Post(Action continuation)
@@ -154,6 +175,22 @@ public sealed class BhlTaskScope
   internal void Track(IBhlTaskScopeItem item, short itemVersion)
   {
     items.Add((item, itemVersion));
+    ++liveItems;
+  }
+
+  //NOTE: a tracked object which went back to the pool by itself: the stale entry stays in items
+  //      (cleared by Release), but a teardown with nothing live skips the cancellation altogether
+  internal void Untrack()
+  {
+    --liveItems;
+  }
+
+  //NOTE: called by a foreign source when it attaches, on the thread of the call: from now on the ticks
+  //      check hasRemote, which other threads write
+  internal void AttachRemote()
+  {
+    usesRemote = true;
+    everRemote = true;
   }
 
   //NOTE: the exception of a forgotten task: thrown into the VM by the next tick of the call, logged
@@ -194,7 +231,7 @@ public sealed class BhlTaskScope
   //NOTE: runs the continuations queued before this tick, the ones they queue wait for the next one
   internal void Tick()
   {
-    if(hasRemote)
+    if(usesRemote && hasRemote)
     {
       lock(remoteLock)
         TakeRemote();
@@ -232,14 +269,27 @@ public sealed class BhlTaskScope
   //      BhlTask functions only is cancelled without exceptions
   internal void Cancel()
   {
-    lock(remoteLock)
+    if(everRemote)
+    {
+      lock(remoteLock)
+      {
+        if(IsCancelled)
+          return;
+        IsCancelled = true;
+        //NOTE: what came from other threads before is cancelled as the rest, nothing comes after
+        TakeRemote();
+      }
+    }
+    else
     {
       if(IsCancelled)
         return;
       IsCancelled = true;
-      //NOTE: what came from other threads before is cancelled as the rest, nothing comes after
-      TakeRemote();
     }
+
+    //NOTE: a call which ran to its end leaves nothing pending - Release() clears what is left
+    if(liveItems <= 0 && first == null && queue.Count == 0)
+      return;
 
     var prevScope = Activate();
     try

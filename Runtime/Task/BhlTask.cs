@@ -34,8 +34,9 @@ public readonly struct BhlTask
   //NOTE: runs on without being awaited, its exception fails the BHL call
   public void Forget() => task.Forget();
 
-  //NOTE: resumes in the next tick of the BHL call, as yield() in BHL
-  public static YieldAwaitable Yield() => default;
+  //NOTE: resumes in the next tick of the BHL call, as yield() in BHL. The scope is taken once here
+  //      and carried by the awaiter, so resuming doesn't read the thread static again
+  public static YieldAwaitable Yield() => new YieldAwaitable(BhlTaskScope.Require());
 
 #if !NO_UNITY
   //NOTE: scaled time (Time.time): Time.timeScale speeds it up as it does the game; out of Unity
@@ -68,26 +69,42 @@ public readonly struct BhlTask
 
   public readonly struct YieldAwaitable
   {
-    public YieldAwaiter GetAwaiter() => default;
+    readonly BhlTaskScope scope;
+
+    internal YieldAwaitable(BhlTaskScope scope)
+    {
+      this.scope = scope;
+    }
+
+    public YieldAwaiter GetAwaiter() => new YieldAwaiter(scope);
   }
 
   public readonly struct YieldAwaiter : ICriticalNotifyCompletion, IBhlAwaiter
   {
+    //NOTE: the scope Yield() was called in; a default(YieldAwaiter) has none and falls back to the
+    //      thread static
+    readonly BhlTaskScope scope;
+
+    internal YieldAwaiter(BhlTaskScope scope)
+    {
+      this.scope = scope;
+    }
+
     public bool IsCompleted => false;
 
     //NOTE: continuations run with the scope current; only a BhlFinallyTask is resumed by a cancellation
     public void GetResult()
     {
-      var scope = BhlTaskScope.Current;
-      if(scope != null && scope.IsCancelled)
-        throw scope.CanceledException;
+      var s = scope ?? BhlTaskScope.Current;
+      if(s != null && s.IsCancelled)
+        throw s.CanceledException;
     }
 
     public void OnCompleted(Action continuation) => UnsafeOnCompleted(continuation);
 
     public void UnsafeOnCompleted(Action continuation)
     {
-      BhlTaskScope.Require().Post(continuation);
+      (scope ?? BhlTaskScope.Require()).Post(continuation);
     }
   }
 }

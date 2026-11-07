@@ -124,6 +124,7 @@ abstract class BhlForeignSource<T> : IBhlTaskSource<T>, IBhlTaskScopeItem, IBhlC
     holds = 2;
     isTaken = false;
     scope.Track(this, core.Version);
+    scope.AttachRemote();
     Subscribe();
     return core.Version;
   }
