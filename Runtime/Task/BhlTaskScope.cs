@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
+#if !NO_UNITY
 using UnityEngine;
+#endif
 
 namespace BitGames.BHL
 {
@@ -161,14 +163,23 @@ public sealed class BhlTaskScope
     if(scopeVersion != version || IsCancelled)
     {
       if(!(e is OperationCanceledException))
-        Debug.LogException(e);
+        LogException(e);
       return;
     }
 
     if(error == null)
       error = ExceptionDispatchInfo.Capture(e);
     else
-      Debug.LogException(e);
+      LogException(e);
+  }
+
+  static void LogException(Exception e)
+  {
+#if NO_UNITY
+    Console.Error.WriteLine(e);
+#else
+    Debug.LogException(e);
+#endif
   }
 
   internal void ThrowIfFaulted()

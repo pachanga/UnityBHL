@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+#if !NO_UNITY
 using UnityEngine;
+#endif
 
 namespace BitGames.BHL
 {
@@ -35,13 +37,16 @@ public readonly struct BhlTask
   //NOTE: resumes in the next tick of the BHL call, as yield() in BHL
   public static YieldAwaitable Yield() => default;
 
-  //NOTE: scaled time (Time.time): Time.timeScale speeds it up as it does the game
+#if !NO_UNITY
+  //NOTE: scaled time (Time.time): Time.timeScale speeds it up as it does the game; out of Unity
+  //      there's no game clock, a host there waits on its own
   public static async BhlTask WaitSeconds(float seconds)
   {
     float end = Time.time + seconds;
     while(Time.time < end)
       await Yield();
   }
+#endif
 
   public readonly struct Awaiter : ICriticalNotifyCompletion, IBhlAwaiter
   {
