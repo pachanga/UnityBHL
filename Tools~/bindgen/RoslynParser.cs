@@ -49,6 +49,7 @@ internal class RoslynParser : ICsParser
       {
         var decl = Method(m, null, usings);
         decl.IsCustom = true;
+        decl.DeclNs = Ns(i);
         decls.Customs.Add(decl);
       }
     }
@@ -64,16 +65,18 @@ internal class RoslynParser : ICsParser
         throw new GenException(Pos(attr), "expected [BhlBind(typeof(T), nameof(T.M), ...)]");
 
       var type = LastName(type_of.Type);
+      var decl_ns = Ns(attr.Parent.Parent);
       var names = args.Value.Skip(1).Where(a => a.NameEquals == null).ToList();
       var except = args.Value.Skip(1).Where(a => a.NameEquals != null).ToList();
       if(except.Count > 1 || except.Count == 1 && (except[0].NameEquals.Name.Identifier.Text != "Except" || ArrayItems(except[0].Expression) == null || names.Count > 0))
         throw new GenException(Pos(except.Last()), "expected Except = new[] { nameof(T.M), ... } without the names to bind");
       foreach(var arg in names)
-        decls.Binds.Add(new BindDecl { Type = type, Name = MemberName(arg.Expression), Pos = Pos(arg) });
+        decls.Binds.Add(new BindDecl { Type = type, Name = MemberName(arg.Expression), DeclNs = decl_ns, Pos = Pos(arg) });
       if(names.Count == 0)
       {
         decls.BindAlls.Add(new BindAllDecl {
           Type = type,
+          DeclNs = decl_ns,
           Except = except.SelectMany(a => ArrayItems(a.Expression)).Select(e => new BindDecl { Type = type, Name = MemberName(e), Pos = Pos(e) }).ToList(),
           Pos = Pos(attr),
         });
@@ -140,7 +143,9 @@ internal class RoslynParser : ICsParser
       throw new GenException(Pos(attr), $"expected [{attr_name}(typeof(T), ...)] or [{attr_name}(\"Name\", typeof(T), ...)]");
     var decl = new ClassDecl {
       Name = type_idx == 0 ? i.Identifier.Text : StringArg(attr, 0),
+      NameGiven = type_idx == 1,
       DeclName = i.Identifier.Text,
+      Ns = Ns(i),
       Bases = i.BaseList?.Types.Select(b => LastName(b.Type)).ToList() ?? new List<string>(),
       NativeType = Type(type_of.Type),
       Usings = usings,
@@ -371,6 +376,13 @@ internal class RoslynParser : ICsParser
       }
     }
     return decl;
+  }
+
+  //NOTE: the namespace a node is declared in, null if none (as the hand parser)
+  static string Ns(SyntaxNode node)
+  {
+    var parts = node.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Select(n => n.Name.ToString()).Reverse().ToList();
+    return parts.Count > 0 ? string.Join(".", parts) : null;
   }
 
   static string FullName(TypeDeclarationSyntax c)

@@ -61,6 +61,8 @@ internal class MethodDecl
   public bool IsCustom;
   //NOTE: the hand written class of a custom class method, null for Script_<Name>
   public string Partial;
+  //NOTE: of a function of a [BhlCustom] interface, the C# namespace of the interface, null if none
+  public string DeclNs;
   //NOTE: [BhlCoroutine]
   public bool IsCoroutine;
   //NOTE: has type parameters, such a method isn't bindable
@@ -130,6 +132,9 @@ internal class ClassDecl
   //      declarations too are the parent class, the implemented or the inherited interfaces
   public string DeclName;
   public List<string> Bases = new List<string>();
+  //NOTE: the C# namespace of the declaring interface, null if none; NameGiven: the BHL name is the attribute's
+  public string Ns;
+  public bool NameGiven;
   //NOTE: Pod = true: a value type kept boxed in Val.obj (POD in meta), CustomRW = true: kept in Val itself by
   //      the project's Val.Encode/Decode (@bhl_custom_rw); both are written back to the Val when changed
   public bool Pod;
@@ -148,6 +153,8 @@ internal class BindDecl
   public string Name;
   //NOTE: [BhlBind("Name")] on a method, null if the BHL name is the method's
   public string BhlName;
+  //NOTE: of the declarations form, the C# namespace of the type it's on, null if none
+  public string DeclNs;
   public SrcPos Pos;
 }
 
@@ -155,6 +162,7 @@ internal class BindDecl
 internal class BindAllDecl
 {
   public string Type;
+  public string DeclNs;
   public List<BindDecl> Except = new List<BindDecl>();
   public SrcPos Pos;
 }

@@ -26,6 +26,9 @@ internal class Config
   //NOTE: the configs of other bindings (e.g. of a package) this one uses, relative to it: each is generated to its
   //      own result_dir, their declarations are known here, not the other way round
   public List<string> includes = new List<string>();
+  //NOTE: the C# namespace of the declarations: one in a namespace under it is in the BHL namespace of the rest,
+  //      [BhlClass(typeof(T))] interface Shape in <decls_namespace>.Geo is Geo.Shape; a name given explicitly is kept
+  public string decls_namespace;
 #pragma warning restore CS0649
 
   //NOTE: the dir of the config, its paths are relative to it

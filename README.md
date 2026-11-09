@@ -94,6 +94,13 @@ interface UIBarrier : UIPlate {}                        // UIPlate is a declarat
 }
 ```
 
+A BHL name may be in a namespace, `[BhlBind("LM3.UIRefresh")]`, `[BhlClass("LM3.Chip", typeof(..))]`: the symbol is
+defined in the nested namespaces (`types.ns.Nest("LM3")`) and referred to by the full name; a C# identifier made of
+it has `_` for `.`, as metagen_bhl_bind's: `Types_LM3_Chip`, `Script.LM3_Chip_<Method>`, `Script_LM3_Chip.Method_<Name>`.
+With `decls_namespace` (e.g. `"Game.Bind.Decls"`) a declaration in a C# namespace under it is in the BHL namespace of
+the rest: `[BhlClass(typeof(T))] interface Chip` in `Game.Bind.Decls.LM3` is `LM3.Chip`, the functions of a `[BhlCustom]`
+or a `[BhlBind(typeof(T), ..)]` interface there are `LM3.<Name>`; an explicit name is kept as is.
+
 `includes` names the configs of other bindings it uses, e.g. of a package: `"includes": ["../Packages/M3/bhl_bindgen.json"]`.
 Each is generated to its own `result_dir` with its own `register_class` (the generated halves of its `[BhlCustom]`
 bindings are in its assembly, next to the hand written ones), the project registers each; their declarations are known

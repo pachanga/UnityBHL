@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metagen_bhl_bind
 - bindgen: `[BhlClass(typeof(T), ..)]` and `[BhlInterface(typeof(T))]` without the name: the BHL name is the declaring
   interface's, which in a namespace of its own may be named as the native type
+- bindgen: `decls_namespace` of `bhl_bindgen.json`: a declaration in a C# namespace under it is in the BHL namespace of
+  the rest, the classes, interfaces and the functions of `[BhlCustom]` and `[BhlBind(typeof(T), ..)]` interfaces; a base
+  of a declaration is the one C# finds when several are named alike
+- bindgen: namespaces: a BHL name of a function, a class or an interface may be in one, `LM3.Chip`, defined by
+  `types.ns.Nest(..)` as metagen_bhl_bind does, a C# identifier made of it has `_` for `.` (`Types_LM3_Chip`)
 - bindgen: `includes` of `bhl_bindgen.json`, the configs of other bindings (e.g. of a package): one run generates each
   to its own `result_dir` and `register_class`, their declarations are known to the including config; an output imports
   the namespaces of the included ones. A cycle, a missing config, a shared `result_dir` or a type named otherwise by

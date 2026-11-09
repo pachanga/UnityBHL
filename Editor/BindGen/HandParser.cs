@@ -38,12 +38,13 @@ internal class HandParser : ICsParser
       {
         var decl = Method(m, null, tree.Usings);
         decl.IsCustom = true;
+        decl.DeclNs = i.Ns;
         decls.Customs.Add(decl);
       }
     }
 
     //NOTE: the declarations form is on a type, [BhlBind] on a method is read from the sources
-    foreach(var attr in tree.Types.SelectMany(t => t.Attrs))
+    foreach(var (attr, decl_ns) in tree.Types.SelectMany(t => t.Attrs.Select(a => (a, t.Ns))))
     {
       if(!IsAttr(attr, "BhlBind"))
         continue;
@@ -60,11 +61,12 @@ internal class HandParser : ICsParser
       if(except.Count > 1 || except.Count == 1 && (except[0].NameEquals != "Except" || except[0].Expr.Items == null || names.Count > 0))
         throw new GenException(except.Last().Pos, "expected Except = new[] { nameof(T.M), ... } without the names to bind");
       foreach(var arg in names)
-        decls.Binds.Add(new BindDecl { Type = type_of.Name, Name = MemberName(arg.Expr), Pos = arg.Pos });
+        decls.Binds.Add(new BindDecl { Type = type_of.Name, Name = MemberName(arg.Expr), DeclNs = decl_ns, Pos = arg.Pos });
       if(names.Count == 0)
       {
         decls.BindAlls.Add(new BindAllDecl {
           Type = type_of.Name,
+          DeclNs = decl_ns,
           Except = except.SelectMany(a => a.Expr.Items).Select(e => new BindDecl { Type = type_of.Name, Name = MemberName(e), Pos = e.Pos }).ToList(),
           Pos = attr.Pos,
         });
@@ -190,7 +192,7 @@ internal class HandParser : ICsParser
     int type_idx = args != null && args.Count > 0 && args[0].Expr.TypeOf != null ? 0 : 1;
     if(args == null || args.Count <= type_idx || args[type_idx].Expr.TypeOf == null)
       throw new GenException(attr.Pos, $"expected [{attr.Name}(typeof(T), ...)] or [{attr.Name}(\"Name\", typeof(T), ...)]");
-    var decl = new ClassDecl { Name = type_idx == 0 ? i.Name : StringArg(attr, 0), DeclName = i.Name, Bases = i.Bases, NativeType = args[type_idx].Expr.TypeOf, Usings = usings, Pos = i.Pos };
+    var decl = new ClassDecl { Name = type_idx == 0 ? i.Name : StringArg(attr, 0), NameGiven = type_idx == 1, DeclName = i.Name, Ns = i.Ns, Bases = i.Bases, NativeType = args[type_idx].Expr.TypeOf, Usings = usings, Pos = i.Pos };
     foreach(var named in args.Skip(type_idx + 1))
     {
       if(named.NameEquals == null)
@@ -344,6 +346,8 @@ internal class HandParser : ICsParser
     public string Kind;
     public string Name;
     public string FullName;
+    //NOTE: the namespace it's declared in, null if none
+    public string Ns;
     public List<Attr> Attrs;
     //NOTE: the last identifiers of the base types
     public List<string> Bases = new List<string>();
@@ -1087,6 +1091,7 @@ internal class HandParser : ICsParser
       var t = new TypeNode { Kind = kind, Attrs = attrs, Pos = Pos(toks[start]) };
       t.Name = Id();
       t.FullName = owner != null ? owner.FullName + "." + t.Name : scope != null ? scope + "." + t.Name : t.Name;
+      t.Ns = owner != null ? owner.Ns : scope;
       tree.Types.Add(t);
 
       //NOTE: type parameters, a primary constructor, bases and constraints; of the bases the last identifier
