@@ -1,14 +1,14 @@
 # BhlTask
 
-C#-функции, забинденные как корутины BHL: вместо `Script_*` с `Init` / `Exec` / `Cleanup` на
-каждый биндинг — одна статическая функция. Её ожидания идут в тиках того вызова BHL, который её
-ждёт, и живут ровно столько же: проиграла ветка `paral`, остановлен fiber или VM — функция
-отменена.
+C# functions bound as BHL coroutines: instead of a `Script_*` with `Init` / `Exec` / `Cleanup` per
+binding, one static function. Its awaits run in the ticks of the BHL call awaiting it and live exactly as
+long: the `paral` branch lost, the fiber or the VM stopped, and the function is cancelled.
 
-## Биндинг
+## Binding
 
-В мете — корутина с прямым биндингом (`bit/metagen_bhl_bind`, `docs/bindings.md`): файл задаёт
-`@bhl_bind_type:direct` и `@bhl_native_prefix` в `@shared_tokens`, `%` — имя функции:
+With bindgen it's `[BhlBind]` on the C# function (see [bindings.md](bindings.md)). In meta it's a coroutine
+with a direct binding (`bit/metagen_bhl_bind`, `docs/bindings.md`): the file sets `@bhl_bind_type:direct`
+and `@bhl_native_prefix` in `@shared_tokens`, `%` is the function's name:
 
 ```
 @shared_tokens:{"bhl_bind":true, "bhl_bind_type":"direct", "bhl_native_prefix":"BitGames.BHL.Bind.ATFBind.%(..)"}
@@ -19,12 +19,12 @@ func ATF_WaitSeconds(
 )
 ```
 
-C#-функция возвращает одну из двух форм:
+The C# function returns one of two forms:
 
-| Возвращает | Для чего | Отмена |
+| Returns | For | Cancellation |
 |---|---|---|
-| `BhlTask`, `BhlTask<T>` | async-функция, по умолчанию | не возобновляется: без исключений и аллокаций, `finally` не выполняется |
-| `BhlFinallyTask`, `BhlFinallyTask<T>` | async-функция с `finally` / `using` вокруг `await` | `OperationCanceledException`: `finally` выполняется, ~1 KB на функцию в цепочке |
+| `BhlTask`, `BhlTask<T>` | an async function, the default | not resumed: no exceptions, no allocations, `finally` doesn't run |
+| `BhlFinallyTask`, `BhlFinallyTask<T>` | an async function with `finally` / `using` around an `await` | `OperationCanceledException`: `finally` runs, ~1 KB per function of the chain |
 
 ```csharp
 public static BhlTask ATF_WaitSeconds(float seconds) => BhlTask.WaitSeconds(seconds);
@@ -36,125 +36,126 @@ public static async BhlTask<bool> Tap(Vector3 pos)
 }
 ```
 
-Возвращаемое значение биндинга — `BhlTask<T>` или `BhlFinallyTask<T>`.
+The binding's return value is the `T` of `BhlTask<T>` or `BhlFinallyTask<T>`.
 
 ## API
 
 | | |
 |---|---|
-| `await BhlTask.Yield()` | следующий тик вызова, как `yield()` в BHL |
-| `await BhlTask.WaitSeconds(s)` | масштабированное время (`Time.time`) |
-| `task.Forget()` | задача идёт без ожидания; её исключение роняет вызов BHL |
-| `uniTask.ToBhlTask()`, `task.ToBhlTask()` | ждать `UniTask` (если в проекте есть `com.cysharp.unitask`: define `BHL_UNITASK` из `versionDefines` asmdef) или `System.Threading.Tasks.Task` |
-| `BhlTask.CompletedTask`, `new BhlTask<T>(v)`, `FromException(e)` | готовые задачи |
+| `await BhlTask.Yield()` | the next tick of the call, as `yield()` in BHL |
+| `await BhlTask.WaitSeconds(s)` | scaled time (`Time.time`) |
+| `task.Forget()` | the task runs unawaited; its exception fails the BHL call |
+| `uniTask.ToBhlTask()`, `task.ToBhlTask()` | awaits a `UniTask` (when the project has `com.cysharp.unitask`: the `BHL_UNITASK` define of the asmdef's `versionDefines`) or a `System.Threading.Tasks.Task` |
+| `BhlTask.CompletedTask`, `new BhlTask<T>(v)`, `FromException(e)` | completed tasks |
 
-- **Ждать можно только свои awaiter.** Чужой (`UniTask`, `Task`) продолжил бы функцию вне тиков
-  вызова, в том числе после его конца: такой `await` роняет задачу с `NotSupportedException`, а
-  анализатор не даёт его скомпилировать (`BHLT001`). Чужую задачу переводит `ToBhlTask()`: она
-  завершается в первый тик вызова после чужой.
-- `Task` продолжается через `SynchronizationContext` главного потока, это кадр задержки и
-  аллокации самого `Task`; `UniTask` — без них.
-- **Задачу ждут один раз**, как в UniTask: источник уходит в пул, когда забран результат,
-  повторный `await` бросает `InvalidOperationException` (анализатор: `BHLT004`).
-- **Поток — поток своей VM**: вызов создаётся, тикается и отменяется в потоке VM, пулы у каждого потока
-  свои (как пулы bhl), так что VM разных потоков работают одновременно. Чужой `Task` без
-  `SynchronizationContext` (в рабочем потоке) может завершиться в другом потоке — его результат
-  доходит до вызова в следующем тике.
+- **Only its own awaiters may be awaited.** A foreign one (`UniTask`, `Task`) would resume the function
+  outside the call's ticks, after its end too: such an `await` fails the task with `NotSupportedException`
+  and the analyzer doesn't let it compile (`BHLT001`). `ToBhlTask()` converts a foreign task: it completes
+  in the first tick of the call after the foreign one does.
+- A `Task` resumes through the main thread's `SynchronizationContext`, a frame of delay and the `Task`'s own
+  allocations; a `UniTask` has neither.
+- **A task is awaited once**, as in UniTask: its source goes back to the pool once the result is taken, a
+  second `await` throws `InvalidOperationException` (analyzer: `BHLT004`).
+- **The thread is the VM's**: a call is created, ticked and cancelled in the VM's thread, every thread has
+  pools of its own (as bhl's pools), so VMs of different threads run at once. A foreign `Task` without a
+  `SynchronizationContext` (in a worker thread) may complete in another thread, its result reaches the call
+  in the next tick.
 
-## Время жизни и отмена
+## Lifetime and cancellation
 
-- Всё, что запустил вызов, умирает вместе с ним: когда корневая задача завершилась, недождавшиеся
-  забытые задачи отменяются.
-- **`BhlTask`** при отмене не возобновляется: продолжения отбрасываются, раннеры возвращаются в пул.
-  Ни исключений, ни аллокаций, но и `finally` / `using` вокруг `await` не выполнятся — поэтому
-  анализатор запрещает их в `BhlTask` (`BHLT002`).
-- **`BhlFinallyTask`** возобновляется с `OperationCanceledException`, так что `finally` выполняется;
-  `await` в его `finally` во время отмены сразу бросает то же исключение. Смешанные цепочки
-  работают: `BhlTask`, который ждёт `BhlFinallyTask`, падает с исключением, сам не
-  возобновляясь; `BhlFinallyTask` поверх `BhlTask` и поверх `ToBhlTask` получает исключение.
-- `ToBhlTask` не останавливает чужую задачу — передай ей свой `CancellationToken`. Её результат
-  забирается всё равно, когда она закончится.
-- Исключение забытой задачи во время отмены тоже уходит в `Debug.LogException`;
-  `OperationCanceledException` не логируется.
+- Everything the call started dies with it: when the root task completes, the forgotten tasks not done yet
+  are cancelled.
+- **`BhlTask`** isn't resumed on cancellation: the continuations are dropped, the runners go back to the
+  pool. No exceptions, no allocations, but `finally` / `using` around an `await` don't run either, which is
+  why the analyzer forbids them in a `BhlTask` (`BHLT002`).
+- **`BhlFinallyTask`** is resumed with `OperationCanceledException`, so `finally` runs; an `await` in its
+  `finally` during cancellation throws the same exception at once. Mixed chains work: a `BhlTask` awaiting
+  a `BhlFinallyTask` fails with the exception without being resumed itself; a `BhlFinallyTask` over a
+  `BhlTask` or over `ToBhlTask` gets the exception.
+- `ToBhlTask` doesn't stop the foreign task, pass it a `CancellationToken` of your own. Its result is taken
+  anyway once it completes.
+- An exception of a forgotten task during cancellation goes to `Debug.LogException` too;
+  `OperationCanceledException` isn't logged.
 
-Отдельный тип, а не атрибут: в C# 9 метод не может выбрать себе builder (`[AsyncMethodBuilder]` на
-методе — C# 10), а поиск атрибута рефлексией по state machine ненадёжен под IL2CPP stripping.
+A type of its own rather than an attribute: in C# 9 a method can't choose its builder (`[AsyncMethodBuilder]`
+on a method is C# 10), and looking an attribute up by reflection on the state machine isn't reliable under
+IL2CPP stripping.
 
-## Аллокации
+## Allocations
 
-На вызов, после того как пулы прогрелись (Release / Debug):
+Per call, once the pools are warm (Release / Debug):
 
 | | Release | Debug |
 |---|---|---|
-| `BhlTask` (старт, тики, завершение, `Forget`, `ToBhlTask(UniTask)`) | 0 | ~64 B на async-функцию |
-| отмена `BhlTask` | 0 | 0 |
-| отмена `BhlFinallyTask` | ~1 KB на функцию в цепочке | столько же |
+| `BhlTask` (start, ticks, completion, `Forget`, `ToBhlTask(UniTask)`) | 0 | ~64 B per async function |
+| `BhlTask` cancellation | 0 | 0 |
+| `BhlFinallyTask` cancellation | ~1 KB per function of the chain | the same |
 
-- Debug: компилятор делает state machine классом. Редактор с Code Optimization = Debug
-  аллоцирует, Release-плеер — нет.
-- **Каждый лишний кадр стоит:** async-обёртка, которая только ждёт другую задачу, — это раннер,
-  64 B в Debug и ещё одно исключение при отмене `BhlFinallyTask`. Пиши passthrough
-  (`=> BhlTask.WaitSeconds(s)`); анализатор подсказывает (`BHLT005`).
-- Аллоцируют ещё: исключения и `FromException`, `ToBhlTask(Task)`, первые вызовы, пока растут пулы,
-  задача, которую не ждали и не забыли через `Forget`.
+- Debug: the compiler makes the state machine a class. The editor with Code Optimization = Debug allocates,
+  a Release player doesn't.
+- **Every extra frame costs:** an async wrapper which only awaits another task is a runner, 64 B in Debug
+  and one more exception on a `BhlFinallyTask` cancellation. Write a passthrough
+  (`=> BhlTask.WaitSeconds(s)`); the analyzer suggests it (`BHLT005`).
+- Also allocating: exceptions and `FromException`, `ToBhlTask(Task)`, the first calls while the pools grow,
+  a task neither awaited nor forgotten by `Forget`.
 
-## Анализатор
+## Analyzer
 
-Roslyn-анализатор `Runtime/Task/Analyzers/BitGames.BhlTask.Analyzer.dll` лежит в папке asmdef `BitGames.BhlTask`:
-Unity применяет его к сборкам, которые ссылаются на `BitGames.BhlTask`.
+The Roslyn analyzer `Runtime/Task/Analyzers/BitGames.BhlTask.Analyzer.dll` is in the folder of the
+`BitGames.BhlTask` asmdef: Unity applies it to the assemblies referencing `BitGames.BhlTask`.
 
-| Код | Уровень | Когда |
+| Code | Level | When |
 |---|---|---|
-| `BHLT001` | error | в `BhlTask` / `BhlFinallyTask`-функции ждут чужую задачу — нужен `ToBhlTask()` |
-| `BHLT002` | error | в `BhlTask`-функции `await` внутри `try` с `finally`, `using` или после `using var` |
-| `BHLT003` | error | результат `BhlTask` выброшен |
-| `BHLT004` | warning | одну задачу ждут или забывают больше одного раза |
-| `BHLT005` | warning | async-функция только ждёт задачу того же типа — лишний кадр |
+| `BHLT001` | error | a `BhlTask` / `BhlFinallyTask` function awaits a foreign task, `ToBhlTask()` is needed |
+| `BHLT002` | error | a `BhlTask` function has an `await` inside a `try` with `finally`, a `using` or after a `using var` |
+| `BHLT003` | error | the result of a `BhlTask` is discarded |
+| `BHLT004` | warning | a task is awaited or forgotten more than once |
+| `BHLT005` | warning | an async function only awaits a task of the same type, an extra frame |
 
-Правила локальны для функции. Цепочку целиком анализировать не нужно: каждая функция цепочки
-проверяется в своей сборке, а безопасность цепочки следует из безопасности звеньев (Roslyn и не
-видит тел методов из других сборок). Не проверяются: `foreach` с `IDisposable`-перечислителем
-внутри `BhlTask` (у обычных коллекций `Dispose` пустой) и повторный `await` в цикле.
+The rules are local to a function. The whole chain needn't be analyzed: every function of a chain is
+checked in its own assembly, and the chain is safe if its links are (Roslyn doesn't see the bodies of the
+methods of other assemblies anyway). Not checked: a `foreach` with an `IDisposable` enumerator inside a
+`BhlTask` (the `Dispose` of the usual collections is empty) and a repeated `await` in a loop.
 
-### Сборка и тесты
+### Build and tests
 
-Исходники — `Analyzer~/` (Unity не импортирует папки с `~`). Нужен .NET SDK 8.
+The sources are in `Analyzer~/` (Unity doesn't import folders with `~`). Needs .NET SDK 8.
 
 ```sh
-cd <корень UnityBHL>
+cd <UnityBHL root>
 dotnet test "Analyzer~/BitGames.BhlTask.Analyzer.Tests"
-# Release-сборка; после неё dll копируется в Runtime/Task/Analyzers/ (target CopyToUnity)
+# a Release build; the dll is copied to Runtime/Task/Analyzers/ after it (target CopyToUnity)
 dotnet build -c Release "Analyzer~/BitGames.BhlTask.Analyzer"
 ```
 
-Версия `Microsoft.CodeAnalysis.CSharp` (4.3.0) — та же, что у `com.bitgames.ref`: её поддерживает
-Unity проекта.
+The version of `Microsoft.CodeAnalysis.CSharp` (4.3.0) is the one of `com.bitgames.ref`: the project's
+Unity supports it.
 
-## Тесты рантайма
+## Runtime tests
 
-`Tests~/BitGames.BhlTask.Tests` — консольная программа: рантайм BhlTask собирается обычным dotnet со
-стабами Unity, VM и UniTask (`Stubs.cs`, `UniTaskStub.cs`). Вызов биндинга делается так же, как в
-сгенерированном коде, тики и уничтожение — как в VM. Проверяются поведение (тики, результат, исключения,
-отмена обеих форм, смешанные цепочки, `Forget`, `ToBhlTask`) и аллокации; в Release нулевые аллокации —
-часть проверок. Код возврата — число упавших проверок.
+`Tests~/BitGames.BhlTask.Tests` is a console program: the BhlTask runtime is built by plain dotnet with stubs
+of Unity, the VM and UniTask (`Stubs.cs`, `UniTaskStub.cs`). A binding is called as the generated code does,
+ticks and destruction as the VM does. Checked: the behavior (ticks, the result, exceptions, cancellation of
+both forms, mixed chains, `Forget`, `ToBhlTask`) and allocations; zero allocations in Release are among the
+checks. The exit code is the number of failed checks.
 
 ```sh
-cd <корень UnityBHL>
+cd <UnityBHL root>
 dotnet run -c Release --project "Tests~/BitGames.BhlTask.Tests"
 dotnet run -c Debug --project "Tests~/BitGames.BhlTask.Tests"
 ```
 
-## Устройство
+## Layout
 
 ```
-Runtime/Task/BhlTask.cs           BhlTask, BhlFinallyTask, их awaiter
-Runtime/Task/BhlTaskSource.cs     пуловые источники: раннер state machine, наблюдатель Forget, builder'ы
-Runtime/Task/BhlTaskScope.cs      очередь продолжений вызова и его пуловые объекты, отмена
-Runtime/Task/BhlTaskForeign.cs    ToBhlTask для UniTask (если он есть в проекте) и Task
-Runtime/Task/BhlTaskCoroutine.cs  корутина bhl для задачи
-Runtime/Task/BhlTaskRun.cs        запуск задачи из C# без VM: тикает сам вызывающий
-Runtime/Task/BhlFlow.cs           await такого запуска из UniTask-метода (только с UniTask)
-Runtime/Task/Analyzers/           dll анализатора
-Analyzer~/                   исходники анализатора и тесты
-Tests~/                      тесты рантайма
+Runtime/Task/BhlTask.cs           BhlTask, BhlFinallyTask, their awaiters
+Runtime/Task/BhlTaskSource.cs     pooled sources: the state machine runner, the Forget observer, the builders
+Runtime/Task/BhlTaskScope.cs      the call's queue of continuations and its pooled objects, cancellation
+Runtime/Task/BhlTaskForeign.cs    ToBhlTask for UniTask (when the project has it) and Task
+Runtime/Task/BhlTaskCoroutine.cs  the bhl coroutine of a task
+Runtime/Task/BhlTaskRun.cs        a task started from C# without a VM: the caller ticks it
+Runtime/Task/BhlFlow.cs           awaiting such a run from a UniTask method (only with UniTask)
+Runtime/Task/Analyzers/           the analyzer's dll
+Analyzer~/                        the analyzer's sources and tests
+Tests~/                           the runtime tests
 ```

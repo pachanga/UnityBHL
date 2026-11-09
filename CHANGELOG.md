@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `Documentation~/bindings.md`: a cheat sheet of the bindings generator; `Documentation~/bhltask.md` translated to English
 - bindgen: `[BhlBind]` on a static method found in the sources binds it, `[BhlBind("Name")]` under another
   BHL name; the attribute moved to the runtime assembly (conditional on `UNITY_EDITOR`, no attribute data
   in a player) so it can be put on runtime code. The declarations file form `[BhlBind(typeof(T), ..)]` stays,

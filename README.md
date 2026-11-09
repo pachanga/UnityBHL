@@ -31,12 +31,12 @@ C# functions bound as BHL coroutines without `Script_*` classes: an async static
 `BhlTask` or `BhlFinallyTask`, whose awaits run in
 the ticks of the BHL call awaiting it and are cancelled with it. A separate asmdef
 `BitGames.BhlTask` (namespace `BitGames.BHL`) with a Roslyn analyzer; `ToBhlTask(UniTask)` only when
-the project has UniTask. Details, in Russian: [Documentation~/bhltask.md](Documentation~/bhltask.md).
+the project has UniTask. Details: [Documentation~/bhltask.md](Documentation~/bhltask.md).
 
 ## Bindings generator
 
 `Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
-them, configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
+them (a cheat sheet: [Documentation~/bindings.md](Documentation~/bindings.md)), configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
 `custom_rw`, `type_names_file`, `includes`); the declarations (below) are found in the sources too. A function is bound in
 either form:
 
