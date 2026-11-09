@@ -93,27 +93,20 @@ namespace UnityBHL
       const int poll_interval_ms = 300;
       var mtimes = new Dictionary<string, DateTime>();
 
-      foreach(var dir in dirs)
-        foreach(var f in Directory.GetFiles(dir, "*.bhl", SearchOption.AllDirectories))
-          mtimes[f] = File.GetLastWriteTimeUtc(f);
+      foreach(var f in EditorCompiler.CollectSourceFiles(proj, dirs))
+        mtimes[f] = File.GetLastWriteTimeUtc(f);
 
       while(!_pollStop)
       {
         Thread.Sleep(poll_interval_ms);
 
-        foreach(var dir in dirs)
+        foreach(var f in EditorCompiler.CollectSourceFiles(proj, dirs))
         {
-          if(!Directory.Exists(dir))
-            continue;
-
-          foreach(var f in Directory.GetFiles(dir, "*.bhl", SearchOption.AllDirectories))
+          var mtime = File.GetLastWriteTimeUtc(f);
+          if(!mtimes.TryGetValue(f, out var prev) || prev != mtime)
           {
-            var mtime = File.GetLastWriteTimeUtc(f);
-            if(!mtimes.TryGetValue(f, out var prev) || prev != mtime)
-            {
-              mtimes[f] = mtime;
-              SignalModule(proj, f);
-            }
+            mtimes[f] = mtime;
+            SignalModule(proj, f);
           }
         }
       }

@@ -47,6 +47,17 @@ namespace UnityBHL
     //      volatile needed (Task.Run itself provides that happens-before guarantee)
     static int _consoleVerbosity;
 
+    //NOTE: bhl's own source walk, so the pollers skip the '!' excluded dirs of src_dirs (bhl
+    //      v3.0.0-beta16+) instead of rescanning them every 300 ms; a dir not there (yet) is skipped
+    public static List<string> CollectSourceFiles(ProjectConf proj, IEnumerable<string> dirs)
+    {
+      var files = new List<string>();
+      foreach(var dir in dirs)
+        if(Directory.Exists(dir))
+          proj.CollectSourceFiles(dir, files);
+      return files;
+    }
+
     public static ProjectConf LoadProjectConf()
     {
       var settings = Settings.Instance;

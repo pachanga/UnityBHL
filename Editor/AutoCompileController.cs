@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using UnityEditor;
+using bhl;
 
 namespace UnityBHL
 {
@@ -73,11 +74,12 @@ namespace UnityBHL
       if(_pollThread != null)
         return;
 
+      ProjectConf proj;
       List<string> dirs;
       string proj_file;
       try
       {
-        var proj = EditorCompiler.LoadProjectConf();
+        proj = EditorCompiler.LoadProjectConf();
         dirs = new List<string>(proj.src_dirs);
         proj_file = proj.proj_file;
       }
@@ -96,7 +98,7 @@ namespace UnityBHL
       _pendingFiles.Clear();
       _pollCts = new CancellationTokenSource();
       var token = _pollCts.Token;
-      _pollThread = new Thread(() => PollLoop(dirs, token)) { IsBackground = true };
+      _pollThread = new Thread(() => PollLoop(proj, dirs, token)) { IsBackground = true };
       _pollThread.Start();
     }
 
@@ -111,33 +113,25 @@ namespace UnityBHL
       _pollThread = null;
     }
 
-    static void PollLoop(List<string> dirs, CancellationToken token)
+    static void PollLoop(ProjectConf proj, List<string> dirs, CancellationToken token)
     {
       const int poll_interval_ms = 300;
       var mtimes = new Dictionary<string, DateTime>();
 
-      foreach(var dir in dirs)
-        if(Directory.Exists(dir))
-          foreach(var f in Directory.GetFiles(dir, "*.bhl", SearchOption.AllDirectories))
-            mtimes[f] = File.GetLastWriteTimeUtc(f);
+      foreach(var f in EditorCompiler.CollectSourceFiles(proj, dirs))
+        mtimes[f] = File.GetLastWriteTimeUtc(f);
 
       while(!token.IsCancellationRequested)
       {
         Thread.Sleep(poll_interval_ms);
 
-        foreach(var dir in dirs)
+        foreach(var f in EditorCompiler.CollectSourceFiles(proj, dirs))
         {
-          if(!Directory.Exists(dir))
-            continue;
-
-          foreach(var f in Directory.GetFiles(dir, "*.bhl", SearchOption.AllDirectories))
+          var mtime = File.GetLastWriteTimeUtc(f);
+          if(!mtimes.TryGetValue(f, out var prev) || prev != mtime)
           {
-            var mtime = File.GetLastWriteTimeUtc(f);
-            if(!mtimes.TryGetValue(f, out var prev) || prev != mtime)
-            {
-              mtimes[f] = mtime;
-              _pendingFiles[f] = true;
-            }
+            mtimes[f] = mtime;
+            _pendingFiles[f] = true;
           }
         }
       }
