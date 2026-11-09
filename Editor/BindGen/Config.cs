@@ -11,6 +11,8 @@ internal class Config
 #pragma warning disable CS0649
   public string @namespace;
   public string register_class;
+  //NOTE: globs relative to the config, dir/*.cs or dir/**/*.cs; one starting with '!' excludes its files
+  //      (e.g. the generated code under a source dir)
   public List<string> sources = new List<string>();
   //NOTE: the dir of the output files, the generated ones no longer produced are deleted from it
   public string result_dir;
@@ -37,7 +39,8 @@ internal class Config
     if(string.IsNullOrEmpty(conf.@namespace) || string.IsNullOrEmpty(conf.register_class) || string.IsNullOrEmpty(conf.result_dir))
       throw new GenException($"{path}: 'namespace', 'register_class' and 'result_dir' are required");
     conf.result_dir = Norm(Path.GetFullPath(Path.Combine(dir, conf.result_dir)));
-    conf.SourceFiles = conf.sources.SelectMany(p => Glob(dir, p)).Distinct().ToList();
+    var excluded = new HashSet<string>(conf.sources.Where(p => p.StartsWith("!")).SelectMany(p => Glob(dir, p.Substring(1))));
+    conf.SourceFiles = conf.sources.Where(p => !p.StartsWith("!")).SelectMany(p => Glob(dir, p)).Distinct().Where(f => !excluded.Contains(f)).ToList();
     if(!string.IsNullOrEmpty(conf.type_names_file))
       conf.TypeNames = LoadTypeNames(Norm(Path.GetFullPath(Path.Combine(dir, conf.type_names_file))));
     return conf;

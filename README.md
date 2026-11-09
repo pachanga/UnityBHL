@@ -36,7 +36,7 @@ the project has UniTask. Details, in Russian: [Documentation~/bhltask.md](Docume
 ## Bindings generator
 
 `Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
-them, configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `result_dir`, `imports`,
+them, configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
 `custom_rw`, `type_names_file`); the declarations (below) are found in the sources too. A function is bound in
 either form:
 

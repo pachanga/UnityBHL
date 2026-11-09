@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metagen_bhl_bind
 - bindgen: `[BhlClass(typeof(T), ..)]` and `[BhlInterface(typeof(T))]` without the name: the BHL name is the declaring
   interface's, which in a namespace of its own may be named as the native type
+- bindgen: a `sources` glob starting with `!` excludes its files, e.g. the generated code under a source dir
 - bindgen: no `decls` in `bhl_bindgen.json`: the declarations files are found in the `sources`, the files with
   `[BhlClass]`, `[BhlInterface]`, `[BhlCustom]` or `[BhlBind(typeof(T), ..)]` on a type
 - bindgen: `[BhlType("Name")]` on a parameter or a return value (`[return: BhlType("IList")]`): the BHL class `Name`
