@@ -33,6 +33,71 @@ the ticks of the BHL call awaiting it and are cancelled with it. A separate asmd
 `BitGames.BhlTask` (namespace `BitGames.BHL`) with a Roslyn analyzer; `ToBhlTask(UniTask)` only when
 the project has UniTask. Details, in Russian: [Documentation~/bhltask.md](Documentation~/bhltask.md).
 
+## Bindings generator
+
+`Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
+them, configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `result_dir`, `imports`,
+`custom_rw`, `type_names_file`); the declarations (below) are found in the sources too. A function is bound in
+either form:
+
+```csharp
+static partial class Script
+{
+  [BhlBind] public static void Vibrate(float power = 1f) { .. }   // on the method, BHL name = C# name
+  [BhlBind("Shake")] public static void DoShake(VM vm) { .. }      // another BHL name; a first VM parameter gets exec.vm
+}
+
+// or in a declarations file (any of the sources), for code you can't or don't want to annotate
+[BhlBind(typeof(Script), nameof(Script.Vibrate))] interface HapticsDecls {}
+```
+
+A method returning `BhlTask`/`BhlFinallyTask` is bound as a coroutine (see BhlTask below). Types are named in
+BHL as in C#, a `[BhlClass]` names its native type, `type_names_file` renames the ones declared elsewhere
+(e.g. by meta). A non-generic `IList` is
+`[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too), `[BhlType("Name")]` on a parameter or a return
+(`[return: BhlType("IList")]`) makes it the BHL class `Name` instead. Classes: `[BhlClass]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
+interfaces: `Implements`, value types: `Pod`, `CustomRW` with the project's `Val.Encode`/`Decode`, hand written field accessors: `[BhlCustom]`
+on a property), interfaces: `[BhlInterface]`,
+hand written functions and coroutines: `[BhlCustom]` (on a class method too, `Script_<Class>.Method_<Name>`),
+see `Runtime/BhlBindAttribute.cs`. A class or an interface is named in BHL as its declaring interface, or by the
+name given first (`[BhlClass("UnityObject", typeof(UnityEngine.Object))]`). In a namespace of their own the
+declarations don't hide the native types they're named after; there `typeof(..)` of such a type is qualified.
+The parent class and the interfaces are the declaring interface's bases when they're declarations too, else they're
+named by `Parent`, `Implements`, `Inherits` (declared elsewhere, e.g. by meta):
+
+```csharp
+namespace Game.Bind.Decls
+{
+[BhlClass(typeof(UnityEngine.PlayerPrefs))]
+interface PlayerPrefs
+{
+  [BhlStatic] int GetInt(string key, int defaultValue = 0);   // PlayerPrefs.GetInt(..) in BHL
+}
+
+[BhlClass("UnityObject", typeof(UnityEngine.Object))]
+interface UnityObjectDecl
+{
+  [BhlOp("==")] bool Equals(UnityEngine.Object self, UnityEngine.Object v);   // a == b, the C# operator
+}
+
+[BhlClass(typeof(Game.BattleGame))]
+interface BattleGame
+{
+  [BhlCustom] void AddTask([BhlCoroutine] Action fn);   // Script_BattleGame.Method_AddTask.Exec(exec, args)
+}
+
+[BhlClass(typeof(Game.UIPlate), Parent = "UIChip")]   // UIChip is declared elsewhere
+interface UIPlate {}
+
+[BhlClass(typeof(Game.UIBarrier))]
+interface UIBarrier : UIPlate {}                        // UIPlate is a declaration: the parent class
+}
+```
+
+The main output file `register.cs` starts with `//dep: <path>` lines, the files it's made of relative to the config
+(the editor regenerates it when one of them changes); `type_names_file` has `<C# type> <BHL type>` lines, `#` comments.
+Both are read by the gamectl helpers of `bit/taskman_bhl` too (its README, «Bindings generator»).
+
 ## Editor tools
 
 - **BHL/Control Panel** - compile status, errors, settings, auto-compile toggle; **Generate Bindings**

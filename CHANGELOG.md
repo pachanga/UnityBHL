@@ -5,6 +5,55 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- bindgen: `[BhlBind]` on a static method found in the sources binds it, `[BhlBind("Name")]` under another
+  BHL name; the attribute moved to the runtime assembly (conditional on `UNITY_EDITOR`, no attribute data
+  in a player) so it can be put on runtime code. The declarations file form `[BhlBind(typeof(T), ..)]` stays,
+  a function bound by both or twice is an error naming both places
+- bindgen: a first `VM` parameter of a bound method gets the VM running the call (`exec.vm`), it's not a BHL
+  argument, after `self` of a class method - as `@bhl_pass_vm` of metagen_bhl_bind
+- bindgen: `type_names_file` of `bhl_bindgen.json`, '<C# type> <BHL type>' lines: the BHL names of types declared
+  elsewhere (e.g. by meta) when they differ from the C# names; a `[BhlClass]` names its native type itself
+  (another name for it in the file is an error)
+- bindgen: static methods of a `[BhlClass]` (`FuncAttrib.Static`, as `@bhl_static` of metagen_bhl_bind): a `[BhlStatic]`
+  method of the interface, called on the native type (an interface can't declare it static in C# 9), or
+  `nameof(T.Method)` of a static method of a type of the sources
+- bindgen: operator overloads of a `[BhlClass]`: a `[BhlOp("==")]` method of the interface is a static method bound
+  under its name and as the operator (as `@bhl_bin_op` of metagen_bhl_bind), both call the C# operator of its two
+  arguments; an operator BHL doesn't overload, other than two arguments or no return value is an error
+- bindgen: array fields of a `[BhlClass]`, `IList<T>` or `List<T>`: read as the live native list, written by copying
+  the BHL array into it (created if null), as metagen_bhl_bind does; the `List_<T>` native list types are defined
+  for them too
+- bindgen: custom methods of a `[BhlClass]`, a `[BhlCustom]` method of the interface (`[BhlCoroutine]`, `[BhlStatic]`
+  too): bound to the hand written `Script_<Class>.Method_<Name>` as metagen_bhl_bind binds `@bhl_bind_type:custom`
+  methods, the generator adds its `Args` (`self` first unless static), `ReadArgs`, `ReturnValue` and coroutine part
+- bindgen: interfaces, `[BhlInterface("Name", typeof(T), Inherits = new[] { .. })]` on an interface whose methods are
+  called on the object as the native interface (`InterfaceSymbolNative`, set up in `RegisterEnd`); a class implements
+  interfaces by `[BhlClass(.., Implements = new[] { .. })]`, declared by bindgen or elsewhere (by BHL name)
+- bindgen: value type classes, as POD and `@bhl_custom_rw` of metagen_bhl_bind: `[BhlClass(.., Pod = true)]` is kept
+  boxed in the BHL value, `CustomRW = true` in the value itself by the project's `Val.Encode(T)`/`Decode(ref T)` (its
+  args and returns too, without `custom_rw` in the config); a field set or a method call writes the changed copy back
+- bindgen: custom fields of a `[BhlClass]`, a `[BhlCustom]` property of the interface: read by the hand written
+  `Script_<Class>.Get_<Name>(self)` and written by `Set_<Name>(ref self, value)`, as `@bhl_get:2`/`@bhl_set:2` of
+  metagen_bhl_bind
+- bindgen: `[BhlClass(typeof(T), ..)]` and `[BhlInterface(typeof(T))]` without the name: the BHL name is the declaring
+  interface's, which in a namespace of its own may be named as the native type
+- bindgen: no `decls` in `bhl_bindgen.json`: the declarations files are found in the `sources`, the files with
+  `[BhlClass]`, `[BhlInterface]`, `[BhlCustom]` or `[BhlBind(typeof(T), ..)]` on a type
+- bindgen: `[BhlType("Name")]` on a parameter or a return value (`[return: BhlType("IList")]`): the BHL class `Name`
+  rather than the C# type's own BHL type, e.g. a C# `IList` as a bound class of `System.Collections.IList` not `[]any`
+- bindgen: the C# bases of a declaration which are declarations too: of a `[BhlClass]` the parent class and the
+  implemented interfaces, of a `[BhlInterface]` the inherited ones (`interface UIPlate : UIChip`); `Parent`,
+  `Implements` and `Inherits` name the types declared elsewhere (e.g. by meta), a base which isn't a declaration
+  is an error
+
+### Changed
+- `[BhlClass]`, `[BhlNative]`, `[BhlCustom]` and `[BhlCoroutine]` moved to the runtime assembly next to `[BhlBind]`
+  (`Runtime/BhlBindAttribute.cs`, conditional on `UNITY_EDITOR`): a declarations file may be runtime code,
+  so its `nameof(Script.<Class>_<Method>)` sees the internal `Script` and is checked by the compiler
+
 ## [0.29.0] - 2026-11-09
 
 ### Added

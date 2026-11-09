@@ -35,6 +35,13 @@ internal class RoslynParser : ICsParser
       var class_attr = FindAttr(i.AttributeLists, "BhlClass");
       if(class_attr != null)
         decls.Classes.Add(Class(i, class_attr, Usings(root)));
+      var iface_attr = FindAttr(i.AttributeLists, "BhlInterface");
+      if(iface_attr != null)
+      {
+        var iface = Class(i, iface_attr, Usings(root));
+        iface.IsInterface = true;
+        decls.Classes.Add(iface);
+      }
       if(!HasAttr(i.AttributeLists, "BhlCustom"))
         continue;
       var usings = Usings(root);
@@ -46,7 +53,8 @@ internal class RoslynParser : ICsParser
       }
     }
 
-    foreach(var attr in root.DescendantNodes().OfType<AttributeSyntax>())
+    //NOTE: the declarations form is on a type, [BhlBind] on a method is read from the sources
+    foreach(var attr in root.DescendantNodes().OfType<AttributeSyntax>().Where(a => a.Parent?.Parent is BaseTypeDeclarationSyntax))
     {
       if(!IsAttr(attr, "BhlBind"))
         continue;
@@ -125,10 +133,20 @@ internal class RoslynParser : ICsParser
   static ClassDecl Class(InterfaceDeclarationSyntax i, AttributeSyntax attr, List<string> usings)
   {
     var args = attr.ArgumentList?.Arguments;
-    if(args == null || args.Value.Count < 2 || !(args.Value[1].Expression is TypeOfExpressionSyntax type_of))
-      throw new GenException(Pos(attr), "expected [BhlClass(\"Name\", typeof(T), ...)]");
-    var decl = new ClassDecl { Name = StringArg(attr, 0), NativeType = Type(type_of.Type), Usings = usings, Pos = Pos(i) };
-    foreach(var named in args.Value.Skip(2))
+    //NOTE: without the name first the BHL name is the interface's
+    int type_idx = args != null && args.Value.Count > 0 && args.Value[0].Expression is TypeOfExpressionSyntax ? 0 : 1;
+    var attr_name = LastName(attr.Name);
+    if(args == null || args.Value.Count <= type_idx || !(args.Value[type_idx].Expression is TypeOfExpressionSyntax type_of))
+      throw new GenException(Pos(attr), $"expected [{attr_name}(typeof(T), ...)] or [{attr_name}(\"Name\", typeof(T), ...)]");
+    var decl = new ClassDecl {
+      Name = type_idx == 0 ? i.Identifier.Text : StringArg(attr, 0),
+      DeclName = i.Identifier.Text,
+      Bases = i.BaseList?.Types.Select(b => LastName(b.Type)).ToList() ?? new List<string>(),
+      NativeType = Type(type_of.Type),
+      Usings = usings,
+      Pos = Pos(i),
+    };
+    foreach(var named in args.Value.Skip(type_idx + 1))
     {
       if(named.NameEquals == null)
       {
@@ -138,10 +156,21 @@ internal class RoslynParser : ICsParser
       var prop = named.NameEquals.Name.Identifier.Text;
       if(prop == "Parent" && named.Expression is LiteralExpressionSyntax p && p.IsKind(SyntaxKind.StringLiteralExpression))
         decl.Parent = p.Token.ValueText;
-      else if(prop == "New" && named.Expression is LiteralExpressionSyntax n && (n.IsKind(SyntaxKind.TrueLiteralExpression) || n.IsKind(SyntaxKind.FalseLiteralExpression)))
-        decl.New = n.IsKind(SyntaxKind.TrueLiteralExpression);
+      else if((prop == "New" || prop == "Pod" || prop == "CustomRW") && named.Expression is LiteralExpressionSyntax n && (n.IsKind(SyntaxKind.TrueLiteralExpression) || n.IsKind(SyntaxKind.FalseLiteralExpression)))
+      {
+        var flag = n.IsKind(SyntaxKind.TrueLiteralExpression);
+        if(prop == "New")
+          decl.New = flag;
+        else if(prop == "Pod")
+          decl.Pod = flag;
+        else
+          decl.CustomRW = flag;
+      }
+      else if((prop == "Implements" || prop == "Inherits") && ArrayItems(named.Expression) is var items && items != null
+        && items.All(e => e is LiteralExpressionSyntax s && s.IsKind(SyntaxKind.StringLiteralExpression)))
+        (prop == "Implements" ? decl.Implements : decl.Inherits).AddRange(items.Select(e => ((LiteralExpressionSyntax)e).Token.ValueText));
       else
-        throw new GenException(Pos(named), "expected Parent = \"..\" or New = true|false");
+        throw new GenException(Pos(named), "expected Parent = \"..\", New, Pod or CustomRW = true|false, Implements or Inherits = new[] { \"..\" }");
     }
 
     foreach(var member in i.Members)
@@ -158,6 +187,7 @@ internal class RoslynParser : ICsParser
           Get = accessors.Value.Any(a => a.IsKind(SyntaxKind.GetAccessorDeclaration)),
           Set = accessors.Value.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration)),
           Native = native != null ? StringArg(native, 0) : null,
+          IsCustom = HasAttr(prop.AttributeLists, "BhlCustom"),
           Usings = usings,
           Pos = Pos(prop),
         });
@@ -167,12 +197,22 @@ internal class RoslynParser : ICsParser
         var method = Method(m, null, usings);
         var native = FindAttr(m.AttributeLists, "BhlNative");
         method.Native = native != null ? StringArg(native, 0) : null;
+        var op = FindAttr(m.AttributeLists, "BhlOp");
+        method.Op = op != null ? StringArg(op, 0) : null;
+        method.IsStatic = HasAttr(m.AttributeLists, "BhlStatic") || op != null;
+        method.IsCustom = HasAttr(m.AttributeLists, "BhlCustom");
         decl.Methods.Add(method);
       }
       else
         throw new GenException(Pos(member), "only properties and methods are expected in a [BhlClass] interface");
     }
     return decl;
+  }
+
+  static string BhlTypeArg(SyntaxList<AttributeListSyntax> lists)
+  {
+    var attr = FindAttr(lists, "BhlType");
+    return attr != null ? StringArg(attr, 0) : null;
   }
 
   static MethodDecl Method(MethodDeclarationSyntax m, string target, List<string> usings)
@@ -184,12 +224,14 @@ internal class RoslynParser : ICsParser
       IsCoroutine = HasAttr(m.AttributeLists, "BhlCoroutine"),
       IsGeneric = m.TypeParameterList != null,
       ReturnType = Type(m.ReturnType),
+      ReturnBhlType = BhlTypeArg(new SyntaxList<AttributeListSyntax>(m.AttributeLists.Where(l => l.Target?.Identifier.Text == "return"))),
       Params = m.ParameterList.Parameters.Select(p => new ParamDecl {
         Name = p.Identifier.Text,
         Type = Type(p.Type),
         Default = p.Default?.Value.ToString(),
         Modifiers = p.Modifiers.ToString(),
         IsCoroutine = HasAttr(p.AttributeLists, "BhlCoroutine"),
+        BhlType = BhlTypeArg(p.AttributeLists),
         Pos = Pos(p),
       }).ToList(),
       Usings = usings,
@@ -234,16 +276,22 @@ internal class RoslynParser : ICsParser
     List<string> usings = null;
     foreach(var c in root.DescendantNodes().OfType<TypeDeclarationSyntax>())
     {
-      if(!(c is ClassDeclarationSyntax || c is StructDeclarationSyntax || c is InterfaceDeclarationSyntax) || !bound_types.Contains(c.Identifier.Text))
+      if(!(c is ClassDeclarationSyntax || c is StructDeclarationSyntax || c is InterfaceDeclarationSyntax))
+        continue;
+      //NOTE: a type with [BhlBind] methods is bound as a whole here, so their overloads are found too
+      if(!bound_types.Contains(c.Identifier.Text) && !c.Members.OfType<MethodDeclarationSyntax>().Any(m => FindAttr(m.AttributeLists, "BhlBind") != null))
         continue;
       usings ??= Usings(root);
       var target = FullName(c);
       var type = c.Identifier.Text;
       foreach(var member in c.Members)
       {
+        var bind = member is MethodDeclarationSyntax bm ? FindAttr(bm.AttributeLists, "BhlBind") : null;
         //NOTE: the generated code needs access, without a modifier only an interface member is public
         bool accessible = c is InterfaceDeclarationSyntax ||
           member.Modifiers.Any(SyntaxKind.PublicKeyword) || member.Modifiers.Any(SyntaxKind.InternalKeyword);
+        if(bind != null && (!accessible || member.Modifiers.Any(SyntaxKind.ProtectedKeyword) || !member.Modifiers.Any(SyntaxKind.StaticKeyword)))
+          throw new GenException(Pos(bind), $"[BhlBind] is expected on a public or internal static method, '{type}.{((MethodDeclarationSyntax)member).Identifier.Text}' isn't one");
         if(!accessible || member.Modifiers.Any(SyntaxKind.ProtectedKeyword))
           continue;
         if(member is MethodDeclarationSyntax m)
@@ -252,6 +300,18 @@ internal class RoslynParser : ICsParser
           if(!decls.Methods.TryGetValue(key, out var list))
             decls.Methods[key] = list = new List<MethodDecl>();
           list.Add(Method(m, target, usings));
+          if(bind != null)
+          {
+            var args = bind.ArgumentList?.Arguments;
+            if(args != null && args.Value.Count > 1)
+              throw new GenException(Pos(bind), "expected [BhlBind] or [BhlBind(\"Name\")] on a method");
+            decls.Binds.Add(new BindDecl {
+              Type = type,
+              Name = m.Identifier.Text,
+              BhlName = args != null && args.Value.Count == 1 ? StringArg(bind, 0) : null,
+              Pos = Pos(bind),
+            });
+          }
         }
         else if(member is FieldDeclarationSyntax f && !f.Modifiers.Any(SyntaxKind.StaticKeyword) && !f.Modifiers.Any(SyntaxKind.ConstKeyword))
         {

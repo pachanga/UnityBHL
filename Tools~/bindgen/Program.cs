@@ -7,7 +7,8 @@ using System.Text;
 using System.Text.Json;
 
 //NOTE: generates the BHL bindings registration .cs from C# sources, parsing only (nothing is compiled):
-//      [BhlBind(typeof(T), nameof(T.M), ...)] in the decls files binds static methods of T found in the sources.
+//      [BhlBind(typeof(T), nameof(T.M), ...)] on a type in the sources binds static methods of T found in them,
+//      [BhlBind] on a static method in the sources binds it.
 //      The output is the canonical bindings format the BHL compiler reads (bhl docs/csharp-bindings.md).
 //      usage: bindgen [--parser=hand|roslyn|both] <config.json>, paths in the config are relative to it
 internal static class Program

@@ -11,8 +11,17 @@ internal class Generator
   //NOTE: with the declarations file binding it, the output is split by them
   readonly List<(MethodDecl m, string decl_file)> funcs = new List<(MethodDecl, string)>();
   readonly List<string> imports = new List<string>();
+  //NOTE: the sources with declarations ([BhlClass], [BhlInterface], [BhlCustom], [BhlBind(typeof(T), ..)])
+  readonly List<string> decl_files = new List<string>();
+
+  static readonly System.Text.RegularExpressions.Regex decl_attrs = new System.Text.RegularExpressions.Regex(@"BhlClass|BhlInterface|BhlCustom|BhlBind\s*\(\s*typeof");
+
+  static bool IsDeclFile(string src) => decl_attrs.IsMatch(src);
 
   static readonly string[] header_usings = { "System", "System.Collections", "System.Collections.Generic", "bhl" };
+
+  //NOTE: the binary operators BHL may overload, the same in C#
+  static readonly string[] bin_ops = { "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=" };
 
   public int FuncsCount => funcs.Count;
   public int ClassesCount => decls.Classes.Count;
@@ -61,8 +70,22 @@ internal class Generator
 
   void Collect()
   {
-    foreach(var file in conf.DeclFiles)
-      parser.ParseDecls(file, File.ReadAllText(file), decls);
+    //NOTE: the declarations are in the sources too, in the files with the attributes making them
+    var sources = conf.SourceFiles.Select(f => (file: f, src: File.ReadAllText(f))).ToList();
+    foreach(var (file, src) in sources.Where(s => IsDeclFile(s.src)))
+    {
+      decl_files.Add(file);
+      parser.ParseDecls(file, src, decls);
+    }
+
+    //NOTE: a class names its native type in BHL, as type_names_file does for the types declared elsewhere
+    foreach(var c in decls.Classes)
+    {
+      var cs = c.NativeType.Name;
+      if(conf.TypeNames.TryGetValue(cs, out var other) && other != c.Name)
+        throw new GenException(c.Pos, $"'{cs}' is named '{other}' by the type names file, the class names it '{c.Name}'");
+      conf.TypeNames[cs] = c.Name;
+    }
 
     var types = new HashSet<string>(decls.Binds.Select(b => b.Type).Concat(decls.BindAlls.Select(b => b.Type)));
     foreach(var c in decls.Classes.Where(c => c.MemberRefs.Count > 0))
@@ -70,11 +93,10 @@ internal class Generator
       types.Add(c.NativeType.Name);
       types.UnionWith(c.MemberRefs.Where(r => r.Type != null).Select(r => r.Type));
     }
-    foreach(var file in conf.SourceFiles)
+    foreach(var (file, src) in sources)
     {
-      var src = File.ReadAllText(file);
-      //NOTE: parsing only the files which may declare enums or bound types
-      if(!src.Contains("enum ") && !types.Any(t => src.Contains("class " + t) || src.Contains("struct " + t) || src.Contains("interface " + t)))
+      //NOTE: parsing only the files which may declare enums, bound types or [BhlBind] methods
+      if(!src.Contains("enum ") && !src.Contains("BhlBind") && !types.Any(t => src.Contains("class " + t) || src.Contains("struct " + t) || src.Contains("interface " + t)))
         continue;
       parser.ParseSource(file, src, types, decls);
     }
@@ -82,39 +104,65 @@ internal class Generator
     foreach(var all in decls.BindAlls)
       decls.Binds.AddRange(BindAll(all));
 
-    var seen = new HashSet<string>();
+    //NOTE: by the BHL name, a method may be bound by [BhlBind] on it and in a declarations file
+    var seen = new Dictionary<string, SrcPos>();
     foreach(var b in decls.Binds)
     {
-      if(!seen.Add(b.Name))
-        throw new GenException(b.Pos, $"'{b.Name}' is bound twice");
+      var bhl_name = b.BhlName ?? b.Name;
+      if(seen.TryGetValue(bhl_name, out var other))
+        throw new GenException(b.Pos, $"'{bhl_name}' is bound twice, also at {other}");
+      seen.Add(bhl_name, b.Pos);
       if(!decls.Methods.TryGetValue((b.Type, b.Name), out var found) || !found[0].IsStatic)
         throw new GenException(b.Pos, $"static method '{b.Type}.{b.Name}' is not found in the sources");
       if(found.Count > 1)
         throw new GenException(found[1].Pos, $"'{b.Type}.{b.Name}' is overloaded, BHL has no overloads");
       if(found[0].IsGeneric)
         throw new GenException(found[0].Pos, $"'{b.Type}.{b.Name}' is generic, it can't be bound");
-      AddFunc(found[0], b.Pos.File);
+      AddFunc(b.BhlName == null ? found[0] : found[0].WithBhlName(b.BhlName), b.Pos.File);
     }
 
     foreach(var c in decls.Customs)
     {
-      if(!seen.Add(c.Name))
-        throw new GenException(c.Pos, $"'{c.Name}' is bound twice");
+      if(seen.TryGetValue(c.Name, out var other))
+        throw new GenException(c.Pos, $"'{c.Name}' is bound twice, also at {other}");
+      seen.Add(c.Name, c.Pos);
       AddFunc(c, c.Pos.File);
     }
+
+    ResolveBases();
 
     var seen_classes = new HashSet<string>();
     foreach(var c in decls.Classes)
     {
       if(!seen_classes.Add(c.Name))
         throw new GenException(c.Pos, $"class '{c.Name}' is bound twice");
+      if(c.Pod && c.CustomRW)
+        throw new GenException(c.Pos, $"class '{c.Name}' is either Pod or CustomRW");
+      //NOTE: its args and returns are marshalled by Encode/Decode too, as the custom_rw of the config
+      if(c.CustomRW && !conf.custom_rw.Contains(c.NativeType.Name))
+        conf.custom_rw.Add(c.NativeType.Name);
+      if(c.IsInterface && (c.Parent != null || c.New || c.Pod || c.CustomRW || c.Fields.Count > 0 || c.MemberRefs.Count > 0 || c.Implements.Count > 0))
+        throw new GenException(c.Pos, $"interface '{c.Name}' has only methods and Inherits");
+      if(!c.IsInterface && c.Inherits.Count > 0)
+        throw new GenException(c.Pos, $"class '{c.Name}' implements interfaces by Implements, Inherits is an interface's");
+      //NOTE: as BHL calls an interface method on the object, whichever class it is
+      foreach(var m in c.Methods.Where(m => c.IsInterface && (m.IsStatic || m.IsCustom)))
+        throw new GenException(m.Pos, $"interface method '{c.Name}.{m.Name}' can't be static or custom");
       AddImports(c.Usings);
       foreach(var r in c.MemberRefs)
         AddMember(c, r);
       foreach(var m in c.Methods)
       {
-        if(m.IsCustom || m.IsCoroutine)
-          throw new GenException(m.Pos, "custom and coroutine class methods are not supported yet");
+        //NOTE: as metagen_bhl_bind names the hand written part of a custom method
+        if(m.IsCustom && (m.Op != null || m.Native != null))
+          throw new GenException(m.Pos, "a custom class method can't be an operator or have [BhlNative]");
+        if(m.IsCustom)
+          m.Partial = $"Script_{c.Name}.Method_{m.Name}";
+        //NOTE: as BHL wants an operator overload: static, of two arguments, returning a value
+        if(m.Op != null && !bin_ops.Contains(m.Op))
+          throw new GenException(m.Pos, $"operator '{m.Op}' is not one of {string.Join(" ", bin_ops)}");
+        if(m.Op != null && (m.Params.Count != 2 || IsVm(m.Params[0].Type) || m.ReturnType.Keyword == "void" || TaskResult(m.ReturnType) != null))
+          throw new GenException(m.Pos, $"operator '{m.Op}' is expected to take two arguments and return a value");
         if(m.SelfArgType == null)
           continue;
         //NOTE: as metagen_bhl_bind binds a method without its own native prefix
@@ -123,6 +171,34 @@ internal class Generator
           throw new GenException(m.Pos, $"static method '{m.SelfArgType}.{name}' is not found in the sources");
         m.Target = found[0].Target;
         AddImports(found[0].Usings);
+      }
+    }
+  }
+
+  //NOTE: the C# bases of a declaration are declarations too: of a class the parent class and the implemented
+  //      interfaces, of an interface the inherited ones; the types declared elsewhere are named by Parent,
+  //      Implements, Inherits
+  void ResolveBases()
+  {
+    var by_decl = new Dictionary<string, ClassDecl>();
+    foreach(var c in decls.Classes)
+      by_decl[c.DeclName] = c;
+    foreach(var c in decls.Classes)
+    {
+      foreach(var b in c.Bases)
+      {
+        if(!by_decl.TryGetValue(b, out var base_decl))
+          throw new GenException(c.Pos, $"base '{b}' of '{c.DeclName}' isn't a [BhlClass] or [BhlInterface] declaration, a type declared elsewhere is named by Parent, Implements or Inherits");
+        if(c.IsInterface && !base_decl.IsInterface)
+          throw new GenException(c.Pos, $"interface '{c.Name}' can't inherit class '{base_decl.Name}'");
+        if(c.IsInterface)
+          c.Inherits.Add(base_decl.Name);
+        else if(base_decl.IsInterface)
+          c.Implements.Add(base_decl.Name);
+        else if(c.Parent != null)
+          throw new GenException(c.Pos, $"class '{c.Name}' has one parent, '{c.Parent}' and '{base_decl.Name}' are given");
+        else
+          c.Parent = base_decl.Name;
       }
     }
   }
@@ -143,8 +219,6 @@ internal class Generator
         throw new GenException(r.Pos, $"member '{native}.{r.Name}' is not found in the sources");
       if(found.Count > 1)
         throw new GenException(found[1].Pos, $"'{native}.{r.Name}' is overloaded, BHL has no overloads");
-      if(found[0].IsStatic)
-        throw new GenException(r.Pos, $"static '{native}.{r.Name}' is not supported yet");
       c.Methods.Add(found[0]);
       AddImports(found[0].Usings);
       return;
@@ -165,6 +239,7 @@ internal class Generator
       Name = r.Name.Substring(prefix.Length),
       SelfArgType = r.Type,
       ReturnType = m.ReturnType,
+      ReturnBhlType = m.ReturnBhlType,
       Params = m.Params.Skip(1).ToList(),
       Usings = m.Usings,
       Pos = m.Pos,
@@ -209,7 +284,7 @@ internal class Generator
     Any,
     Enum,
     Obj,
-    CustomRw,
+    CustomRW,
     Tuple,
     //NOTE: IList<T>, Items[0] is T
     Arr,
@@ -234,6 +309,8 @@ internal class Generator
     public TypeRef Ret;
     //NOTE: a coroutine Func
     public bool IsCoro;
+    //NOTE: the self of a Pod class, a boxed value type
+    public bool IsPod;
 
     //NOTE: the type of a C# variable holding the value
     public string Native => Kind == Kind.Any ? "bhl.Val" : Cs;
@@ -273,8 +350,12 @@ internal class Generator
     return t.GenericArgs.Count == 1 ? t.GenericArgs[0] : null;
   }
 
-  TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false)
+  //NOTE: is_field: a field may be a List<T> too, it's read as IList<T> and written by copying into the list
+  TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false, bool is_field = false, string bhl_type = null)
   {
+    //NOTE: [BhlType("Name")], e.g. a C# IList as the IList class rather than []any
+    if(bhl_type != null)
+      return new TypeRef { Kind = Kind.Obj, Cs = t.Text, Bhl = bhl_type };
     if(t.Keyword != null)
     {
       if(t.Keyword == "void" && is_return)
@@ -290,7 +371,7 @@ internal class Generator
     {
       return new TypeRef { Kind = Kind.AnyArr, Cs = t.Text, Bhl = "any" };
     }
-    else if(t.Name == "IList" && t.GenericArgs.Count == 1)
+    else if((t.Name == "IList" || (is_field && t.Name == "List")) && t.GenericArgs?.Count == 1)
     {
       var item = Resolve(t.GenericArgs[0], false);
       if(item.Kind != Kind.Any && item.Kind != Kind.Arr && item.Kind != Kind.AnyArr)
@@ -311,8 +392,8 @@ internal class Generator
     }
     else if(t.Name != null && t.GenericArgs == null)
     {
-      var kind = t.Name == "Val" ? Kind.Any : conf.custom_rw.Contains(t.Name) ? Kind.CustomRw : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
-      return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : t.Name };
+      var kind = t.Name == "Val" ? Kind.Any : conf.custom_rw.Contains(t.Name) ? Kind.CustomRW : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
+      return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : conf.TypeNames.TryGetValue(t.Name, out var bhl_name) ? bhl_name : t.Name };
     }
     throw new GenException(t.Pos, $"type '{t.Text}' is not supported");
   }
@@ -366,7 +447,7 @@ internal class Generator
         }
       case Kind.Enum:
         return $"({t.Cs})((int){val}.num)";
-      case Kind.CustomRw:
+      case Kind.CustomRW:
         return null;
       default:
         return ConvExpr(t, "To", val) ?? $"({t.Cs}){val}.obj";
@@ -375,7 +456,7 @@ internal class Generator
 
   static string Val2Native(TypeRef t, string val, string native)
   {
-    if(t.Kind == Kind.CustomRw)
+    if(t.Kind == Kind.CustomRW)
       return $"{val}.Decode(ref {native});";
     return $"{native} = {Val2NativeExpr(t, val)};";
   }
@@ -397,7 +478,7 @@ internal class Generator
         return $"{val}.SetObj({native}, Types.Any);";
       case Kind.Enum:
         return $"{val}.SetInt((int){native});";
-      case Kind.CustomRw:
+      case Kind.CustomRW:
         return $"{val}.Encode({native});";
       //NOTE: a native function returning its array argument gives BHL its own array back
       case Kind.Arr:
@@ -456,12 +537,23 @@ internal class Generator
     public bool IsTask;
 
     public bool IsCoroutine => Decl.IsCoroutine || IsTask;
-    public string Name => Decl.Name;
-    public string Partial => "Script_" + Decl.Name;
+    //NOTE: a first VM parameter gets the VM running the call, it's not a BHL argument
+    public bool PassVm;
+
+    public string Name => Decl.BhlName ?? Decl.Name;
+    public string Partial => Decl.Partial ?? "Script_" + Decl.Name;
+    //NOTE: the class of a custom class method which isn't static, read to Args.self
+    public TypeRef Self;
+    public bool HasArgs => Args.Count > 0 || Self != null;
     public bool HasDisposableArgs => Args.Any(a => DisposeArg(a.type, "") != null);
     //NOTE: a builtin or any returned by a non coroutine is pushed directly, others by the generated ReturnValue(..)
     public bool HasReturnValue => Ret.Kind != Kind.Void && (IsCoroutine || (Ret.Kind != Kind.Builtin && Ret.Kind != Kind.Any));
     public List<TypeRef> RetItems => Ret.Kind == Kind.Void ? new List<TypeRef>() : Ret.Kind == Kind.Tuple ? Ret.Items : new List<TypeRef> { Ret };
+  }
+
+  static bool IsVm(TypeDecl t)
+  {
+    return t.Name == "VM" && t.GenericArgs == null && (t.Text == "VM" || t.Text == "bhl.VM");
   }
 
   Func ResolveFunc(MethodDecl m)
@@ -474,11 +566,16 @@ internal class Generator
     if(m.IsCoroutine && !m.IsCustom)
       throw new GenException(m.Pos, $"a coroutine is bound only as a custom one, declare '{m.Name}' in a [BhlCustom] interface");
     var task_result = TaskResult(m.ReturnType);
+    //NOTE: as @bhl_pass_vm of metagen_bhl_bind, after self of a class method (not among Params)
+    bool pass_vm = m.Params.Count > 0 && IsVm(m.Params[0].Type);
+    if(pass_vm && m.IsCustom)
+      throw new GenException(m.Params[0].Pos, "a custom binding has exec.vm itself, it can't take a VM parameter");
     var f = new Func {
       Decl = m,
-      Args = m.Params.Select(p => (name: p.Name, type: Resolve(p.Type, false, p.IsCoroutine), def: p.Default)).ToList(),
+      PassVm = pass_vm,
+      Args = m.Params.Skip(pass_vm ? 1 : 0).Select(p => (name: p.Name, type: Resolve(p.Type, false, p.IsCoroutine, bhl_type: p.BhlType), def: p.Default)).ToList(),
       IsTask = task_result != null,
-      Ret = task_result == null ? Resolve(m.ReturnType, true) : task_result == no_result ? void_type : Resolve(task_result, true),
+      Ret = task_result == null ? Resolve(m.ReturnType, true, bhl_type: m.ReturnBhlType) : task_result == no_result ? void_type : Resolve(task_result, true, bhl_type: m.ReturnBhlType),
     };
     if(f.IsTask)
     {
@@ -510,13 +607,15 @@ internal class Generator
   {
     var cl = new Class {
       Decl = c,
-      Self = new TypeRef { Kind = Kind.Obj, Cs = c.NativeType.Text, Bhl = c.Name },
-      Fields = c.Fields.Select(f => (f, Resolve(f.Type, false))).ToList(),
+      Self = new TypeRef { Kind = c.CustomRW ? Kind.CustomRW : Kind.Obj, Cs = c.NativeType.Text, Bhl = c.Name, IsPod = c.Pod },
+      Fields = c.Fields.Select(f => (f, Resolve(f.Type, false, is_field: true))).ToList(),
       Methods = c.Methods.Select(ResolveFunc).ToList(),
     };
+    foreach(var m in cl.Methods.Where(m => m.Decl.IsCustom && !m.Decl.IsStatic))
+      m.Self = cl.Self;
     foreach(var f in cl.Fields)
     {
-      if(f.type.Kind == Kind.Arr || f.type.Kind == Kind.AnyArr || f.type.Kind == Kind.Func)
+      if(f.type.Kind == Kind.AnyArr || f.type.Kind == Kind.Func)
         throw new GenException(f.decl.Pos, $"a field of type '{f.decl.Type.Text}' is not supported");
     }
     return cl;
@@ -537,26 +636,25 @@ internal class Generator
     var resolved = funcs.Select(f => (f: ResolveFunc(f.m), f.decl_file)).ToList();
     var classes = decls.Classes.Select(ResolveClass).ToList();
     var all_funcs = resolved.Select(r => r.f).Concat(classes.SelectMany(c => c.Methods)).ToList();
-    //NOTE: the native list types of the array args and returns, by name in the order of use
+    //NOTE: the native list types of the array args, returns and fields, by name in the order of use
     var proxies = new Dictionary<string, TypeRef>();
-    foreach(var f in all_funcs)
+    var arr_types = all_funcs.SelectMany(f => f.Args.Select(a => a.type).Concat(f.RetItems))
+      .Concat(classes.SelectMany(c => c.Fields.Select(f => f.type)));
+    foreach(var t in arr_types)
     {
-      foreach(var t in f.Args.Select(a => a.type).Concat(f.RetItems))
-      {
-        if(t.Kind == Kind.Arr && !proxies.ContainsKey(t.Proxy))
-          proxies.Add(t.Proxy, t.Items[0]);
-      }
+      if(t.Kind == Kind.Arr && !proxies.ContainsKey(t.Proxy))
+        proxies.Add(t.Proxy, t.Items[0]);
     }
 
     //NOTE: the files the output is made of, the Unity editor regenerates it when one of them changes
-    var deps = conf.DeclFiles
+    var deps = decl_files
       .Concat(all_funcs.Select(f => f.Decl.Pos.File))
       .Concat(classes.SelectMany(c => c.Decl.Fields.Select(f => f.Pos.File)))
       .Select(f => Path.GetRelativePath(conf.Dir, f).Replace('\\', '/'))
       .Distinct()
       .OrderBy(f => f, System.StringComparer.Ordinal);
 
-    var slices = MakeSlices(classes, resolved);
+    var slices = MakeSlices(classes, resolved, conf.Dir);
     var files = new Dictionary<string, string>();
     foreach(var slice in slices)
       files.Add(slice.Name + ".cs", EmitSlice(slice));
@@ -601,6 +699,7 @@ internal class Generator
       sb.Append("  var tmp = types.T(name).Get();\n");
       sb.Append("  if(tmp == null)\n    throw new System.Exception(\"Type '\" + name + \"' not resolved\");\n");
       sb.Append("  if(tmp is ClassSymbolNative csn)\n    csn.Setup();\n");
+      sb.Append("  else if(tmp is InterfaceSymbolNative isn)\n    isn.Setup();\n");
       sb.Append("  return tmp;\n}\n");
       sb.Append("#endif\n\n");
     }
@@ -619,8 +718,9 @@ internal class Generator
     return files;
   }
 
-  //NOTE: by declarations file in the order of the files, split into slices of SliceSize
-  static List<Slice> MakeSlices(List<Class> classes, List<(Func f, string decl_file)> funcs)
+  //NOTE: by declarations file in the order of the files, split into slices of SliceSize; named after the file,
+  //      files of the same name (sources with [BhlBind] methods in different dirs) after their paths from conf_dir
+  static List<Slice> MakeSlices(List<Class> classes, List<(Func f, string decl_file)> funcs, string conf_dir)
   {
     var by_file = new SortedDictionary<string, Slice>(System.StringComparer.Ordinal);
     Slice Of(string file)
@@ -634,13 +734,18 @@ internal class Generator
     foreach(var (f, file) in funcs)
       Of(file).Funcs.Add(f);
 
+    string Sanitize(string s) => System.Text.RegularExpressions.Regex.Replace(s, @"\W", "_");
+    var same_names = by_file.Keys.GroupBy(f => Sanitize(Path.GetFileNameWithoutExtension(f)))
+      .Where(g => g.Count() > 1).SelectMany(g => g).ToHashSet();
+
     var slices = new List<Slice>();
     var names = new Dictionary<string, string>();
     foreach(var kv in by_file)
     {
-      var name = System.Text.RegularExpressions.Regex.Replace(Path.GetFileNameWithoutExtension(kv.Key), @"\W", "_");
+      var name = !same_names.Contains(kv.Key) ? Sanitize(Path.GetFileNameWithoutExtension(kv.Key)) :
+        Sanitize(Path.ChangeExtension(Path.GetRelativePath(conf_dir, kv.Key), null).Replace("..", "up"));
       if(names.TryGetValue(name, out var other))
-        throw new GenException($"declarations files '{other}' and '{kv.Key}' have the same name, their outputs would clash");
+        throw new GenException($"files '{other}' and '{kv.Key}' make outputs of the same name '{name}'");
       names.Add(name, kv.Key);
 
       var all = kv.Value;
@@ -687,24 +792,44 @@ internal class Generator
     foreach(var c in slice.Classes)
       EmitClass(sb, c);
     foreach(var f in slice.Funcs)
-      EmitFunc(sb, f, "fn_" + f.Name, "types.ns", f.Decl.IsCustom ? null : $"{f.Decl.Target}.{f.Name}", null, false);
+      EmitFunc(sb, f, "fn_" + f.Name, "types.ns", f.Decl.IsCustom ? null : $"{f.Decl.Target}.{f.Decl.Name}", null, false);
     sb.Append("}\n\n}\n\n");
 
-    //NOTE: the generated parts of the hand written Script_<Name> of the custom bindings
+    //NOTE: the generated parts of the hand written Script_<Name> of the custom bindings,
+    //      Script_<Class>.Method_<Name> of the custom class methods
     var customs = slice.Funcs.Where(f => f.Decl.IsCustom).ToList();
-    if(customs.Count > 0)
+    var class_customs = slice.Classes.Where(c => c.Methods.Any(m => m.Decl.IsCustom)).ToList();
+    if(customs.Count > 0 || class_customs.Count > 0)
     {
       sb.Append("#if !BHL_FRONT\n\n");
       foreach(var f in customs)
         EmitPartial(sb, f);
+      foreach(var c in class_customs)
+      {
+        sb.Append($"public partial class Script_{c.Decl.Name}\n{{\n\n");
+        foreach(var m in c.Methods.Where(m => m.Decl.IsCustom))
+          EmitPartial(sb, m);
+        sb.Append("}\n\n");
+      }
       sb.Append("#endif\n\n");
     }
     sb.Append("}\n");
     return sb.ToString();
   }
 
+  //NOTE: the BHL names of types as a list of ProxyType, null if none
+  static string ProxyTypes(List<string> names)
+  {
+    return names.Count == 0 ? "null" : "new List<ProxyType>() { " + string.Join(", ", names.Select(n => $"types.T(\"{n}\")")) + " }";
+  }
+
   void EmitClass(StringBuilder sb, Class c)
   {
+    if(c.Decl.IsInterface)
+    {
+      EmitInterface(sb, c);
+      return;
+    }
     var name = c.Decl.Name;
     var native = c.Self.Cs;
     sb.Append("  {\n");
@@ -713,15 +838,17 @@ internal class Generator
       sb.Append($"    static void ctor_{name}(VM.ExecState exec, ref Val v, IType type)\n    {{\n");
       sb.Append("    #if !BHL_FRONT\n");
       sb.Append($"      var o = new {native}();\n");
-      sb.Append("      v.SetObjNoRefc(o, type);\n");
+      sb.Append(c.Decl.CustomRW ? "      v.Encode(o);\n" : "      v.SetObjNoRefc(o, type);\n");
       sb.Append("    #endif\n    }\n\n");
     }
     sb.Append($"    var cl = new ClassSymbolNative(new Origin(), \"{name}\",\n");
     sb.Append(c.Decl.Parent != null ? $"      types.T(\"{c.Decl.Parent}\"),\n" : "      new ProxyType(),\n");
-    sb.Append("      proxy_implements: null,\n");
+    sb.Append($"      proxy_implements: {ProxyTypes(c.Decl.Implements)},\n");
     sb.Append($"      creator: {(c.Decl.New ? "ctor_" + name : "null")}\n");
     sb.Append("      #if !BHL_FRONT\n");
     sb.Append($"      , native_type: typeof({native})\n");
+    if(c.Decl.CustomRW)
+      sb.Append($"      , native_object_getter: (v) => {{ {native} tmp = default; v.Decode(ref tmp); return tmp; }}\n");
     sb.Append("      #endif\n");
     sb.Append("    );\n");
     sb.Append("    types.ns.Define(cl);\n\n");
@@ -734,20 +861,40 @@ internal class Generator
       {
         sb.Append($"      static void get_{name}_{f.Name}(VM.ExecState exec, Val ctx, ref Val v, FieldSymbol fld)\n      {{\n");
         sb.Append("      #if !BHL_FRONT\n");
-        sb.Append($"        var f = ({native})ctx.obj;\n");
-        sb.Append($"        {Native2Val(t, member, "v")}\n");
+        //NOTE: as metagen_bhl_bind: a Pod one is read in place
+        if(c.Decl.CustomRW)
+          sb.Append($"        {native} f = default; ctx.Decode(ref f);\n");
+        else if(c.Decl.Pod)
+          sb.Append($"        ref var f = ref System.Runtime.CompilerServices.Unsafe.Unbox<{native}>(ctx.obj);\n");
+        else
+          sb.Append($"        var f = ({native})ctx.obj;\n");
+        sb.Append($"        {Native2Val(t, f.IsCustom ? $"Script_{name}.Get_{f.Name}(f)" : member, "v")}\n");
         sb.Append("      #endif\n      }\n");
       }
       if(f.Set)
       {
         sb.Append($"      static void set_{name}_{f.Name}(VM.ExecState exec, ref Val ctx, Val v, FieldSymbol fld)\n      {{\n");
         sb.Append("      #if !BHL_FRONT\n");
-        sb.Append($"        var f = ({native})ctx.obj;\n");
+        if(c.Decl.CustomRW)
+          sb.Append($"        {native} f = default; ctx.Decode(ref f);\n");
+        else
+          sb.Append($"        var f = ({native})ctx.obj;\n");
+        //NOTE: as metagen_bhl_bind binds @bhl_set:2, the setter changes self, a value type is written back below
+        if(f.IsCustom)
+          sb.Append($"        {{ {t.Native} nv = default; {Val2Native(t, "v", "nv")} Script_{name}.Set_{f.Name}(ref f, nv); }}\n");
         //NOTE: Decode(..) needs a variable, not a property
-        if(t.Kind == Kind.CustomRw)
+        else if(t.Kind == Kind.CustomRW)
           sb.Append($"        {{ {t.Native} tmp = default; {Val2Native(t, "v", "tmp")} {member} = tmp; }}\n");
+        //NOTE: as metagen_bhl_bind: the BHL array is copied into the native list, a new one if there's none
+        else if(t.Kind == Kind.Arr)
+          sb.Append($"        {{ var tmp = {member}; {t.ProxyField}.CopyTo(v, ref tmp); {member} = tmp; }}\n");
         else
           sb.Append($"        {Val2Native(t, "v", member)}\n");
+        //NOTE: a value type is changed in a copy, it's written back
+        if(c.Decl.CustomRW)
+          sb.Append("        ctx.Encode(f);\n");
+        else if(c.Decl.Pod)
+          sb.Append("        ctx.obj = f; //copy on write\n");
         sb.Append("      #endif\n      }\n");
       }
       sb.Append($"      cl.Define(new FieldSymbol(new Origin(), \"{f.Name}\", {TypeRefCode(t)}, {(f.Get ? $"get_{name}_{f.Name}" : "null")}, {(f.Set ? $"set_{name}_{f.Name}" : "null")}));\n");
@@ -757,9 +904,38 @@ internal class Generator
     foreach(var m in c.Methods)
     {
       bool self_arg = m.Decl.SelfArgType != null;
-      var callee = self_arg ? $"{m.Decl.Target}.{name}_{m.Name}" : "__self." + (m.Decl.Native ?? m.Name);
-      EmitFunc(sb, m, name + "_" + m.Name, "cl", callee, c.Self, self_arg);
+      //NOTE: a custom one reads self itself, to Args.self
+      if(m.Decl.IsCustom)
+        EmitFunc(sb, m, name + "_" + m.Name, "cl", null, null, false, is_static: m.Decl.IsStatic);
+      //NOTE: a static one is called on the native type, it has no self
+      else if(m.Decl.IsStatic)
+      {
+        var callee = $"{native}.{m.Decl.Native ?? m.Decl.Name}";
+        EmitFunc(sb, m, name + "_" + m.Name, "cl", callee, null, false, is_static: true);
+        //NOTE: also as the operator, as @bhl_bin_op of metagen_bhl_bind binds it additionally to the method
+        if(m.Decl.Op != null)
+          EmitFunc(sb, m, name + "_" + m.Name + "_op", "cl", callee, null, false, is_static: true, bhl_name: m.Decl.Op);
+      }
+      else
+        EmitFunc(sb, m, name + "_" + m.Name, "cl", self_arg ? $"{m.Decl.Target}.{name}_{m.Name}" : "__self." + (m.Decl.Native ?? m.Name), c.Self, self_arg);
     }
+    sb.Append("  }\n");
+  }
+
+  //NOTE: as metagen_bhl_bind binds an interface: its methods are called on the object as the native interface
+  void EmitInterface(StringBuilder sb, Class c)
+  {
+    var name = c.Decl.Name;
+    sb.Append("  {\n");
+    sb.Append("    var funcs = new List<FuncSymbol>();\n");
+    foreach(var m in c.Methods)
+      EmitFunc(sb, m, name + "_" + m.Name, "funcs", "__self." + (m.Decl.Native ?? m.Name), c.Self, false, add: true);
+    sb.Append($"    var ifs = new InterfaceSymbolNative(new Origin(), \"{name}\", {ProxyTypes(c.Decl.Inherits)},\n");
+    sb.Append("      #if !BHL_FRONT\n");
+    sb.Append($"      typeof({c.Self.Cs}),\n");
+    sb.Append("      #else\n      null,\n      #endif\n");
+    sb.Append("      funcs.ToArray()\n    );\n");
+    sb.Append("    types.ns.Define(ifs);\n");
     sb.Append("  }\n");
   }
 
@@ -803,8 +979,10 @@ internal class Generator
     }
   }
 
-  //NOTE: callee is null for a custom one; self is the class of a method, passed to the callee first if self_arg
-  void EmitFunc(StringBuilder sb, Func f, string local_fn, string scope, string callee, TypeRef self, bool self_arg)
+  //NOTE: callee is null for a custom one; self is the class of a method, passed to the callee first if self_arg;
+  //      is_static for a static class method; bhl_name if it's not f.Name (an operator); add: scope is a list
+  //      of the funcs (of an interface) rather than a scope to define it in
+  void EmitFunc(StringBuilder sb, Func f, string local_fn, string scope, string callee, TypeRef self, bool self_arg, bool is_static = false, string bhl_name = null, bool add = false)
   {
     sb.Append("  {\n");
     sb.Append("    #if !BHL_FRONT\n");
@@ -816,15 +994,15 @@ internal class Generator
     sb.Append("    }\n");
     sb.Append("    #endif\n\n");
 
-    var attrib = f.IsCoroutine ? "FuncAttrib.Coro" : "FuncAttrib.None";
-    sb.Append($"    var fn = new FuncSymbolNative(new Origin(), \"{f.Name}\", {attrib}, {TypeRefCode(f.Ret)}, {f.Args.Count(a => a.def != null)},\n");
+    var attrib = (f.IsCoroutine ? "FuncAttrib.Coro" : "FuncAttrib.None") + (is_static ? " | FuncAttrib.Static" : "");
+    sb.Append($"    var fn = new FuncSymbolNative(new Origin(), \"{bhl_name ?? f.Name}\", {attrib}, {TypeRefCode(f.Ret)}, {f.Args.Count(a => a.def != null)},\n");
     sb.Append("      #if !BHL_FRONT\n");
     sb.Append($"      {local_fn}\n");
     sb.Append("      #else\n      null\n      #endif\n");
     foreach(var a in f.Args)
       sb.Append($"      , new FuncArgSymbol(\"{a.name}\", {TypeRefCode(a.type)}, false)\n");
     sb.Append("    );\n");
-    sb.Append($"    {scope}.Define(fn);\n");
+    sb.Append($"    {scope}.{(add ? "Add" : "Define")}(fn);\n");
     sb.Append("  }\n");
   }
 
@@ -842,19 +1020,23 @@ internal class Generator
     if(self != null)
       sb.Append("      exec.stack.Pop(); //pop self\n");
     var call_args = f.Args.Select(a => "__" + a.name);
+    if(f.PassVm)
+      call_args = call_args.Prepend("exec.vm");
     if(self_arg)
       call_args = call_args.Prepend("__self");
+    //NOTE: an operator method calls the C# operator of the native type
+    var call = f.Decl.Op != null ? string.Join($" {f.Decl.Op} ", call_args) : $"{callee}({string.Join(", ", call_args)})";
     if(f.IsTask)
     {
-      EmitTaskCall(sb, f, $"{callee}({string.Join(", ", call_args)})", self != null);
+      EmitTaskCall(sb, f, call, self);
       return;
     }
     sb.Append("      ");
     if(f.Ret.Kind != Kind.Void)
       sb.Append("var return_val = ");
-    sb.Append($"{callee}({string.Join(", ", call_args)});\n");
+    sb.Append($"{call};\n");
     if(self != null)
-      sb.Append("      dv_self._refc?.Release();\n");
+      sb.Append($"      {SelfDone(self)}\n");
     if(f.Ret.Kind != Kind.Void)
       ReturnVal(sb, f.Ret, "return_val", "      ");
     foreach(var a in f.Args)
@@ -868,13 +1050,24 @@ internal class Generator
 
   //NOTE: as metagen_bhl_bind binds a direct @bhl_coroutine: the scope makes the task live as long as the call,
   //      the result is pushed when the task completes
-  static void EmitTaskCall(StringBuilder sb, Func f, string call, bool has_self)
+  //NOTE: as metagen_bhl_bind: a value type self is written back, the method may have changed it,
+  //      a reference one is released
+  static string SelfDone(TypeRef self)
+  {
+    if(self.Kind == Kind.CustomRW)
+      return "dv_self.Encode(__self);";
+    if(self.IsPod)
+      return "dv_self.obj = __self; //copy on write";
+    return "dv_self._refc?.Release();";
+  }
+
+  static void EmitTaskCall(StringBuilder sb, Func f, string call, TypeRef self)
   {
     sb.Append("      var scope = global::BitGames.BHL.BhlTaskScope.Enter();\n");
     sb.Append("      try\n      {\n");
     sb.Append($"        var task = {call};\n");
-    if(has_self)
-      sb.Append("        dv_self._refc?.Release();\n");
+    if(self != null)
+      sb.Append($"        {SelfDone(self)}\n");
     sb.Append("        return global::BitGames.BHL.BhlTaskCoroutine.New(exec, scope, task");
     if(f.Ret.Kind != Kind.Void)
     {
@@ -898,7 +1091,7 @@ internal class Generator
     }
 
     var results = f.RetItems.Select((t, i) => $", out {t.Native} result{i}");
-    if(f.Args.Count > 0)
+    if(f.HasArgs)
     {
       sb.Append($"      var args = {f.Partial}.ReadArgs(exec, args_info);\n");
       sb.Append($"      {f.Partial}.Exec(exec, args{string.Concat(results)});\n");
@@ -916,11 +1109,13 @@ internal class Generator
 
   static void EmitPartial(StringBuilder sb, Func f)
   {
-    sb.Append($"public partial class {f.Partial}{(f.Decl.IsCoroutine ? " : bhl.Coroutine" : "")}\n{{\n");
+    sb.Append($"public partial class {f.Partial.Substring(f.Partial.LastIndexOf('.') + 1)}{(f.Decl.IsCoroutine ? " : bhl.Coroutine" : "")}\n{{\n");
 
-    if(f.Args.Count > 0)
+    if(f.HasArgs)
     {
       sb.Append($"  public struct Args{(f.HasDisposableArgs ? " : IDisposable" : "")}\n  {{\n");
+      if(f.Self != null)
+        sb.Append($"    public {f.Self.Native} self;\n");
       foreach(var a in f.Args)
         sb.Append($"    public {a.type.Native} {a.name};\n");
       if(f.HasDisposableArgs)
@@ -939,6 +1134,9 @@ internal class Generator
       sb.Append("  static public Args ReadArgs(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
       sb.Append("    var args = new Args();\n");
       ReadArgs(sb, f, "args.", "    ");
+      //NOTE: self is under the args
+      if(f.Self != null)
+        sb.Append($"    {{ var dv = exec.stack.Pop(); {Val2Native(f.Self, "dv", "args.self")} dv._refc?.Release(); }}\n");
       sb.Append("    return args;\n  }\n\n");
     }
 
@@ -953,17 +1151,17 @@ internal class Generator
 
     if(f.Decl.IsCoroutine)
     {
-      if(f.Args.Count > 0)
+      if(f.HasArgs)
         sb.Append("  Args args;\n\n");
       sb.Append("  public void Init(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
-      if(f.Args.Count > 0)
+      if(f.HasArgs)
         sb.Append("    args = ReadArgs(exec, args_info);\n");
       sb.Append("    Init(exec);\n  }\n\n");
       sb.Append("  public override void Tick(VM.ExecState exec)\n  {\n    Exec(exec);\n  }\n\n");
       sb.Append("  public override void Destruct(VM.ExecState exec)\n  {\n    Cleanup(exec);\n");
       if(f.HasDisposableArgs)
         sb.Append("    args.Dispose();\n");
-      if(f.Args.Count > 0)
+      if(f.HasArgs)
         sb.Append("    args = default;\n");
       sb.Append("  }\n");
     }

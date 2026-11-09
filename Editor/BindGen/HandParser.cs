@@ -25,6 +25,13 @@ internal class HandParser : ICsParser
       var class_attr = FindAttr(i.Attrs, "BhlClass");
       if(class_attr != null)
         decls.Classes.Add(Class(i, class_attr, tree.Usings));
+      var iface_attr = FindAttr(i.Attrs, "BhlInterface");
+      if(iface_attr != null)
+      {
+        var iface = Class(i, iface_attr, tree.Usings);
+        iface.IsInterface = true;
+        decls.Classes.Add(iface);
+      }
       if(!HasAttr(i.Attrs, "BhlCustom"))
         continue;
       foreach(var m in i.Members.Where(m => m.Kind == MemberKind.Method))
@@ -35,7 +42,8 @@ internal class HandParser : ICsParser
       }
     }
 
-    foreach(var attr in tree.Attrs)
+    //NOTE: the declarations form is on a type, [BhlBind] on a method is read from the sources
+    foreach(var attr in tree.Types.SelectMany(t => t.Attrs))
     {
       if(!IsAttr(attr, "BhlBind"))
         continue;
@@ -72,12 +80,18 @@ internal class HandParser : ICsParser
 
     foreach(var c in tree.Types)
     {
-      if(!(c.Kind == "class" || c.Kind == "struct" || c.Kind == "interface") || !bound_types.Contains(c.Name))
+      if(!(c.Kind == "class" || c.Kind == "struct" || c.Kind == "interface"))
+        continue;
+      //NOTE: a type with [BhlBind] methods is bound as a whole here, so their overloads are found too
+      if(!bound_types.Contains(c.Name) && !c.Members.Any(m => m.Kind == MemberKind.Method && HasAttr(m.Attrs, "BhlBind")))
         continue;
       foreach(var member in c.Members)
       {
+        var bind = member.Kind == MemberKind.Method ? FindAttr(member.Attrs, "BhlBind") : null;
         //NOTE: the generated code needs access, without a modifier only an interface member is public
         bool accessible = c.Kind == "interface" || member.Mods.Contains("public") || member.Mods.Contains("internal");
+        if(bind != null && (!accessible || member.Mods.Contains("protected") || !member.Mods.Contains("static")))
+          throw new GenException(bind.Pos, $"[BhlBind] is expected on a public or internal static method, '{c.Name}.{member.Name}' isn't one");
         if(!accessible || member.Mods.Contains("protected"))
           continue;
         if(member.Kind == MemberKind.Method)
@@ -86,6 +100,17 @@ internal class HandParser : ICsParser
           if(!decls.Methods.TryGetValue(key, out var list))
             decls.Methods[key] = list = new List<MethodDecl>();
           list.Add(Method(member, c.FullName, tree.Usings));
+          if(bind != null)
+          {
+            if(bind.Args != null && bind.Args.Count > 1)
+              throw new GenException(bind.Pos, "expected [BhlBind] or [BhlBind(\"Name\")] on a method");
+            decls.Binds.Add(new BindDecl {
+              Type = c.Name,
+              Name = member.Name,
+              BhlName = bind.Args != null && bind.Args.Count == 1 ? StringArg(bind, 0) : null,
+              Pos = bind.Pos,
+            });
+          }
         }
         else if(member.Kind == MemberKind.Field && !member.Mods.Contains("static") && !member.Mods.Contains("const"))
         {
@@ -161,10 +186,12 @@ internal class HandParser : ICsParser
   static ClassDecl Class(TypeNode i, Attr attr, List<string> usings)
   {
     var args = attr.Args;
-    if(args == null || args.Count < 2 || args[1].Expr.TypeOf == null)
-      throw new GenException(attr.Pos, "expected [BhlClass(\"Name\", typeof(T), ...)]");
-    var decl = new ClassDecl { Name = StringArg(attr, 0), NativeType = args[1].Expr.TypeOf, Usings = usings, Pos = i.Pos };
-    foreach(var named in args.Skip(2))
+    //NOTE: without the name first the BHL name is the interface's
+    int type_idx = args != null && args.Count > 0 && args[0].Expr.TypeOf != null ? 0 : 1;
+    if(args == null || args.Count <= type_idx || args[type_idx].Expr.TypeOf == null)
+      throw new GenException(attr.Pos, $"expected [{attr.Name}(typeof(T), ...)] or [{attr.Name}(\"Name\", typeof(T), ...)]");
+    var decl = new ClassDecl { Name = type_idx == 0 ? i.Name : StringArg(attr, 0), DeclName = i.Name, Bases = i.Bases, NativeType = args[type_idx].Expr.TypeOf, Usings = usings, Pos = i.Pos };
+    foreach(var named in args.Skip(type_idx + 1))
     {
       if(named.NameEquals == null)
       {
@@ -175,8 +202,14 @@ internal class HandParser : ICsParser
         decl.Parent = named.Expr.Str;
       else if(named.NameEquals == "New" && named.Expr.Bool != null)
         decl.New = named.Expr.Bool.Value;
+      else if(named.NameEquals == "Pod" && named.Expr.Bool != null)
+        decl.Pod = named.Expr.Bool.Value;
+      else if(named.NameEquals == "CustomRW" && named.Expr.Bool != null)
+        decl.CustomRW = named.Expr.Bool.Value;
+      else if((named.NameEquals == "Implements" || named.NameEquals == "Inherits") && named.Expr.Items != null && named.Expr.Items.All(e => e.Str != null))
+        (named.NameEquals == "Implements" ? decl.Implements : decl.Inherits).AddRange(named.Expr.Items.Select(e => e.Str));
       else
-        throw new GenException(named.Pos, "expected Parent = \"..\" or New = true|false");
+        throw new GenException(named.Pos, "expected Parent = \"..\", New, Pod or CustomRW = true|false, Implements or Inherits = new[] { \"..\" }");
     }
 
     foreach(var member in i.Members)
@@ -192,6 +225,7 @@ internal class HandParser : ICsParser
           Get = member.Accessors.Any(a => a.kind == "get"),
           Set = member.Accessors.Any(a => a.kind == "set"),
           Native = native != null ? StringArg(native, 0) : null,
+          IsCustom = HasAttr(member.Attrs, "BhlCustom"),
           Usings = usings,
           Pos = member.Pos,
         });
@@ -201,12 +235,22 @@ internal class HandParser : ICsParser
         var method = Method(member, null, usings);
         var native = FindAttr(member.Attrs, "BhlNative");
         method.Native = native != null ? StringArg(native, 0) : null;
+        var op = FindAttr(member.Attrs, "BhlOp");
+        method.Op = op != null ? StringArg(op, 0) : null;
+        method.IsStatic = HasAttr(member.Attrs, "BhlStatic") || op != null;
+        method.IsCustom = HasAttr(member.Attrs, "BhlCustom");
         decl.Methods.Add(method);
       }
       else
         throw new GenException(member.Pos, "only properties and methods are expected in a [BhlClass] interface");
     }
     return decl;
+  }
+
+  static string BhlTypeArg(List<Attr> attrs)
+  {
+    var attr = FindAttr(attrs, "BhlType");
+    return attr != null ? StringArg(attr, 0) : null;
   }
 
   static MethodDecl Method(Member m, string target, List<string> usings)
@@ -218,12 +262,14 @@ internal class HandParser : ICsParser
       IsCoroutine = HasAttr(m.Attrs, "BhlCoroutine"),
       IsGeneric = m.IsGeneric,
       ReturnType = m.Type,
+      ReturnBhlType = BhlTypeArg(m.Attrs.Where(a => a.Target == "return").ToList()),
       Params = m.Params.Select(p => new ParamDecl {
         Name = p.Name,
         Type = p.Type,
         Default = p.Default,
         Modifiers = p.Modifiers,
         IsCoroutine = HasAttr(p.Attrs, "BhlCoroutine"),
+        BhlType = BhlTypeArg(p.Attrs),
         Pos = p.Pos,
       }).ToList(),
       Usings = usings,
@@ -259,6 +305,8 @@ internal class HandParser : ICsParser
   {
     //NOTE: the last identifier of the name
     public string Name;
+    //NOTE: the target of [target: Name], null if none
+    public string Target;
     //NOTE: null without parentheses
     public List<Arg> Args;
     public SrcPos Pos;
@@ -297,6 +345,8 @@ internal class HandParser : ICsParser
     public string Name;
     public string FullName;
     public List<Attr> Attrs;
+    //NOTE: the last identifiers of the base types
+    public List<string> Bases = new List<string>();
     public List<Member> Members = new List<Member>();
     public SrcPos Pos;
   }
@@ -1039,14 +1089,38 @@ internal class HandParser : ICsParser
       t.FullName = owner != null ? owner.FullName + "." + t.Name : scope != null ? scope + "." + t.Name : t.Name;
       tree.Types.Add(t);
 
-      //NOTE: type parameters, a primary constructor, bases and constraints
+      //NOTE: type parameters, a primary constructor, bases and constraints; of the bases the last identifier
+      //      of each (not generic) is kept
+      int angles = 0;
+      bool in_bases = false;
+      string base_name = null;
       while(!AtEnd && !Is("{") && !Is(";"))
       {
         if(Is("("))
+        {
           SkipBalanced();
-        else
-          ++p;
+          continue;
+        }
+        if(Is("<"))
+          ++angles;
+        else if(Is(">"))
+          --angles;
+        else if(angles == 0 && Is(":") && !in_bases)
+          in_bases = true;
+        else if(angles == 0 && Is("where"))
+          in_bases = false;
+        else if(in_bases && angles == 0 && Is(","))
+        {
+          if(base_name != null)
+            t.Bases.Add(base_name);
+          base_name = null;
+        }
+        else if(in_bases && angles == 0 && IsId())
+          base_name = Cur.Text;
+        ++p;
       }
+      if(in_bases && base_name != null)
+        t.Bases.Add(base_name);
       if(Is(";"))
       {
         ++p;
@@ -1121,16 +1195,18 @@ internal class HandParser : ICsParser
         int open = p;
         ++p;
         bool global = false;
+        string target = null;
         if(IsId() && Is(":", 1))
         {
-          global = Cur.Text == "assembly" || Cur.Text == "module";
+          target = Cur.Text;
+          global = target == "assembly" || target == "module";
           p += 2;
         }
         if(!global && first < 0)
           first = open;
         while(!AtEnd && !Is("]"))
         {
-          var attr = new Attr { Pos = Pos(Cur), Name = Id() };
+          var attr = new Attr { Pos = Pos(Cur), Name = Id(), Target = target };
           while(Is(".") || Is("::"))
           {
             ++p;
