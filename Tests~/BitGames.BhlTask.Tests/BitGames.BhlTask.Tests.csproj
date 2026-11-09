@@ -15,6 +15,10 @@
 
   <ItemGroup>
     <Compile Include="../../Runtime/Task/*.cs" />
+    <!-- BhlFlow is the UniTask bridge: it needs the real UniTask (its async builder, Yield and the
+         player loop), which UniTaskStub.cs doesn't fake - a stub of it would only test itself here.
+         What the bridge drives, BhlTaskRun, is covered by RunTests.cs -->
+    <Compile Remove="../../Runtime/Task/BhlFlow.cs" />
     <Compile Include="*.cs" />
   </ItemGroup>
 

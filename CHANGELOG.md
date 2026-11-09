@@ -5,6 +5,39 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-11-09
+
+### Added
+- `BhlTaskRun`: starts a `BhlTask` function from C# which has a loop of its own (UI, tools, tests),
+  without a BHL call - the same scope and the same per tick semantics a `BhlTaskCoroutine` has, driven
+  by `Tick()` instead of the VM, so one flow can be written once and called both from BHL and from C#
+
+  ```csharp
+  _run = BhlTaskRun.Start(() => Flows.ClaimReward(id));   // BhlTaskRun<T>.Start for a result
+  void Update()    { if(_run != null && !_run.Tick()) { _run.Dispose(); _run = null; } }
+  void OnDestroy() { _run?.Dispose(); }
+  ```
+
+  `Dispose()` cancels what's left, as the VM dropping a call does, and must be called: unlike a BHL
+  call nothing owns this one. It's idempotent and safe after the run is over; there's no finalizer on
+  purpose (the pools are per thread, a finalizer runs on the thread of the GC). A `BhlFinallyTask`
+  function fits too, by its conversion to `BhlTask`. A run allocates 64 bytes (the `BhlTaskRun` object
+  itself, deliberately not pooled: it's held by the caller across frames, where a recycled one handed
+  out twice would let a stale reference drive another run), everything else stays at 0
+- `BhlFlow.Run(..)` (only with UniTask, `BHL_UNITASK`): awaits such a flow from a UniTask method -
+  it ticks the `BhlTaskRun` once per frame instead of the VM
+
+  ```csharp
+  bool claimed = await BhlFlow.Run(() => Flows.ClaimReward(id), this.GetCancellationTokenOnDestroy());
+  ```
+
+  The token is what the VM's cancellation is for a BHL call: when it fires the run is disposed, so the
+  `BhlFinallyTask` functions unwind and the pooled objects come back. `PlayerLoopTiming` is a parameter,
+  to tick the flow where the VM ticks its own calls. A function is passed, not a task: a `BhlTask`
+  function has to be called with a scope current, so `await Flows.ClaimReward(id)` on its own throws
+  before there's anything to await - write the flow as a `UniTask` and bind it with `ToBhlTask()`
+  instead if C# is its main caller
+
 ## [0.28.0] - 2026-11-09
 
 ### Changed

@@ -111,6 +111,7 @@ static class P {
       Check(r[k] == 0, "no allocations: " + k);
 #endif
     Threads();
+    fails += RunTests.Run();
     Console.WriteLine(fails == 0 ? "all passed" : fails + " failed");
     Environment.Exit(fails);
   }

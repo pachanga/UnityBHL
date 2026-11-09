@@ -152,6 +152,8 @@ Runtime/Task/BhlTaskSource.cs     пуловые источники: ранне�
 Runtime/Task/BhlTaskScope.cs      очередь продолжений вызова и его пуловые объекты, отмена
 Runtime/Task/BhlTaskForeign.cs    ToBhlTask для UniTask (если он есть в проекте) и Task
 Runtime/Task/BhlTaskCoroutine.cs  корутина bhl для задачи
+Runtime/Task/BhlTaskRun.cs        запуск задачи из C# без VM: тикает сам вызывающий
+Runtime/Task/BhlFlow.cs           await такого запуска из UniTask-метода (только с UniTask)
 Runtime/Task/Analyzers/           dll анализатора
 Analyzer~/                   исходники анализатора и тесты
 Tests~/                      тесты рантайма
