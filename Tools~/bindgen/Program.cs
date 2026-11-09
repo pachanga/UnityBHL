@@ -26,11 +26,13 @@ internal static class Program
     try
     {
       var json_opts = new JsonSerializerOptions { IncludeFields = true, ReadCommentHandling = JsonCommentHandling.Skip };
-      var conf = Config.Load(args[args.Length - 1], json => JsonSerializer.Deserialize<Config>(json, json_opts));
-      ICsParser parser = parser_name == "roslyn" ? new RoslynParser(conf.defines) :
-        parser_name == "both" ? new BothParser(new HandParser(conf.defines), new RoslynParser(conf.defines)) :
-        new HandParser(conf.defines);
-      Console.WriteLine(new Generator(conf, parser).Run().summary);
+      var confs = Config.LoadAll(args[args.Length - 1], json => JsonSerializer.Deserialize<Config>(json, json_opts));
+      //NOTE: the defines of the config itself (the last one) for all the sources
+      var defines = confs[confs.Count - 1].defines;
+      ICsParser parser = parser_name == "roslyn" ? new RoslynParser(defines) :
+        parser_name == "both" ? new BothParser(new HandParser(defines), new RoslynParser(defines)) :
+        new HandParser(defines);
+      Console.WriteLine(new Generator(confs, parser).Run().summary);
       return 0;
     }
     catch(GenException e)

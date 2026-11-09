@@ -37,7 +37,7 @@ the project has UniTask. Details, in Russian: [Documentation~/bhltask.md](Docume
 
 `Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
 them, configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
-`custom_rw`, `type_names_file`); the declarations (below) are found in the sources too. A function is bound in
+`custom_rw`, `type_names_file`, `includes`); the declarations (below) are found in the sources too. A function is bound in
 either form:
 
 ```csharp
@@ -93,6 +93,12 @@ interface UIPlate {}
 interface UIBarrier : UIPlate {}                        // UIPlate is a declaration: the parent class
 }
 ```
+
+`includes` names the configs of other bindings it uses, e.g. of a package: `"includes": ["../Packages/M3/bhl_bindgen.json"]`.
+Each is generated to its own `result_dir` with its own `register_class` (the generated halves of its `[BhlCustom]`
+bindings are in its assembly, next to the hand written ones), the project registers each; their declarations are known
+to the including config (classes, value types, parents and interfaces across them), not the other way round. One run
+generates them all.
 
 The main output file `register.cs` starts with `//dep: <path>` lines, the files it's made of relative to the config
 (the editor regenerates it when one of them changes); `type_names_file` has `<C# type> <BHL type>` lines, `#` comments.

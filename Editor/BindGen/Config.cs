@@ -23,10 +23,15 @@ internal class Config
   //NOTE: a text file of '<C# type> <BHL type>' lines: the BHL names of the types declared elsewhere (e.g. by meta)
   //      when they differ from the C# ones, a type not listed is named in BHL as in C#
   public string type_names_file;
+  //NOTE: the configs of other bindings (e.g. of a package) this one uses, relative to it: each is generated to its
+  //      own result_dir, their declarations are known here, not the other way round
+  public List<string> includes = new List<string>();
 #pragma warning restore CS0649
 
   //NOTE: the dir of the config, its paths are relative to it
   [NonSerialized] public string Dir;
+  [NonSerialized] public string FilePath;
+  [NonSerialized] public List<Config> Includes = new List<Config>();
   [NonSerialized] public List<string> SourceFiles = new List<string>();
   [NonSerialized] public Dictionary<string, string> TypeNames = new Dictionary<string, string>();
 
@@ -36,6 +41,7 @@ internal class Config
     var conf = from_json(File.ReadAllText(path));
     var dir = Path.GetDirectoryName(Path.GetFullPath(path));
     conf.Dir = Norm(dir);
+    conf.FilePath = Norm(Path.GetFullPath(path));
     if(string.IsNullOrEmpty(conf.@namespace) || string.IsNullOrEmpty(conf.register_class) || string.IsNullOrEmpty(conf.result_dir))
       throw new GenException($"{path}: 'namespace', 'register_class' and 'result_dir' are required");
     conf.result_dir = Norm(Path.GetFullPath(Path.Combine(dir, conf.result_dir)));
@@ -44,6 +50,39 @@ internal class Config
     if(!string.IsNullOrEmpty(conf.type_names_file))
       conf.TypeNames = LoadTypeNames(Norm(Path.GetFullPath(Path.Combine(dir, conf.type_names_file))));
     return conf;
+  }
+
+  //NOTE: the config and the ones it includes, recursively: an included one goes before the ones including it,
+  //      the config itself is the last
+  public static List<Config> LoadAll(string path, Func<string, Config> from_json)
+  {
+    var all = new List<Config>();
+    LoadIncluding(Norm(Path.GetFullPath(path)), from_json, all, new List<string>());
+    return all;
+  }
+
+  static Config LoadIncluding(string path, Func<string, Config> from_json, List<Config> all, List<string> loading)
+  {
+    var loaded = all.FirstOrDefault(c => c.FilePath == path);
+    if(loaded != null)
+      return loaded;
+    if(loading.Contains(path))
+      throw new GenException($"{path}: it includes itself ({string.Join(" -> ", loading)} -> {path})");
+    if(!File.Exists(path))
+      throw new GenException($"{(loading.Count > 0 ? loading[loading.Count - 1] + ": " : "")}included '{path}' is not found");
+    loading.Add(path);
+    var conf = Load(path, from_json);
+    foreach(var inc in conf.includes)
+      conf.Includes.Add(LoadIncluding(Norm(Path.GetFullPath(Path.Combine(conf.Dir, inc))), from_json, all, loading));
+    loading.RemoveAt(loading.Count - 1);
+    all.Add(conf);
+    return conf;
+  }
+
+  //NOTE: the configs it includes, recursively
+  public IEnumerable<Config> AllIncludes()
+  {
+    return Includes.SelectMany(i => i.AllIncludes().Prepend(i)).Distinct();
   }
 
   static Dictionary<string, string> LoadTypeNames(string path)

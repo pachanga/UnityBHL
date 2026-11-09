@@ -14,7 +14,7 @@ namespace UnityBHL
   //      gamectl runs the same code as a dotnet tool (Tools~/bindgen)
   public class BindGen : AssetPostprocessor
   {
-    static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlCustom)\b", RegexOptions.Multiline);
+    static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlInterface|BhlCustom)\b", RegexOptions.Multiline);
 
     const string ConfName = "bhl_bindgen.json";
 
@@ -39,12 +39,6 @@ namespace UnityBHL
       return File.Exists(path) ? path : null;
     }
 
-    //NOTE: the main output file, it lists the files the output is made of
-    static string ResultPath(string conf_path)
-    {
-      var conf = JsonUtility.FromJson<Config>(File.ReadAllText(conf_path));
-      return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(conf_path), conf.result_dir, Generator.MainFile));
-    }
 
     static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] moved_from)
     {
@@ -59,26 +53,38 @@ namespace UnityBHL
       if(conf_path == null)
         return;
 
-      var result = ResultPath(conf_path);
-      var deps = ReadDeps(conf_path, result);
+      HashSet<string> deps;
+      try
+      {
+        deps = ReadDeps(Config.LoadAll(conf_path, JsonUtility.FromJson<Config>));
+      }
+      catch(GenException e)
+      {
+        Debug.LogError("[BHL] bindgen: " + e.Message);
+        return;
+      }
       bool need = deps == null || changed.Any(p => deps.Contains(p) || IsDecl(p));
       if(need)
         Generate();
     }
 
-    //NOTE: the files listed in the result's header, null if there's no result yet
-    static HashSet<string> ReadDeps(string conf_path, string result)
+    //NOTE: the files listed in the headers of the main output files of the configs (the one next to bhl.proj and
+    //      the ones it includes), null if an output isn't made yet
+    static HashSet<string> ReadDeps(List<Config> confs)
     {
-      if(!File.Exists(result))
-        return null;
-      var dir = Path.GetDirectoryName(conf_path);
       var deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-      foreach(var line in File.ReadLines(result))
+      foreach(var conf in confs)
       {
-        if(!line.StartsWith("//"))
-          break;
-        if(line.StartsWith("//dep: "))
-          deps.Add(Path.GetFullPath(Path.Combine(dir, line.Substring(7))));
+        var result = Path.Combine(conf.result_dir, Generator.MainFile);
+        if(!File.Exists(result))
+          return null;
+        foreach(var line in File.ReadLines(result))
+        {
+          if(!line.StartsWith("//"))
+            break;
+          if(line.StartsWith("//dep: "))
+            deps.Add(Path.GetFullPath(Path.Combine(conf.Dir, line.Substring(7))));
+        }
       }
       return deps;
     }
@@ -96,8 +102,8 @@ namespace UnityBHL
     {
       try
       {
-        var conf = Config.Load(ConfPath(), JsonUtility.FromJson<Config>);
-        var (summary, changed) = new Generator(conf, new HandParser(conf.defines)).Run();
+        var confs = Config.LoadAll(ConfPath(), JsonUtility.FromJson<Config>);
+        var (summary, changed) = new Generator(confs, new HandParser(confs[confs.Count - 1].defines)).Run();
         if(!changed)
           return false;
         Debug.Log("[BHL] " + summary);

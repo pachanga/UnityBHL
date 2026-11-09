@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metagen_bhl_bind
 - bindgen: `[BhlClass(typeof(T), ..)]` and `[BhlInterface(typeof(T))]` without the name: the BHL name is the declaring
   interface's, which in a namespace of its own may be named as the native type
+- bindgen: `includes` of `bhl_bindgen.json`, the configs of other bindings (e.g. of a package): one run generates each
+  to its own `result_dir` and `register_class`, their declarations are known to the including config; an output imports
+  the namespaces of the included ones. A cycle, a missing config, a shared `result_dir` or a type named otherwise by
+  another config is an error
 - bindgen: a `sources` glob starting with `!` excludes its files, e.g. the generated code under a source dir
 - bindgen: no `decls` in `bhl_bindgen.json`: the declarations files are found in the `sources`, the files with
   `[BhlClass]`, `[BhlInterface]`, `[BhlCustom]` or `[BhlBind(typeof(T), ..)]` on a type
