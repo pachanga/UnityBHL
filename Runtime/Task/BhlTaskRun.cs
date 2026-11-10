@@ -13,9 +13,29 @@ public static class BhlTaskRun
 {
   public static BhlTaskRun<BhlTaskVoid> Start(Func<BhlTask> fn)
   {
+    return new BhlTaskRun<BhlTaskVoid>(Call(fn));
+  }
+
+  public static BhlTaskRun<T> Start<T>(Func<BhlTask<T>> fn)
+  {
+    return new BhlTaskRun<T>(Call(fn));
+  }
+
+  //NOTE: with a static lambda: no closure, BhlTaskRun.Start((unit, 2f), static s => Move(s.unit, s.Item2))
+  public static BhlTaskRun<BhlTaskVoid> Start<TState>(TState state, Func<TState, BhlTask> fn)
+  {
+    return new BhlTaskRun<BhlTaskVoid>(Call(state, fn));
+  }
+
+  public static BhlTaskRun<T> Start<TState, T>(TState state, Func<TState, BhlTask<T>> fn)
+  {
+    return new BhlTaskRun<T>(Call(state, fn));
+  }
+
+  internal static BhlTaskCall<BhlTaskVoid> Call(Func<BhlTask> fn)
+  {
     if(fn == null)
       throw new ArgumentNullException(nameof(fn));
-
     var scope = BhlTaskScope.Enter();
     BhlTask<BhlTaskVoid> task;
     try
@@ -24,22 +44,17 @@ public static class BhlTaskRun
     }
     catch
     {
-      //NOTE: Exit() first: the scope stops being current before it's taken back
-      scope.Exit();
-      scope.Cancel();
-      scope.Release();
+      Abort(scope);
       throw;
     }
     scope.Exit();
-
-    return new BhlTaskRun<BhlTaskVoid>(scope, task);
+    return new BhlTaskCall<BhlTaskVoid>(scope, task);
   }
 
-  public static BhlTaskRun<T> Start<T>(Func<BhlTask<T>> fn)
+  internal static BhlTaskCall<T> Call<T>(Func<BhlTask<T>> fn)
   {
     if(fn == null)
       throw new ArgumentNullException(nameof(fn));
-
     var scope = BhlTaskScope.Enter();
     BhlTask<T> task;
     try
@@ -48,14 +63,58 @@ public static class BhlTaskRun
     }
     catch
     {
-      scope.Exit();
-      scope.Cancel();
-      scope.Release();
+      Abort(scope);
       throw;
     }
     scope.Exit();
+    return new BhlTaskCall<T>(scope, task);
+  }
 
-    return new BhlTaskRun<T>(scope, task);
+  //NOTE: the state is passed to fn, a static lambda then captures nothing: no closure, its delegate is cached
+  internal static BhlTaskCall<BhlTaskVoid> Call<TState>(TState state, Func<TState, BhlTask> fn)
+  {
+    if(fn == null)
+      throw new ArgumentNullException(nameof(fn));
+    var scope = BhlTaskScope.Enter();
+    BhlTask<BhlTaskVoid> task;
+    try
+    {
+      task = fn(state).AsVoidTask();
+    }
+    catch
+    {
+      Abort(scope);
+      throw;
+    }
+    scope.Exit();
+    return new BhlTaskCall<BhlTaskVoid>(scope, task);
+  }
+
+  internal static BhlTaskCall<T> Call<TState, T>(TState state, Func<TState, BhlTask<T>> fn)
+  {
+    if(fn == null)
+      throw new ArgumentNullException(nameof(fn));
+    var scope = BhlTaskScope.Enter();
+    BhlTask<T> task;
+    try
+    {
+      task = fn(state);
+    }
+    catch
+    {
+      Abort(scope);
+      throw;
+    }
+    scope.Exit();
+    return new BhlTaskCall<T>(scope, task);
+  }
+
+  //NOTE: Exit() first: the scope stops being current before it's taken back
+  static void Abort(BhlTaskScope scope)
+  {
+    scope.Exit();
+    scope.Cancel();
+    scope.Release();
   }
 }
 
@@ -67,8 +126,65 @@ public static class BhlTaskRun
 //      else is 0): it's held by the caller across frames, so a pooled one handed out twice would let a
 //      stale reference drive somebody else's run - the hazard the versions guard against inside, which
 //      is much easier to trip over in user code (a Tick() from Update() after OnDestroy() disposed it).
-//      A run is started per flow, not per frame, so the object is cheap at that rate
-public sealed class BhlTaskRun<T> : IDisposable
+//      A run is started per flow, not per frame, so the object is cheap at that rate. BhlFlow, which
+//      holds a run only inside itself, keeps the BhlTaskCall without it.
+//      It's a step of a Unity coroutine too: 'yield return run' ticks it once a frame (MoveNext), and the
+//      run is disposed once the function is over; a coroutine stopped before (StopCoroutine, the object
+//      destroyed) doesn't dispose a nested one, Dispose() it then, e.g. in OnDisable
+public sealed class BhlTaskRun<T> : IDisposable, System.Collections.IEnumerator
+{
+  BhlTaskCall<T> call;
+
+  internal BhlTaskRun(BhlTaskCall<T> call)
+  {
+    this.call = call;
+  }
+
+  //NOTE: the function is over and its result (or its exception) is taken
+  public bool IsCompleted => call.IsCompleted;
+
+  public bool IsDisposed => call.IsDisposed;
+
+  public T Result => call.Result;
+
+  //NOTE: one tick of the call, as the VM makes for a BhlTaskCoroutine; false when there's nothing left
+  //      to tick (over or disposed). Throws what the function threw, and the exception of a forgotten
+  //      task of the call
+  public bool Tick() => call.Tick();
+
+  //NOTE: cancels what's left of the call (its pending functions and forgotten tasks) and takes the
+  //      pooled objects back, as the VM dropping a call does. Safe to call more than once and after
+  //      the run is over
+  public void Dispose() => call.Dispose();
+
+  //NOTE: a tick per frame, Unity calls it right when the run is yielded: the first tick only marks the call
+  //      started, as Tick() does. Over (or faulted, the exception goes to the coroutine) - disposed, Result stays
+  public bool MoveNext()
+  {
+    bool more;
+    try
+    {
+      more = call.Tick();
+    }
+    catch
+    {
+      call.Dispose();
+      throw;
+    }
+    if(!more)
+      call.Dispose();
+    return more;
+  }
+
+  //NOTE: null - the next frame
+  public object Current => null;
+
+  public void Reset() => throw new NotSupportedException();
+}
+
+//NOTE: the state of a run, see BhlTaskRun<T>: a struct, held by the run or by whoever owns it alone (BhlFlow);
+//      a copy isn't a run of its own, it's used in place only
+internal struct BhlTaskCall<T>
 {
   BhlTaskScope scope;
   BhlTask<T> task;
@@ -77,13 +193,16 @@ public sealed class BhlTaskRun<T> : IDisposable
   T result;
   Exception error;
 
-  internal BhlTaskRun(BhlTaskScope scope, BhlTask<T> task)
+  internal BhlTaskCall(BhlTaskScope scope, BhlTask<T> task)
   {
     this.scope = scope;
     this.task = task;
+    started = false;
+    done = false;
+    result = default;
+    error = null;
   }
 
-  //NOTE: the function is over and its result (or its exception) is taken
   public bool IsCompleted => done;
 
   public bool IsDisposed => scope == null;
@@ -100,9 +219,6 @@ public sealed class BhlTaskRun<T> : IDisposable
     }
   }
 
-  //NOTE: one tick of the call, as the VM makes for a BhlTaskCoroutine; false when there's nothing left
-  //      to tick (over or disposed). Throws what the function threw, and the exception of a forgotten
-  //      task of the call
   public bool Tick()
   {
     if(scope == null || done)
@@ -140,9 +256,6 @@ public sealed class BhlTaskRun<T> : IDisposable
     return false;
   }
 
-  //NOTE: cancels what's left of the call (its pending functions and forgotten tasks) and takes the
-  //      pooled objects back, as the VM dropping a call does. Safe to call more than once and after
-  //      the run is over
   public void Dispose()
   {
     var s = scope;

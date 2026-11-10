@@ -63,7 +63,8 @@ BHL as in C#, a `[BhlClass]` names its native type, `bhl.IType` is BHL's `Type`.
 elsewhere under another name (`[BhlType("M3FInt")] FInt time`). Classes: `[BhlClass]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
 interfaces: `Implements`, value types: `Pod`, `CustomRW` with the project's `Val.Encode`/`Decode`), interfaces: `[BhlInterface]`,
 a hand written coroutine declared by its own class: `[BhlCoroutine] partial class <Name>`, the arguments are the
-parameters of its `Init(VM.ExecState exec, ..)`, the result `Returns = typeof(T)`; a first `VM.ExecState` parameter
+parameters of its `Init([VM.ExecState exec, ]..)`, the result `Returns = typeof(T)`, `bool Exec([out T result])` and
+`Cleanup()` without `exec` make it callable from C# as is; a first `VM.ExecState` parameter
 of a function or a class method gets the call's `exec`, `[BhlType(typeof(Action))] VM.FuncPtr fn` takes a func as is,
 see `Runtime/BhlBindAttribute.cs`. A class or an interface is named in BHL as its declaring interface, or by the
 name given first (`[BhlClass("UnityObject", typeof(UnityEngine.Object))]`). In a namespace of their own the

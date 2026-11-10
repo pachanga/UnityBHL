@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- bindgen: a `[BhlCoroutine]` class may do without `exec`: `Init(..)`, `bool Exec()` (true while running) or
+  `bool Exec(out T result)` with `Returns`, `Cleanup()`, so C# calls it as is, no VM; the `exec` forms stay
+- `BhlTaskRun` is a step of a Unity coroutine: `yield return run` ticks it once a frame and disposes it when the
+  function is over; `BhlTaskRun.Start(state, static s => ..)` overloads take a state instead of a closure
+- `BhlFlow.Run` allocates nothing once the pools are warm: no run object (the run is a struct of the method), and
+  `Run(state, static s => ..)` overloads take a state instead of a closure
 - bindgen: a static method with a body in a `[BhlClass]` declaration is bound as a method of the class (taking the native
   type first, `self`) or a static one; a class needs no `Script.<Class>_<Method>` and `nameof(..)` of it any more
   (still supported). Its private methods and constants are for the bodies, they're not bound

@@ -118,6 +118,24 @@ static class RunTests
     rd.Dispose();
     Check(log == "a", "dropped before the first tick: " + log);
 
+    //NOTE: a step of a Unity coroutine: MoveNext ticks, the run is disposed once over, Result stays
+    log = ""; var re = BhlTaskRun.Start(Steps);
+    System.Collections.IEnumerator en = re;
+    int steps = 0;
+    while(en.MoveNext()) { Check(en.Current == null, "Current is null - the next frame"); ++steps; }
+    Check(steps == 2 && log == "abc" && re.IsCompleted && re.IsDisposed, $"MoveNext ticks and disposes at the end: steps={steps} log={log}");
+    var rei = BhlTaskRun.Start(4, static n => Sum(n));
+    while(((System.Collections.IEnumerator)rei).MoveNext()) {}
+    Check(rei.IsDisposed && rei.Result == 6, "Result after MoveNext is over, a state overload: " + rei.Result);
+    var ret = BhlTaskRun.Start(Throws);
+    Check(Err(() => { while(((System.Collections.IEnumerator)ret).MoveNext()) {} }) == "InvalidOperationException:boom" && ret.IsDisposed,
+      "a faulted run is disposed by MoveNext, the exception goes to the coroutine");
+    log = ""; Time.time = 0;
+    var res = BhlTaskRun.Start(Cheap);
+    ((System.Collections.IEnumerator)res).MoveNext(); ((System.Collections.IEnumerator)res).MoveNext();
+    res.Dispose();
+    Check(log == "[" && res.IsDisposed, "a stopped coroutine: Dispose cancels: " + log);
+
     //NOTE: the scopes come back to the pool - a run after all of the above still behaves
     log = ""; var r2 = BhlTaskRun.Start(Steps);
     ticks = RunToEnd(r2);
@@ -134,6 +152,16 @@ static class RunTests
     Console.WriteLine($"alloc BhlTaskRun run: {per}B");
 #if !DEBUG
     Check(per <= 64, "only the BhlTaskRun object is allocated: " + per + "B");
+#endif
+
+    //NOTE: as a coroutine step with a state and a static lambda: the same, no closure
+    for(int i = 0; i < 50; ++i) { System.Collections.IEnumerator w = BhlTaskRun.Start(2, static n => Sum(n)); while(w.MoveNext()) {} }
+    before = GC.GetAllocatedBytesForCurrentThread();
+    for(int i = 0; i < N; ++i) { System.Collections.IEnumerator w = BhlTaskRun.Start(2, static n => Sum(n)); while(w.MoveNext()) {} }
+    per = (GC.GetAllocatedBytesForCurrentThread() - before) / N;
+    Console.WriteLine($"alloc BhlTaskRun coroutine step: {per}B");
+#if !DEBUG
+    Check(per <= 64, "a coroutine step with a state allocates only the BhlTaskRun object: " + per + "B");
 #endif
 
     return fails;

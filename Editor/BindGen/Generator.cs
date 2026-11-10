@@ -1183,6 +1183,32 @@ internal class Generator
     sb.Append("      }\n      finally\n      {\n        scope.Exit();\n      }\n");
   }
 
+  //NOTE: Exec and Cleanup of a [BhlCoroutine] class take exec (void Cleanup(VM.ExecState exec)) or nothing
+  //      (void Cleanup()), the latter is callable from C# without a VM
+  static bool TakesExec(MethodDecl m, string name)
+  {
+    if(m.ReturnType.Text == "void" && m.Params.Count == 1 && IsExec(m.Params[0].Type))
+      return true;
+    if(m.ReturnType.Text == "void" && m.Params.Count == 0)
+      return false;
+    throw new GenException(m.Pos, $"expected void {name}(VM.ExecState exec) or void {name}()");
+  }
+
+  //NOTE: Exec of a [BhlCoroutine] class: void Exec(VM.ExecState exec) sets exec.status itself, bool Exec() returns
+  //      true while running, its results are out parameters (bool Exec(out T result)) set by the last call
+  static string CoroExecCall(Func f)
+  {
+    var m = f.Decl.CoroExec;
+    var n = f.RetItems.Count;
+    if(m.Params.Count == 1 && m.ReturnType.Text == "void" && IsExec(m.Params[0].Type))
+      return "Exec(exec);";
+    if(m.ReturnType.Text != "bool" || m.Params.Count != n || m.Params.Any(p => p.Modifiers != "out"))
+      throw new GenException(m.Pos, $"expected void Exec(VM.ExecState exec) or bool Exec({string.Join(", ", f.RetItems.Select((t, i) => $"out {t.Native} r{i}"))})");
+    var outs = string.Join(", ", Enumerable.Range(0, n).Select(i => $"out var r{i}"));
+    var ret = n == 0 ? "" : $"\n    else\n      ReturnValue(exec, {string.Join(", ", Enumerable.Range(0, n).Select(i => "r" + i))});";
+    return $"if(Exec({outs}))\n      exec.status = BHS.RUNNING;{ret}";
+  }
+
   //NOTE: starts the [BhlCoroutine] class
   static void EmitCoroCall(StringBuilder sb, Func f)
   {
@@ -1228,9 +1254,9 @@ internal class Generator
 
     sb.Append("  public void Init(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
     ReadArgs(sb, f, "args.", "    ");
-    sb.Append($"    Init(exec{string.Concat(f.Args.Select(a => ", args." + a.name))});\n  }}\n\n");
-    sb.Append("  public override void Tick(VM.ExecState exec)\n  {\n    Exec(exec);\n  }\n\n");
-    sb.Append("  public override void Destruct(VM.ExecState exec)\n  {\n    Cleanup(exec);\n");
+    sb.Append($"    Init({string.Join(", ", (f.Decl.CoroInitExec ? new[] { "exec" } : new string[0]).Concat(f.Args.Select(a => "args." + a.name)))});\n  }}\n\n");
+    sb.Append($"  public override void Tick(VM.ExecState exec)\n  {{\n    {CoroExecCall(f)}\n  }}\n\n");
+    sb.Append($"  public override void Destruct(VM.ExecState exec)\n  {{\n    Cleanup({(TakesExec(f.Decl.CoroCleanup, "Cleanup") ? "exec" : "")});\n");
     if(f.HasDisposableArgs)
       sb.Append("    args.Dispose();\n");
     if(f.HasArgs)

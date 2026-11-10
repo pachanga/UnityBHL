@@ -218,12 +218,19 @@ internal class RoslynParser : ICsParser
   //NOTE: a [BhlCoroutine] class, see MethodDecl.CoroClass
   static MethodDecl CoroutineClass(ClassDeclarationSyntax c, AttributeSyntax attr, List<string> usings)
   {
-    var inits = c.Members.OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "Init" && m.ParameterList.Parameters.Count > 0
-      && Type(m.ParameterList.Parameters[0].Type).Name == "ExecState").ToList();
-    if(inits.Count != 1)
-      throw new GenException(Pos(c), $"expected one Init(VM.ExecState exec, ..) in [BhlCoroutine] class '{c.Identifier.Text}'");
-    var decl = Method(inits[0], null, usings);
-    decl.Params.RemoveAt(0);
+    MethodDecl One(string name)
+    {
+      var ms = c.Members.OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == name).ToList();
+      if(ms.Count != 1)
+        throw new GenException(Pos(c), $"expected one {name}(..) in [BhlCoroutine] class '{c.Identifier.Text}'");
+      return Method(ms[0], null, usings);
+    }
+    var decl = One("Init");
+    decl.CoroInitExec = decl.Params.Count > 0 && decl.Params[0].Type.Name == "ExecState";
+    if(decl.CoroInitExec)
+      decl.Params.RemoveAt(0);
+    decl.CoroExec = One("Exec");
+    decl.CoroCleanup = One("Cleanup");
     decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = Pos(attr) };
     foreach(var arg in attr.ArgumentList?.Arguments ?? default)
     {

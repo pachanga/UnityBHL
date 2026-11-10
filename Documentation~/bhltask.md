@@ -61,6 +61,30 @@ The binding's return value is the `T` of `BhlTask<T>` or `BhlFinallyTask<T>`.
   `SynchronizationContext` (in a worker thread) may complete in another thread, its result reaches the call
   in the next tick.
 
+## From C# code
+
+A `BhlTask` function is called from C# outside of BHL by a run of its own, ticked by the caller, the same semantics
+as a BHL call: the function is passed, not a task, since it has to be called with the call's scope current.
+
+```csharp
+await BhlFlow.Run(() => Script.Wait(1f), this.GetCancellationTokenOnDestroy()); // from a UniTask method
+await BhlFlow.Run((unit, 2f), static s => Script.Move(s.unit, s.Item2), ct);     // no closure: a state, a static lambda
+
+var run = BhlTaskRun.Start((unit, 2f), static s => Script.Move(s.unit, s.Item2)); // in a Unity coroutine
+yield return run;                                                              // ticked once a frame, disposed when over
+Debug.Log(run.Result);                                                         // of a BhlTask<T>
+
+using(var run = BhlTaskRun.Start(() => Script.Wait(1f)))                       // any other loop (a tool): Tick() it
+  while(run.Tick())
+    Update();
+```
+
+- `BhlFlow.Run` (only with UniTask) allocates nothing once the pools are warm, with a state and a `static` lambda;
+  its token cancels the run as the VM cancels a call.
+- `BhlTaskRun` is an object of 64 B, the rest of a run allocates nothing. It must be disposed: `Dispose()`, or
+  `yield return run` in a Unity coroutine disposes it once the function is over; a coroutine stopped before
+  (`StopCoroutine`, the object destroyed) doesn't, dispose the run then, e.g. in `OnDisable` / `OnDestroy`.
+
 ## Lifetime and cancellation
 
 - Everything the call started dies with it: when the root task completes, the forgotten tasks not done yet

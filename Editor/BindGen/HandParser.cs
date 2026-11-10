@@ -254,11 +254,19 @@ internal class HandParser : ICsParser
   //NOTE: a [BhlCoroutine] class, see MethodDecl.CoroClass
   static MethodDecl CoroutineClass(TypeNode c, Attr attr, List<string> usings)
   {
-    var inits = c.Members.Where(m => m.Kind == MemberKind.Method && m.Name == "Init" && m.Params.Count > 0 && m.Params[0].Type.Name == "ExecState").ToList();
-    if(inits.Count != 1)
-      throw new GenException(c.Pos, $"expected one Init(VM.ExecState exec, ..) in [BhlCoroutine] class '{c.Name}'");
-    var decl = Method(inits[0], null, usings);
-    decl.Params.RemoveAt(0);
+    MethodDecl One(string name)
+    {
+      var ms = c.Members.Where(m => m.Kind == MemberKind.Method && m.Name == name).ToList();
+      if(ms.Count != 1)
+        throw new GenException(c.Pos, $"expected one {name}(..) in [BhlCoroutine] class '{c.Name}'");
+      return Method(ms[0], null, usings);
+    }
+    var decl = One("Init");
+    decl.CoroInitExec = decl.Params.Count > 0 && decl.Params[0].Type.Name == "ExecState";
+    if(decl.CoroInitExec)
+      decl.Params.RemoveAt(0);
+    decl.CoroExec = One("Exec");
+    decl.CoroCleanup = One("Cleanup");
     decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = attr.Pos };
     foreach(var arg in attr.Args ?? new List<Arg>())
     {

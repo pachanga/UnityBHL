@@ -88,11 +88,26 @@ reading the args, `Tick` and `Destruct`:
 [BhlCoroutine(Returns = typeof(VFX))]          // or [BhlCoroutine("LM3.Name")]; no Returns: void
 partial class VFXCreate
 {
-  public void Init(VM.ExecState exec, string prefab, Component parent = null) { .. }  // the BHL arguments
-  public void Exec(VM.ExecState exec) { .. ReturnValue(exec, vfx); }
-  public void Cleanup(VM.ExecState exec) { .. }
+  public void Init(string prefab, Component parent = null) { .. }   // the BHL arguments
+  public bool Exec(out VFX vfx) { .. }        // true: still running; the result of the last call, no Returns: bool Exec()
+  public void Cleanup() { .. }
 }
 ```
+
+Without `exec` the class is called from C# as is, no VM:
+
+```csharp
+var c = new VFXCreate();
+c.Init("fx/boom");
+VFX vfx;
+while(c.Exec(out vfx))
+  yield return null;
+c.Cleanup();
+```
+
+When the body needs the VM (`exec.vm`, a fail by `exec.status = BHS.FAILURE`), the methods take it:
+`Init(VM.ExecState exec, ..)`, `void Exec(VM.ExecState exec)` setting `exec.status = BHS.RUNNING` and pushing the
+result by `ReturnValue(exec, ..)`, `Cleanup(VM.ExecState exec)`; each one either way.
 
 A new one is better a `BhlTask` function (`[BhlBind]`, see [bhltask.md](bhltask.md)), the class is for what
 can't be done so.

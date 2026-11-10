@@ -59,8 +59,12 @@ internal class MethodDecl
   //NOTE: the full name of the declaring class, null for a custom one
   public string Target;
   //NOTE: a [BhlCoroutine] class: the hand written class the coroutine is bound to, the args are passed to its
-  //      Init(exec, ..), Params are the ones after exec; null if not one
+  //      Init([exec, ]..), Params are the ones after exec; null if not one
   public string CoroClass;
+  //NOTE: of a [BhlCoroutine] class: its Init takes exec first; its Exec and Cleanup methods, see Generator.EmitPartial
+  public bool CoroInitExec;
+  public MethodDecl CoroExec;
+  public MethodDecl CoroCleanup;
   //NOTE: of a [BhlCoroutine] class, its C# namespace, null if none
   public string DeclNs;
   //NOTE: [BhlCoroutine]
