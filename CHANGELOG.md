@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-10
+
+### Changed
+- bindgen: the generated part of a `[BhlCoroutine]` class reads the args into locals of its `Init` when none of them is
+  disposable (a func, a refcounted list); the `Args` field is kept only for the disposable ones, released when it ends
+
 ## [0.34.0] - 2026-11-10
 
 ### Added

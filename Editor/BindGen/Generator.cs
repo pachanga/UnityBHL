@@ -1260,28 +1260,27 @@ internal class Generator
     sb.Append("      return coro;\n");
   }
 
-  //NOTE: the generated part of a [BhlCoroutine] class: its args read and passed to its Init(exec, ..), they live as
-  //      long as the coroutine, the disposable ones are released when it ends
+  //NOTE: the generated part of a [BhlCoroutine] class: its args read and passed to its Init(exec, ..); with a disposable
+  //      one (a func) they're a field living as long as the coroutine, released when it ends, else locals
   static void EmitPartial(StringBuilder sb, Func f)
   {
     sb.Append($"public partial class {f.Decl.CoroClass} : bhl.Coroutine\n{{\n");
 
-    if(f.HasArgs)
+    //NOTE: a field only for the disposable args, else they're the locals of Init
+    bool args_field = f.HasArgs && f.HasDisposableArgs;
+    if(args_field)
     {
-      sb.Append($"  struct Args{(f.HasDisposableArgs ? " : IDisposable" : "")}\n  {{\n");
+      sb.Append("  struct Args : IDisposable\n  {\n");
       foreach(var a in f.Args)
         sb.Append($"    public {a.type.Native} {a.name};\n");
-      if(f.HasDisposableArgs)
+      sb.Append("\n    public void Dispose()\n    {\n");
+      foreach(var a in f.Args)
       {
-        sb.Append("\n    public void Dispose()\n    {\n");
-        foreach(var a in f.Args)
-        {
-          var dispose = DisposeArg(a.type, a.name);
-          if(dispose != null)
-            sb.Append($"      {dispose}\n");
-        }
-        sb.Append("    }\n");
+        var dispose = DisposeArg(a.type, a.name);
+        if(dispose != null)
+          sb.Append($"      {dispose}\n");
       }
+      sb.Append("    }\n");
       sb.Append("  }\n\n");
       sb.Append("  Args args;\n\n");
     }
@@ -1295,15 +1294,19 @@ internal class Generator
       sb.Append("  }\n\n");
     }
 
+    var prefix = args_field ? "args." : "__";
     sb.Append("  public void Init(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
-    ReadArgs(sb, f, "args.", "    ");
-    sb.Append($"    Init({string.Join(", ", (f.Decl.CoroInitExec ? new[] { "exec" } : new string[0]).Concat(f.Args.Select(a => "args." + a.name)))});\n  }}\n\n");
+    if(!args_field)
+    {
+      foreach(var a in f.Args)
+        sb.Append($"    {a.type.Native} __{a.name} = default;\n");
+    }
+    ReadArgs(sb, f, prefix, "    ");
+    sb.Append($"    Init({string.Join(", ", (f.Decl.CoroInitExec ? new[] { "exec" } : new string[0]).Concat(f.Args.Select(a => prefix + a.name)))});\n  }}\n\n");
     sb.Append($"  public override void Tick(VM.ExecState exec)\n  {{\n    {CoroExecCall(f)}\n  }}\n\n");
     sb.Append($"  public override void Destruct(VM.ExecState exec)\n  {{\n    Cleanup({(TakesExec(f.Decl.CoroCleanup, "Cleanup") ? "exec" : "")});\n");
-    if(f.HasDisposableArgs)
-      sb.Append("    args.Dispose();\n");
-    if(f.HasArgs)
-      sb.Append("    args = default;\n");
+    if(args_field)
+      sb.Append("    args.Dispose();\n    args = default;\n");
     sb.Append("  }\n}\n\n");
   }
 }
