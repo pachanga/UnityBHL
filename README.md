@@ -27,7 +27,7 @@ class MyScript : unity.BHLComponent
 
 ## BhlTask
 
-C# functions bound as BHL coroutines without `Script_*` classes: an async static function returning
+C# functions bound as BHL coroutines without hand written coroutine classes: an async static function returning
 `BhlTask` or `BhlFinallyTask`, whose awaits run in
 the ticks of the BHL call awaiting it and are cancelled with it. A separate asmdef
 `BitGames.BhlTask` (namespace `BitGames.BHL`) with a Roslyn analyzer; `ToBhlTask(UniTask)` only when
@@ -37,14 +37,19 @@ the project has UniTask. Details: [Documentation~/bhltask.md](Documentation~/bhl
 
 `Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
 them (a cheat sheet: [Documentation~/bindings.md](Documentation~/bindings.md)), configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
-`custom_rw`, `type_names_file`, `includes`); the declarations (below) are found in the sources too. A function is bound in
-either form:
+`custom_rw`, `type_names_file`, `includes`); the declarations (below) are found in the sources too. The tool is
+prebuilt in `Tools~/bindgen/dist` of the release zip `unitybhl.zip` (a version tag makes it, `.github/workflows/release.yml`;
+not in git, `Tools~/bindgen/dist.sh`): a project taking the package from it, `"dist": { "url":
+"https://github.com/pachanga/UnityBHL/releases/download/v<version>/unitybhl.zip", "type": "zip" }`, needs only the .NET 8
+runtime, taskman_bhl runs it. From the tag's archive or a checkout taskman_bhl builds the tool (.NET 8 SDK), as with the
+env var `BHL_BINDGEN_REBUILD=1`. A function is bound in either form:
 
 ```csharp
 static partial class Script
 {
   [BhlBind] public static void Vibrate(float power = 1f) { .. }   // on the method, BHL name = C# name
   [BhlBind("Shake")] public static void DoShake(VM vm) { .. }      // another BHL name; a first VM parameter gets exec.vm
+  [BhlBind] public static void Later(VM.ExecState exec, [BhlType(typeof(Action))] VM.FuncPtr fn) { .. } // a first VM.ExecState gets exec, a func as is
 }
 
 // or in a declarations file (any of the sources), for code you can't or don't want to annotate
@@ -56,9 +61,10 @@ BHL as in C#, a `[BhlClass]` names its native type, `type_names_file` renames th
 (e.g. by meta). A non-generic `IList` is
 `[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too), `[BhlType("Name")]` on a parameter or a return
 (`[return: BhlType("IList")]`) makes it the BHL class `Name` instead. Classes: `[BhlClass]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
-interfaces: `Implements`, value types: `Pod`, `CustomRW` with the project's `Val.Encode`/`Decode`, hand written field accessors: `[BhlCustom]`
-on a property), interfaces: `[BhlInterface]`,
-hand written functions and coroutines: `[BhlCustom]` (on a class method too, `Script_<Class>.Method_<Name>`),
+interfaces: `Implements`, value types: `Pod`, `CustomRW` with the project's `Val.Encode`/`Decode`), interfaces: `[BhlInterface]`,
+a hand written coroutine declared by its own class: `[BhlCoroutine] partial class <Name>`, the arguments are the
+parameters of its `Init(VM.ExecState exec, ..)`, the result `Returns = typeof(T)`; a first `VM.ExecState` parameter
+of a function or a class method gets the call's `exec`, `[BhlType(typeof(Action))] VM.FuncPtr fn` takes a func as is,
 see `Runtime/BhlBindAttribute.cs`. A class or an interface is named in BHL as its declaring interface, or by the
 name given first (`[BhlClass("UnityObject", typeof(UnityEngine.Object))]`). In a namespace of their own the
 declarations don't hide the native types they're named after; there `typeof(..)` of such a type is qualified.
@@ -80,11 +86,9 @@ interface UnityObjectDecl
   [BhlOp("==")] bool Equals(UnityEngine.Object self, UnityEngine.Object v);   // a == b, the C# operator
 }
 
-[BhlClass(typeof(Game.BattleGame))]
-interface BattleGame
-{
-  [BhlCustom] void AddTask([BhlCoroutine] Action fn);   // Script_BattleGame.Method_AddTask.Exec(exec, args)
-}
+[BhlClass(typeof(Game.BattleGame),
+  nameof(Script.BattleGame_AddTask))]                 // (BattleGame self, VM.ExecState exec, [BhlType(typeof(Action))] VM.FuncPtr fn)
+interface BattleGame {}
 
 [BhlClass(typeof(Game.UIPlate), Parent = "UIChip")]   // UIChip is declared elsewhere
 interface UIPlate {}
@@ -96,14 +100,14 @@ interface UIBarrier : UIPlate {}                        // UIPlate is a declarat
 
 A BHL name may be in a namespace, `[BhlBind("LM3.UIRefresh")]`, `[BhlClass("LM3.Chip", typeof(..))]`: the symbol is
 defined in the nested namespaces (`types.ns.Nest("LM3")`) and referred to by the full name; a C# identifier made of
-it has `_` for `.`, as metagen_bhl_bind's: `Types_LM3_Chip`, `Script.LM3_Chip_<Method>`, `Script_LM3_Chip.Method_<Name>`.
+it has `_` for `.`, as metagen_bhl_bind's: `Types_LM3_Chip`, `Script.LM3_Chip_<Method>`.
 With `decls_namespace` (e.g. `"Game.Bind.Decls"`) a declaration in a C# namespace under it is in the BHL namespace of
-the rest: `[BhlClass(typeof(T))] interface Chip` in `Game.Bind.Decls.LM3` is `LM3.Chip`, the functions of a `[BhlCustom]`
-or a `[BhlBind(typeof(T), ..)]` interface there are `LM3.<Name>`; an explicit name is kept as is.
+the rest: `[BhlClass(typeof(T))] interface Chip` in `Game.Bind.Decls.LM3` is `LM3.Chip`, the functions of a
+`[BhlBind(typeof(T), ..)]` interface there are `LM3.<Name>`; an explicit name is kept as is.
 
 `includes` names the configs of other bindings it uses, e.g. of a package: `"includes": ["../Packages/M3/bhl_bindgen.json"]`.
-Each is generated to its own `result_dir` with its own `register_class` (the generated halves of its `[BhlCustom]`
-bindings are in its assembly, next to the hand written ones), the project registers each; their declarations are known
+Each is generated to its own `result_dir` with its own `register_class` (the generated halves of its `[BhlCoroutine]`
+classes are in its assembly, next to the hand written ones), the project registers each; their declarations are known
 to the including config (classes, value types, parents and interfaces across them), not the other way round. One run
 generates them all.
 

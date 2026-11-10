@@ -8,6 +8,8 @@
     <AssemblyName>bindgen</AssemblyName>
     <!-- runs on a newer runtime too, the dotnet found first may have only that one -->
     <RollForward>Major</RollForward>
+    <!-- no localized Roslyn messages: a smaller release zip -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>

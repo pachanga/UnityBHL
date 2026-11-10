@@ -23,6 +23,8 @@ static partial class Script
 {
   [BhlBind] public static int Add(int a, int b = 2) => a + b;          // Add, the defaults as in C#
   [BhlBind("LM3.Refresh")] public static void Refresh(VM vm) {}        // a name and a namespace; a first VM gets exec.vm
+  [BhlBind] public static void Later(VM.ExecState exec,                // a first VM.ExecState gets exec
+    [BhlType(typeof(Action)), BhlCoroutine] VM.FuncPtr fn) {}          // a func: its BHL type, released after the call
   [BhlBind] public static async BhlTask<int> Wait(float sec) { .. }    // a coroutine (BhlTask, BhlFinallyTask)
   [BhlBind] [return: BhlType("IList")] public static IList ToIList(Val v) => ..; // the IList class, not []any
 }
@@ -47,8 +49,6 @@ interface Unit : Actor, IDamageable             // the bases are declarations: t
   [BhlNative("Kill")] void Die(bool fx = true); // a method on the object
   [BhlStatic] int Total();                      // a static one: Unit.Total()
   [BhlOp("+")] Unit Merge(Unit a, Unit b);      // a method and an operator (the C# operator)
-  [BhlCustom] void AddTask([BhlCoroutine] Action fn);  // hand written: Script_Unit.Method_AddTask
-  [BhlCustom] Vector3 aim { get; }              // hand written: Script_Unit.Get_aim / Set_aim
   IList<Unit> squad { get; set; }               // an array (a field may be a List<T>)
 }
 }
@@ -64,23 +64,32 @@ interface Unit : Actor, IDamageable             // the bases are declarations: t
 An interface: `[BhlInterface(typeof(IWidget))] interface IWidget : IBase { void Update(); }`, its methods are
 called on the object as on the native interface.
 
-## Hand written functions and coroutines
+## Exec, funcs and hand written coroutines
 
 ```csharp
-[BhlCustom] interface Customs
+static partial class Script
 {
-  [BhlCoroutine] void AnimPlay(Component agent, string trigger, string layer = "Base Layer");
+  // a first VM.ExecState gets the call's exec; a func argument as is, released after the call
+  public static void Unit_AddTask(Game.Unit self, VM.ExecState exec, [BhlType(typeof(Action)), BhlCoroutine] VM.FuncPtr fn)
+    => self.AddTask(exec.Spawn(fn));                  // the method AddTask: nameof(Script.Unit_AddTask)
 }
-partial class Script_AnimPlay   // generated: Args, ReadArgs, ReturnValue, Init/Tick/Destruct
+```
+
+A coroutine which isn't a `BhlTask` is declared by its class (in the output's `namespace`), the generator adds
+reading the args, `Tick` and `Destruct`:
+
+```csharp
+[BhlCoroutine(Returns = typeof(VFX))]          // or [BhlCoroutine("LM3.Name")]; no Returns: void
+partial class VFXCreate
 {
-  public void Init(VM.ExecState exec) { .. args.agent .. }
-  public void Exec(VM.ExecState exec) { .. }     // not a coroutine: static Exec(exec, Args args, out T result0)
+  public void Init(VM.ExecState exec, string prefab, Component parent = null) { .. }  // the BHL arguments
+  public void Exec(VM.ExecState exec) { .. ReturnValue(exec, vfx); }
   public void Cleanup(VM.ExecState exec) { .. }
 }
 ```
 
-A new one is better a `BhlTask` function (`[BhlBind]`, see [bhltask.md](bhltask.md)), `[BhlCustom]` is for
-what can't be done so.
+A new one is better a `BhlTask` function (`[BhlBind]`, see [bhltask.md](bhltask.md)), the class is for what
+can't be done so.
 
 ## Types
 
@@ -90,6 +99,7 @@ what can't be done so.
 | `Val` | `any` |
 | `IList<T>` (a field also `List<T>`) / `IList` | `[]T` / `[]any` |
 | `Action<..>`, `Func<..>`; `[BhlCoroutine]` on the parameter | `func(..)`, `coro func(..)` |
+| `[BhlType(typeof(Action<..>))] VM.FuncPtr` | the same, the func itself (a coroutine's, `exec.Spawn`) |
 | `(int, string)` returned | several values |
 | an enum, a class | by name: `[BhlClass]` or `type_names_file` |
 
@@ -99,14 +109,14 @@ what can't be done so.
 |---|---|
 | `@bhl_native_prefix:Script.%(..)` | `[BhlBind]` |
 | `@bhl_coroutine`, direct | `BhlTask` |
-| `@bhl_bind_type:custom` | `[BhlCustom]` |
-| `@bhl_pass_vm` | a first `VM` parameter |
+| `@bhl_bind_type:custom` | `VM.ExecState` / `VM.FuncPtr` parameters, a `[BhlCoroutine]` class |
+| `@bhl_pass_vm` | a first `VM` (or `VM.ExecState`) parameter |
 | `@bhl_native_class` | `[BhlClass(typeof(T))]` |
 | `extends` / `implements` | the interface's base / `Parent`, `Implements` |
 | `@bhl_no_new` | no `New` |
 | `@bhl_static` / `@bhl_bin_op` | `[BhlStatic]` / `[BhlOp]` |
 | `@bhl_get:0`, `@bhl_set:0` | `{ get; }`, `{ set; }` |
 | `@bhl_native_prefix` of a field | `[BhlNative]` |
-| `@bhl_get:2`, `@bhl_set:2` | `[BhlNative("an expression")]`, else `[BhlCustom]` |
+| `@bhl_get:2`, `@bhl_set:2` | `[BhlNative("an expression")]`, else a `Script.<Class>_<Method>` method |
 | `POD` / `@bhl_custom_rw` | `Pod` / `CustomRW` |
 | `Ns.Name` | `"Ns.Name"` or `decls_namespace` |

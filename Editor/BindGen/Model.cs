@@ -46,6 +46,8 @@ internal class ParamDecl
   public bool IsCoroutine;
   //NOTE: [BhlType("Name")], the BHL class of the native value rather than the type's own BHL type
   public string BhlType;
+  //NOTE: [BhlType(typeof(T))], the BHL func type of a VM.FuncPtr parameter
+  public TypeDecl BhlTypeOf;
   public SrcPos Pos;
 }
 
@@ -56,12 +58,10 @@ internal class MethodDecl
   public string BhlName;
   //NOTE: the full name of the declaring class, null for a custom one
   public string Target;
-  //NOTE: declared in a [BhlCustom] interface, bound to the hand written Script_<Name>; or a [BhlCustom] method
-  //      of a [BhlClass] interface, bound to Script_<Class>.Method_<Name> (Partial)
-  public bool IsCustom;
-  //NOTE: the hand written class of a custom class method, null for Script_<Name>
-  public string Partial;
-  //NOTE: of a function of a [BhlCustom] interface, the C# namespace of the interface, null if none
+  //NOTE: a [BhlCoroutine] class: the hand written class the coroutine is bound to, the args are passed to its
+  //      Init(exec, ..), Params are the ones after exec; null if not one
+  public string CoroClass;
+  //NOTE: of a [BhlCoroutine] class, its C# namespace, null if none
   public string DeclNs;
   //NOTE: [BhlCoroutine]
   public bool IsCoroutine;
@@ -100,8 +100,6 @@ internal class FieldDecl
   public bool Set;
   //NOTE: [BhlNative("..")], the native member accessed instead of Name
   public string Native;
-  //NOTE: [BhlCustom], accessed by the hand written Script_<Class>.Get_<Name>(self), Set_<Name>(ref self, value)
-  public bool IsCustom;
   public List<string> Usings;
   public SrcPos Pos;
 }
@@ -171,7 +169,7 @@ internal class CsDecls
 {
   public List<BindDecl> Binds = new List<BindDecl>();
   public List<BindAllDecl> BindAlls = new List<BindAllDecl>();
-  public List<MethodDecl> Customs = new List<MethodDecl>();
+  public List<MethodDecl> Coroutines = new List<MethodDecl>();
   public List<ClassDecl> Classes = new List<ClassDecl>();
   public HashSet<string> Enums = new HashSet<string>();
   //NOTE: the non-private methods of the bound types, by the type's short name and method name

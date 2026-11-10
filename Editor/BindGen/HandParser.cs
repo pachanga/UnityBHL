@@ -32,15 +32,13 @@ internal class HandParser : ICsParser
         iface.IsInterface = true;
         decls.Classes.Add(iface);
       }
-      if(!HasAttr(i.Attrs, "BhlCustom"))
-        continue;
-      foreach(var m in i.Members.Where(m => m.Kind == MemberKind.Method))
-      {
-        var decl = Method(m, null, tree.Usings);
-        decl.IsCustom = true;
-        decl.DeclNs = i.Ns;
-        decls.Customs.Add(decl);
-      }
+    }
+
+    foreach(var c in tree.Types.Where(t => t.Kind == "class"))
+    {
+      var attr = FindAttr(c.Attrs, "BhlCoroutine");
+      if(attr != null)
+        decls.Coroutines.Add(CoroutineClass(c, attr, tree.Usings));
     }
 
     //NOTE: the declarations form is on a type, [BhlBind] on a method is read from the sources
@@ -227,7 +225,6 @@ internal class HandParser : ICsParser
           Get = member.Accessors.Any(a => a.kind == "get"),
           Set = member.Accessors.Any(a => a.kind == "set"),
           Native = native != null ? StringArg(native, 0) : null,
-          IsCustom = HasAttr(member.Attrs, "BhlCustom"),
           Usings = usings,
           Pos = member.Pos,
         });
@@ -240,7 +237,6 @@ internal class HandParser : ICsParser
         var op = FindAttr(member.Attrs, "BhlOp");
         method.Op = op != null ? StringArg(op, 0) : null;
         method.IsStatic = HasAttr(member.Attrs, "BhlStatic") || op != null;
-        method.IsCustom = HasAttr(member.Attrs, "BhlCustom");
         decl.Methods.Add(method);
       }
       else
@@ -249,10 +245,42 @@ internal class HandParser : ICsParser
     return decl;
   }
 
+  //NOTE: a [BhlCoroutine] class, see MethodDecl.CoroClass
+  static MethodDecl CoroutineClass(TypeNode c, Attr attr, List<string> usings)
+  {
+    var inits = c.Members.Where(m => m.Kind == MemberKind.Method && m.Name == "Init" && m.Params.Count > 0 && m.Params[0].Type.Name == "ExecState").ToList();
+    if(inits.Count != 1)
+      throw new GenException(c.Pos, $"expected one Init(VM.ExecState exec, ..) in [BhlCoroutine] class '{c.Name}'");
+    var decl = Method(inits[0], null, usings);
+    decl.Params.RemoveAt(0);
+    decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = attr.Pos };
+    foreach(var arg in attr.Args ?? new List<Arg>())
+    {
+      if(arg.NameEquals == null && arg.Expr.Str != null)
+        decl.BhlName = arg.Expr.Str;
+      else if(arg.NameEquals == "Returns" && arg.Expr.TypeOf != null)
+        decl.ReturnType = arg.Expr.TypeOf;
+      else
+        throw new GenException(arg.Pos, "expected [BhlCoroutine(\"Name\", Returns = typeof(T))], both optional");
+    }
+    decl.Name = c.Name;
+    decl.CoroClass = c.Name;
+    decl.DeclNs = c.Ns;
+    decl.IsCoroutine = true;
+    decl.Pos = c.Pos;
+    return decl;
+  }
+
   static string BhlTypeArg(List<Attr> attrs)
   {
     var attr = FindAttr(attrs, "BhlType");
-    return attr != null ? StringArg(attr, 0) : null;
+    return attr != null && BhlTypeOfArg(attrs) == null ? StringArg(attr, 0) : null;
+  }
+
+  static TypeDecl BhlTypeOfArg(List<Attr> attrs)
+  {
+    var attr = FindAttr(attrs, "BhlType");
+    return attr?.Args?.Count == 1 ? attr.Args[0].Expr.TypeOf : null;
   }
 
   static MethodDecl Method(Member m, string target, List<string> usings)
@@ -272,6 +300,7 @@ internal class HandParser : ICsParser
         Modifiers = p.Modifiers,
         IsCoroutine = HasAttr(p.Attrs, "BhlCoroutine"),
         BhlType = BhlTypeArg(p.Attrs),
+        BhlTypeOf = BhlTypeOfArg(p.Attrs),
         Pos = p.Pos,
       }).ToList(),
       Usings = usings,

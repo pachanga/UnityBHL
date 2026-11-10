@@ -19,10 +19,10 @@ internal class Generator
   readonly HashSet<string> custom_rw = new HashSet<string>();
   //NOTE: the config being emitted, its register class holds the native list types of its output
   Config cur;
-  //NOTE: the sources with declarations ([BhlClass], [BhlInterface], [BhlCustom], [BhlBind(typeof(T), ..)])
+  //NOTE: the sources with declarations ([BhlClass], [BhlInterface], [BhlCoroutine] classes, [BhlBind(typeof(T), ..)])
   readonly List<string> decl_files = new List<string>();
 
-  static readonly System.Text.RegularExpressions.Regex decl_attrs = new System.Text.RegularExpressions.Regex(@"BhlClass|BhlInterface|BhlCustom|BhlBind\s*\(\s*typeof");
+  static readonly System.Text.RegularExpressions.Regex decl_attrs = new System.Text.RegularExpressions.Regex(@"BhlClass|BhlInterface|BhlCoroutine|BhlBind\s*\(\s*typeof");
 
   static bool IsDeclFile(string src) => decl_attrs.IsMatch(src);
 
@@ -177,8 +177,11 @@ internal class Generator
       AddFunc(bhl_name == found[0].Name ? found[0] : found[0].WithBhlName(bhl_name), b.Pos.File);
     }
 
-    foreach(var c in decls.Customs)
+    foreach(var c in decls.Coroutines)
     {
+      //NOTE: the generated part of a [BhlCoroutine] class is in the namespace of the output
+      if(c.DeclNs != owners[c.Pos.File].@namespace)
+        throw new GenException(c.Pos, $"[BhlCoroutine] class '{c.CoroClass}' is expected in namespace '{owners[c.Pos.File].@namespace}'");
       var bhl_name = c.BhlName ?? c.Name;
       if(seen.TryGetValue(bhl_name, out var other))
         throw new GenException(c.Pos, $"'{bhl_name}' is bound twice, also at {other}");
@@ -204,18 +207,13 @@ internal class Generator
       if(!c.IsInterface && c.Inherits.Count > 0)
         throw new GenException(c.Pos, $"class '{c.Name}' implements interfaces by Implements, Inherits is an interface's");
       //NOTE: as BHL calls an interface method on the object, whichever class it is
-      foreach(var m in c.Methods.Where(m => c.IsInterface && (m.IsStatic || m.IsCustom)))
-        throw new GenException(m.Pos, $"interface method '{c.Name}.{m.Name}' can't be static or custom");
+      foreach(var m in c.Methods.Where(m => c.IsInterface && m.IsStatic))
+        throw new GenException(m.Pos, $"interface method '{c.Name}.{m.Name}' can't be static");
       AddImports(owners[c.Pos.File], c.Usings);
       foreach(var r in c.MemberRefs)
         AddMember(c, r);
       foreach(var m in c.Methods)
       {
-        //NOTE: as metagen_bhl_bind names the hand written part of a custom method
-        if(m.IsCustom && (m.Op != null || m.Native != null))
-          throw new GenException(m.Pos, "a custom class method can't be an operator or have [BhlNative]");
-        if(m.IsCustom)
-          m.Partial = $"Script_{Id(c.Name)}.Method_{m.Name}";
         //NOTE: as BHL wants an operator overload: static, of two arguments, returning a value
         if(m.Op != null && !bin_ops.Contains(m.Op))
           throw new GenException(m.Pos, $"operator '{m.Op}' is not one of {string.Join(" ", bin_ops)}");
@@ -296,15 +294,6 @@ internal class Generator
       var ns = BhlNs(c.Pos.File, c.Ns);
       if(ns != null)
         c.Name = ns + "." + c.Name;
-    }
-    foreach(var m in decls.Customs)
-    {
-      var ns = BhlNs(m.Pos.File, m.DeclNs);
-      if(ns == null)
-        continue;
-      m.BhlName = ns + "." + m.Name;
-      //NOTE: as metagen_bhl_bind names the hand written class of a function in a namespace
-      m.Partial = "Script_" + Id(m.BhlName);
     }
   }
 
@@ -642,14 +631,12 @@ internal class Generator
     public bool IsTask;
 
     public bool IsCoroutine => Decl.IsCoroutine || IsTask;
-    //NOTE: a first VM parameter gets the VM running the call, it's not a BHL argument
-    public bool PassVm;
+    //NOTE: a first VM parameter gets the VM running the call (exec.vm), a first VM.ExecState one the call's
+    //      exec; it's not a BHL argument. Null if none
+    public string PassVm;
 
     public string Name => Decl.BhlName ?? Decl.Name;
-    public string Partial => Decl.Partial ?? "Script_" + Decl.Name;
-    //NOTE: the class of a custom class method which isn't static, read to Args.self
-    public TypeRef Self;
-    public bool HasArgs => Args.Count > 0 || Self != null;
+    public bool HasArgs => Args.Count > 0;
     public bool HasDisposableArgs => Args.Any(a => DisposeArg(a.type, "") != null);
     //NOTE: a builtin or any returned by a non coroutine is pushed directly, others by the generated ReturnValue(..)
     public bool HasReturnValue => Ret.Kind != Kind.Void && (IsCoroutine || (Ret.Kind != Kind.Builtin && Ret.Kind != Kind.Any));
@@ -658,7 +645,22 @@ internal class Generator
 
   static bool IsVm(TypeDecl t)
   {
-    return t.Name == "VM" && t.GenericArgs == null && (t.Text == "VM" || t.Text == "bhl.VM");
+    return t.Name == "VM" && t.GenericArgs == null && (t.Text == "VM" || t.Text == "bhl.VM") || IsExec(t);
+  }
+
+  static bool IsExec(TypeDecl t)
+  {
+    return t.Name == "ExecState" && (t.Text == "VM.ExecState" || t.Text == "bhl.VM.ExecState");
+  }
+
+  TypeRef ResolveParam(ParamDecl p)
+  {
+    if(p.BhlTypeOf == null)
+      return Resolve(p.Type, false, p.IsCoroutine, bhl_type: p.BhlType);
+    var t = Resolve(p.BhlTypeOf, false, p.IsCoroutine);
+    if(t.Kind != Kind.Func || p.Type.Name != "FuncPtr")
+      throw new GenException(p.Pos, "[BhlType(typeof(T))] is expected on a VM.FuncPtr parameter, T a func type (Action, Func<..>)");
+    return t;
   }
 
   Func ResolveFunc(MethodDecl m)
@@ -668,24 +670,22 @@ internal class Generator
       if(p.Modifiers != "")
         throw new GenException(p.Pos, $"parameter modifier '{p.Modifiers}' is not supported");
     }
-    if(m.IsCoroutine && !m.IsCustom)
-      throw new GenException(m.Pos, $"a coroutine is bound only as a custom one, declare '{m.Name}' in a [BhlCustom] interface");
+    if(m.IsCoroutine && m.CoroClass == null)
+      throw new GenException(m.Pos, $"a coroutine is bound as a BhlTask function or a [BhlCoroutine] class, '{m.Name}' is neither");
     var task_result = TaskResult(m.ReturnType);
     //NOTE: as @bhl_pass_vm of metagen_bhl_bind, after self of a class method (not among Params)
     bool pass_vm = m.Params.Count > 0 && IsVm(m.Params[0].Type);
-    if(pass_vm && m.IsCustom)
-      throw new GenException(m.Params[0].Pos, "a custom binding has exec.vm itself, it can't take a VM parameter");
+    if(pass_vm && m.CoroClass != null)
+      throw new GenException(m.Params[0].Pos, "a [BhlCoroutine] class has exec itself, its Init can't take a VM or VM.ExecState argument");
     var f = new Func {
       Decl = m,
-      PassVm = pass_vm,
-      Args = m.Params.Skip(pass_vm ? 1 : 0).Select(p => (name: p.Name, type: Resolve(p.Type, false, p.IsCoroutine, bhl_type: p.BhlType), def: p.Default)).ToList(),
+      PassVm = !pass_vm ? null : IsExec(m.Params[0].Type) ? "exec" : "exec.vm",
+      Args = m.Params.Skip(pass_vm ? 1 : 0).Select(p => (name: p.Name, type: ResolveParam(p), def: p.Default)).ToList(),
       IsTask = task_result != null,
       Ret = task_result == null ? Resolve(m.ReturnType, true, bhl_type: m.ReturnBhlType) : task_result == no_result ? void_type : Resolve(task_result, true, bhl_type: m.ReturnBhlType),
     };
     if(f.IsTask)
     {
-      if(m.IsCustom)
-        throw new GenException(m.ReturnType.Pos, "a custom binding can't return a BhlTask, bind the method directly");
       //NOTE: the coroutine outlives the call of the method, the args would be released while the task still uses them
       foreach(var a in f.Args.Where(a => DisposeArg(a.type, "") != null))
         throw new GenException(m.Params.First(p => p.Name == a.name).Pos, $"a BhlTask coroutine can't take '{a.type.Cs}' yet: the arg would be released before the task completes");
@@ -716,8 +716,6 @@ internal class Generator
       Fields = c.Fields.Select(f => (f, Resolve(f.Type, false, is_field: true))).ToList(),
       Methods = c.Methods.Select(ResolveFunc).ToList(),
     };
-    foreach(var m in cl.Methods.Where(m => m.Decl.IsCustom && !m.Decl.IsStatic))
-      m.Self = cl.Self;
     foreach(var f in cl.Fields)
     {
       if(f.type.Kind == Kind.AnyArr || f.type.Kind == Kind.Func)
@@ -901,25 +899,16 @@ internal class Generator
     foreach(var c in slice.Classes)
       EmitClass(sb, c);
     foreach(var f in slice.Funcs)
-      EmitFunc(sb, f, "fn_" + Id(f.Name), NsScope("types.ns", f.Name), f.Decl.IsCustom ? null : $"{f.Decl.Target}.{f.Decl.Name}", null, false);
+      EmitFunc(sb, f, "fn_" + Id(f.Name), NsScope("types.ns", f.Name), f.Decl.CoroClass != null ? null : $"{f.Decl.Target}.{f.Decl.Name}", null, false);
     sb.Append("}\n\n}\n\n");
 
-    //NOTE: the generated parts of the hand written Script_<Name> of the custom bindings,
-    //      Script_<Class>.Method_<Name> of the custom class methods
-    var customs = slice.Funcs.Where(f => f.Decl.IsCustom).ToList();
-    var class_customs = slice.Classes.Where(c => c.Methods.Any(m => m.Decl.IsCustom)).ToList();
-    if(customs.Count > 0 || class_customs.Count > 0)
+    //NOTE: the generated parts of the [BhlCoroutine] classes
+    var coros = slice.Funcs.Where(f => f.Decl.CoroClass != null).ToList();
+    if(coros.Count > 0)
     {
       sb.Append("#if !BHL_FRONT\n\n");
-      foreach(var f in customs)
+      foreach(var f in coros)
         EmitPartial(sb, f);
-      foreach(var c in class_customs)
-      {
-        sb.Append($"public partial class Script_{Id(c.Decl.Name)}\n{{\n\n");
-        foreach(var m in c.Methods.Where(m => m.Decl.IsCustom))
-          EmitPartial(sb, m);
-        sb.Append("}\n\n");
-      }
       sb.Append("#endif\n\n");
     }
     sb.Append("}\n");
@@ -978,7 +967,7 @@ internal class Generator
           sb.Append($"        ref var f = ref System.Runtime.CompilerServices.Unsafe.Unbox<{native}>(ctx.obj);\n");
         else
           sb.Append($"        var f = ({native})ctx.obj;\n");
-        sb.Append($"        {Native2Val(t, f.IsCustom ? $"Script_{name}.Get_{f.Name}(f)" : member, "v")}\n");
+        sb.Append($"        {Native2Val(t, member, "v")}\n");
         sb.Append("      #endif\n      }\n");
       }
       if(f.Set)
@@ -989,11 +978,8 @@ internal class Generator
           sb.Append($"        {native} f = default; ctx.Decode(ref f);\n");
         else
           sb.Append($"        var f = ({native})ctx.obj;\n");
-        //NOTE: as metagen_bhl_bind binds @bhl_set:2, the setter changes self, a value type is written back below
-        if(f.IsCustom)
-          sb.Append($"        {{ {t.Native} nv = default; {Val2Native(t, "v", "nv")} Script_{name}.Set_{f.Name}(ref f, nv); }}\n");
         //NOTE: Decode(..) needs a variable, not a property
-        else if(t.Kind == Kind.CustomRW)
+        if(t.Kind == Kind.CustomRW)
           sb.Append($"        {{ {t.Native} tmp = default; {Val2Native(t, "v", "tmp")} {member} = tmp; }}\n");
         //NOTE: as metagen_bhl_bind: the BHL array is copied into the native list, a new one if there's none
         else if(t.Kind == Kind.Arr)
@@ -1014,11 +1000,8 @@ internal class Generator
     foreach(var m in c.Methods)
     {
       bool self_arg = m.Decl.SelfArgType != null;
-      //NOTE: a custom one reads self itself, to Args.self
-      if(m.Decl.IsCustom)
-        EmitFunc(sb, m, name + "_" + m.Name, "cl", null, null, false, is_static: m.Decl.IsStatic);
       //NOTE: a static one is called on the native type, it has no self
-      else if(m.Decl.IsStatic)
+      if(m.Decl.IsStatic)
       {
         var callee = $"{native}.{m.Decl.Native ?? m.Decl.Name}";
         EmitFunc(sb, m, name + "_" + m.Name, "cl", callee, null, false, is_static: true);
@@ -1089,7 +1072,7 @@ internal class Generator
     }
   }
 
-  //NOTE: callee is null for a custom one; self is the class of a method, passed to the callee first if self_arg;
+  //NOTE: callee is null for a [BhlCoroutine] class; self is the class of a method, passed to the callee first if self_arg;
   //      is_static for a static class method; bhl_name if it's not f.Name (an operator); add: scope is a list
   //      of the funcs (of an interface) rather than a scope to define it in
   void EmitFunc(StringBuilder sb, Func f, string local_fn, string scope, string callee, TypeRef self, bool self_arg, bool is_static = false, string bhl_name = null, bool add = false)
@@ -1097,8 +1080,8 @@ internal class Generator
     sb.Append("  {\n");
     sb.Append("    #if !BHL_FRONT\n");
     sb.Append($"    static bhl.Coroutine {local_fn}(VM.ExecState exec, FuncArgsInfo args_info)\n    {{\n");
-    if(f.Decl.IsCustom)
-      EmitCustomCall(sb, f);
+    if(f.Decl.CoroClass != null)
+      EmitCoroCall(sb, f);
     else
       EmitDirectCall(sb, f, callee, self, self_arg);
     sb.Append("    }\n");
@@ -1130,8 +1113,8 @@ internal class Generator
     if(self != null)
       sb.Append("      exec.stack.Pop(); //pop self\n");
     var call_args = f.Args.Select(a => "__" + a.name);
-    if(f.PassVm)
-      call_args = call_args.Prepend("exec.vm");
+    if(f.PassVm != null)
+      call_args = call_args.Prepend(f.PassVm);
     if(self_arg)
       call_args = call_args.Prepend("__self");
     //NOTE: an operator method calls the C# operator of the native type
@@ -1189,43 +1172,23 @@ internal class Generator
     sb.Append("      }\n      finally\n      {\n        scope.Exit();\n      }\n");
   }
 
-  //NOTE: calls the hand written Script_<Name>, as metagen_bhl_bind does for @bhl_bind_type:custom
-  static void EmitCustomCall(StringBuilder sb, Func f)
+  //NOTE: starts the [BhlCoroutine] class
+  static void EmitCoroCall(StringBuilder sb, Func f)
   {
-    if(f.Decl.IsCoroutine)
-    {
-      sb.Append($"      var coro = CoroutinePool.New<{f.Partial}>(exec.vm);\n");
-      sb.Append("      coro.Init(exec, args_info);\n");
-      sb.Append("      return coro;\n");
-      return;
-    }
-
-    var results = f.RetItems.Select((t, i) => $", out {t.Native} result{i}");
-    if(f.HasArgs)
-    {
-      sb.Append($"      var args = {f.Partial}.ReadArgs(exec, args_info);\n");
-      sb.Append($"      {f.Partial}.Exec(exec, args{string.Concat(results)});\n");
-      if(f.HasDisposableArgs)
-        sb.Append("      args.Dispose();\n");
-    }
-    else
-      sb.Append($"      {f.Partial}.Exec(exec{string.Concat(results)});\n");
-    if(f.HasReturnValue)
-      sb.Append($"      {f.Partial}.ReturnValue(exec{string.Concat(f.RetItems.Select((t, i) => $", result{i}"))});\n");
-    else if(f.Ret.Kind != Kind.Void)
-      ReturnVal(sb, f.Ret, "result0", "      ");
-    sb.Append("      return null;\n");
+    sb.Append($"      var coro = CoroutinePool.New<{f.Decl.CoroClass}>(exec.vm);\n");
+    sb.Append("      coro.Init(exec, args_info);\n");
+    sb.Append("      return coro;\n");
   }
 
+  //NOTE: the generated part of a [BhlCoroutine] class: its args read and passed to its Init(exec, ..), they live as
+  //      long as the coroutine, the disposable ones are released when it ends
   static void EmitPartial(StringBuilder sb, Func f)
   {
-    sb.Append($"public partial class {f.Partial.Substring(f.Partial.LastIndexOf('.') + 1)}{(f.Decl.IsCoroutine ? " : bhl.Coroutine" : "")}\n{{\n");
+    sb.Append($"public partial class {f.Decl.CoroClass} : bhl.Coroutine\n{{\n");
 
     if(f.HasArgs)
     {
-      sb.Append($"  public struct Args{(f.HasDisposableArgs ? " : IDisposable" : "")}\n  {{\n");
-      if(f.Self != null)
-        sb.Append($"    public {f.Self.Native} self;\n");
+      sb.Append($"  struct Args{(f.HasDisposableArgs ? " : IDisposable" : "")}\n  {{\n");
       foreach(var a in f.Args)
         sb.Append($"    public {a.type.Native} {a.name};\n");
       if(f.HasDisposableArgs)
@@ -1240,14 +1203,7 @@ internal class Generator
         sb.Append("    }\n");
       }
       sb.Append("  }\n\n");
-
-      sb.Append("  static public Args ReadArgs(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
-      sb.Append("    var args = new Args();\n");
-      ReadArgs(sb, f, "args.", "    ");
-      //NOTE: self is under the args
-      if(f.Self != null)
-        sb.Append($"    {{ var dv = exec.stack.Pop(); {Val2Native(f.Self, "dv", "args.self")} dv._refc?.Release(); }}\n");
-      sb.Append("    return args;\n  }\n\n");
+      sb.Append("  Args args;\n\n");
     }
 
     if(f.HasReturnValue)
@@ -1259,23 +1215,15 @@ internal class Generator
       sb.Append("  }\n\n");
     }
 
-    if(f.Decl.IsCoroutine)
-    {
-      if(f.HasArgs)
-        sb.Append("  Args args;\n\n");
-      sb.Append("  public void Init(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
-      if(f.HasArgs)
-        sb.Append("    args = ReadArgs(exec, args_info);\n");
-      sb.Append("    Init(exec);\n  }\n\n");
-      sb.Append("  public override void Tick(VM.ExecState exec)\n  {\n    Exec(exec);\n  }\n\n");
-      sb.Append("  public override void Destruct(VM.ExecState exec)\n  {\n    Cleanup(exec);\n");
-      if(f.HasDisposableArgs)
-        sb.Append("    args.Dispose();\n");
-      if(f.HasArgs)
-        sb.Append("    args = default;\n");
-      sb.Append("  }\n");
-    }
-
-    sb.Append("}\n\n");
+    sb.Append("  public void Init(VM.ExecState exec, FuncArgsInfo args_info)\n  {\n");
+    ReadArgs(sb, f, "args.", "    ");
+    sb.Append($"    Init(exec{string.Concat(f.Args.Select(a => ", args." + a.name))});\n  }}\n\n");
+    sb.Append("  public override void Tick(VM.ExecState exec)\n  {\n    Exec(exec);\n  }\n\n");
+    sb.Append("  public override void Destruct(VM.ExecState exec)\n  {\n    Cleanup(exec);\n");
+    if(f.HasDisposableArgs)
+      sb.Append("    args.Dispose();\n");
+    if(f.HasArgs)
+      sb.Append("    args = default;\n");
+    sb.Append("  }\n}\n\n");
   }
 }

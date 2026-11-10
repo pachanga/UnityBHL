@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- the release zip `unitybhl.zip` of a version tag (`.github/workflows/release.yml`), the package with the bindings
+  generator prebuilt in `Tools~/bindgen/dist` (`Tools~/bindgen/dist.sh`, not in git): a project's composer taking it
+  as the package's dist needs only the .NET 8 runtime for taskman_bhl to run the generator
+- bindgen: a first `VM.ExecState` parameter gets the call's `exec` (as a first `VM` gets `exec.vm`);
+  `[BhlType(typeof(Action<..>))]` on a `VM.FuncPtr` parameter binds a func argument as is (a direct function, a
+  `[BhlClass]` method, the `Init` of a `[BhlCoroutine]` class): with both, a hand written class method is an
+  ordinary `Script.<Class>_<Method>(self, exec, ..)`
+- bindgen: `[BhlCoroutine]` on a hand written partial class `<Name>` declares the coroutine by the class itself:
+  the arguments are the parameters of its `Init(VM.ExecState exec, ..)`, a result is `Returns = typeof(T)`, another
+  name `[BhlCoroutine("Name")]`; no separate declaration
 - `Documentation~/bindings.md`: a cheat sheet of the bindings generator; `Documentation~/bhltask.md` translated to English
 - bindgen: `[BhlBind]` on a static method found in the sources binds it, `[BhlBind("Name")]` under another
   BHL name; the attribute moved to the runtime assembly (conditional on `UNITY_EDITOR`, no attribute data
@@ -27,22 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bindgen: array fields of a `[BhlClass]`, `IList<T>` or `List<T>`: read as the live native list, written by copying
   the BHL array into it (created if null), as metagen_bhl_bind does; the `List_<T>` native list types are defined
   for them too
-- bindgen: custom methods of a `[BhlClass]`, a `[BhlCustom]` method of the interface (`[BhlCoroutine]`, `[BhlStatic]`
-  too): bound to the hand written `Script_<Class>.Method_<Name>` as metagen_bhl_bind binds `@bhl_bind_type:custom`
-  methods, the generator adds its `Args` (`self` first unless static), `ReadArgs`, `ReturnValue` and coroutine part
 - bindgen: interfaces, `[BhlInterface("Name", typeof(T), Inherits = new[] { .. })]` on an interface whose methods are
   called on the object as the native interface (`InterfaceSymbolNative`, set up in `RegisterEnd`); a class implements
   interfaces by `[BhlClass(.., Implements = new[] { .. })]`, declared by bindgen or elsewhere (by BHL name)
 - bindgen: value type classes, as POD and `@bhl_custom_rw` of metagen_bhl_bind: `[BhlClass(.., Pod = true)]` is kept
   boxed in the BHL value, `CustomRW = true` in the value itself by the project's `Val.Encode(T)`/`Decode(ref T)` (its
   args and returns too, without `custom_rw` in the config); a field set or a method call writes the changed copy back
-- bindgen: custom fields of a `[BhlClass]`, a `[BhlCustom]` property of the interface: read by the hand written
-  `Script_<Class>.Get_<Name>(self)` and written by `Set_<Name>(ref self, value)`, as `@bhl_get:2`/`@bhl_set:2` of
-  metagen_bhl_bind
 - bindgen: `[BhlClass(typeof(T), ..)]` and `[BhlInterface(typeof(T))]` without the name: the BHL name is the declaring
   interface's, which in a namespace of its own may be named as the native type
 - bindgen: `decls_namespace` of `bhl_bindgen.json`: a declaration in a C# namespace under it is in the BHL namespace of
-  the rest, the classes, interfaces and the functions of `[BhlCustom]` and `[BhlBind(typeof(T), ..)]` interfaces; a base
+  the rest, the classes, interfaces and the functions of `[BhlBind(typeof(T), ..)]` interfaces; a base
   of a declaration is the one C# finds when several are named alike
 - bindgen: namespaces: a BHL name of a function, a class or an interface may be in one, `LM3.Chip`, defined by
   `types.ns.Nest(..)` as metagen_bhl_bind does, a C# identifier made of it has `_` for `.` (`Types_LM3_Chip`)
@@ -52,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   another config is an error
 - bindgen: a `sources` glob starting with `!` excludes its files, e.g. the generated code under a source dir
 - bindgen: no `decls` in `bhl_bindgen.json`: the declarations files are found in the `sources`, the files with
-  `[BhlClass]`, `[BhlInterface]`, `[BhlCustom]` or `[BhlBind(typeof(T), ..)]` on a type
+  `[BhlClass]`, `[BhlInterface]`, `[BhlBind(typeof(T), ..)]` on a type or `[BhlCoroutine]` on a class
 - bindgen: `[BhlType("Name")]` on a parameter or a return value (`[return: BhlType("IList")]`): the BHL class `Name`
   rather than the C# type's own BHL type, e.g. a C# `IList` as a bound class of `System.Collections.IList` not `[]any`
 - bindgen: the C# bases of a declaration which are declarations too: of a `[BhlClass]` the parent class and the
@@ -61,9 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is an error
 
 ### Changed
-- `[BhlClass]`, `[BhlNative]`, `[BhlCustom]` and `[BhlCoroutine]` moved to the runtime assembly next to `[BhlBind]`
+- `[BhlClass]`, `[BhlNative]` and `[BhlCoroutine]` moved to the runtime assembly next to `[BhlBind]`
   (`Runtime/BhlBindAttribute.cs`, conditional on `UNITY_EDITOR`): a declarations file may be runtime code,
   so its `nameof(Script.<Class>_<Method>)` sees the internal `Script` and is checked by the compiler
+
+### Removed
+- bindgen: `[BhlCustom]` and its hand written `Script_<Name>` classes: a coroutine is a `BhlTask` function or a
+  `[BhlCoroutine]` class, a function or a class method needing `exec` or a func argument takes `VM.ExecState` and
+  `[BhlType(typeof(..))] VM.FuncPtr`; the generated part of a coroutine has no public `Args` / `ReadArgs` any more
 
 ## [0.29.0] - 2026-11-09
 

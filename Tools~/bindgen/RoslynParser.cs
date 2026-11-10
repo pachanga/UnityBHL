@@ -42,16 +42,13 @@ internal class RoslynParser : ICsParser
         iface.IsInterface = true;
         decls.Classes.Add(iface);
       }
-      if(!HasAttr(i.AttributeLists, "BhlCustom"))
-        continue;
-      var usings = Usings(root);
-      foreach(var m in i.Members.OfType<MethodDeclarationSyntax>())
-      {
-        var decl = Method(m, null, usings);
-        decl.IsCustom = true;
-        decl.DeclNs = Ns(i);
-        decls.Customs.Add(decl);
-      }
+    }
+
+    foreach(var c in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
+    {
+      var attr = FindAttr(c.AttributeLists, "BhlCoroutine");
+      if(attr != null)
+        decls.Coroutines.Add(CoroutineClass(c, attr, Usings(root)));
     }
 
     //NOTE: the declarations form is on a type, [BhlBind] on a method is read from the sources
@@ -192,7 +189,6 @@ internal class RoslynParser : ICsParser
           Get = accessors.Value.Any(a => a.IsKind(SyntaxKind.GetAccessorDeclaration)),
           Set = accessors.Value.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration)),
           Native = native != null ? StringArg(native, 0) : null,
-          IsCustom = HasAttr(prop.AttributeLists, "BhlCustom"),
           Usings = usings,
           Pos = Pos(prop),
         });
@@ -205,7 +201,6 @@ internal class RoslynParser : ICsParser
         var op = FindAttr(m.AttributeLists, "BhlOp");
         method.Op = op != null ? StringArg(op, 0) : null;
         method.IsStatic = HasAttr(m.AttributeLists, "BhlStatic") || op != null;
-        method.IsCustom = HasAttr(m.AttributeLists, "BhlCustom");
         decl.Methods.Add(method);
       }
       else
@@ -214,10 +209,44 @@ internal class RoslynParser : ICsParser
     return decl;
   }
 
+  //NOTE: a [BhlCoroutine] class, see MethodDecl.CoroClass
+  static MethodDecl CoroutineClass(ClassDeclarationSyntax c, AttributeSyntax attr, List<string> usings)
+  {
+    var inits = c.Members.OfType<MethodDeclarationSyntax>().Where(m => m.Identifier.Text == "Init" && m.ParameterList.Parameters.Count > 0
+      && Type(m.ParameterList.Parameters[0].Type).Name == "ExecState").ToList();
+    if(inits.Count != 1)
+      throw new GenException(Pos(c), $"expected one Init(VM.ExecState exec, ..) in [BhlCoroutine] class '{c.Identifier.Text}'");
+    var decl = Method(inits[0], null, usings);
+    decl.Params.RemoveAt(0);
+    decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = Pos(attr) };
+    foreach(var arg in attr.ArgumentList?.Arguments ?? default)
+    {
+      if(arg.NameEquals == null && arg.Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
+        decl.BhlName = lit.Token.ValueText;
+      else if(arg.NameEquals?.Name.Identifier.Text == "Returns" && arg.Expression is TypeOfExpressionSyntax type_of)
+        decl.ReturnType = Type(type_of.Type);
+      else
+        throw new GenException(Pos(arg), "expected [BhlCoroutine(\"Name\", Returns = typeof(T))], both optional");
+    }
+    decl.Name = c.Identifier.Text;
+    decl.CoroClass = c.Identifier.Text;
+    decl.DeclNs = Ns(c);
+    decl.IsCoroutine = true;
+    decl.Pos = Pos(c);
+    return decl;
+  }
+
   static string BhlTypeArg(SyntaxList<AttributeListSyntax> lists)
   {
     var attr = FindAttr(lists, "BhlType");
-    return attr != null ? StringArg(attr, 0) : null;
+    return attr != null && BhlTypeOfArg(lists) == null ? StringArg(attr, 0) : null;
+  }
+
+  static TypeDecl BhlTypeOfArg(SyntaxList<AttributeListSyntax> lists)
+  {
+    var attr = FindAttr(lists, "BhlType");
+    var args = attr?.ArgumentList?.Arguments;
+    return args?.Count == 1 && args.Value[0].Expression is TypeOfExpressionSyntax type_of ? Type(type_of.Type) : null;
   }
 
   static MethodDecl Method(MethodDeclarationSyntax m, string target, List<string> usings)
@@ -237,6 +266,7 @@ internal class RoslynParser : ICsParser
         Modifiers = p.Modifiers.ToString(),
         IsCoroutine = HasAttr(p.AttributeLists, "BhlCoroutine"),
         BhlType = BhlTypeArg(p.AttributeLists),
+        BhlTypeOf = BhlTypeOfArg(p.AttributeLists),
         Pos = Pos(p),
       }).ToList(),
       Usings = usings,

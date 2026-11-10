@@ -9,12 +9,12 @@ using UnityEngine;
 namespace UnityBHL
 {
   //NOTE: runs the bindings generator (BindGen/) when a file the bindings are made of changes, so
-  //      [BhlBind]/[BhlClass]/[BhlCustom] declarations take effect without the console. The generator is
+  //      [BhlBind]/[BhlClass]/[BhlCoroutine] declarations take effect without the console. The generator is
   //      configured by bhl_bindgen.json next to bhl.proj, without it nothing happens. It runs in-process,
   //      gamectl runs the same code as a dotnet tool (Tools~/bindgen)
   public class BindGen : AssetPostprocessor
   {
-    static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlInterface|BhlCustom)\b", RegexOptions.Multiline);
+    static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlInterface|BhlCoroutine)\b", RegexOptions.Multiline);
 
     const string ConfName = "bhl_bindgen.json";
 

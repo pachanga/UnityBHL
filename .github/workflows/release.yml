@@ -1,0 +1,45 @@
+# The package zip of a version tag with the prebuilt bindings generator in Tools~/bindgen/dist (Tools~/bindgen/dist.sh,
+# not in git), attached to the tag's release as unitybhl.zip: a project's composer takes it as the package's dist,
+# taskman_bhl runs the prebuilt tool (only the .NET 8 runtime is needed). Run it by hand for an existing tag.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing version tag, e.g. v0.30.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Check the version
+        run: test "v$(jq -r .version package.json)" = "$TAG" || { echo "package.json version isn't $TAG"; exit 1; }
+      - name: Build the generator
+        run: '"Tools~/bindgen/dist.sh"'
+      - name: Package
+        run: |
+          dir="UnityBHL-${TAG#v}"
+          mkdir -p "pkg/$dir"
+          git archive HEAD | tar -x -C "pkg/$dir"
+          cp -R "Tools~/bindgen/dist" "pkg/$dir/Tools~/bindgen/"
+          cd pkg && zip -qr ../unitybhl.zip "$dir"
+      - name: Release
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "See CHANGELOG.md"
+          gh release upload "$TAG" unitybhl.zip --clobber

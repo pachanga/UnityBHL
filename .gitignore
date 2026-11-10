@@ -2,3 +2,4 @@ tags*
 .dotnet
 bin
 obj
+Tools~/bindgen/dist

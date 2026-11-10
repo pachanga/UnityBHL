@@ -73,7 +73,7 @@ namespace UnityBHL
       if(BindGen.IsConfigured)
       {
         var bindgenContent = new GUIContent("Generate Bindings",
-          "Regenerates the bindings from the C# declarations ([BhlBind], [BhlClass], [BhlCustom]) by bhl_bindgen.json.");
+          "Regenerates the bindings from the C# declarations ([BhlBind], [BhlClass], [BhlCoroutine]) by bhl_bindgen.json.");
         if(GUILayout.Button(bindgenContent))
           BindGen.GenerateNow();
       }

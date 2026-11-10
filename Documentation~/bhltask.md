@@ -1,6 +1,6 @@
 # BhlTask
 
-C# functions bound as BHL coroutines: instead of a `Script_*` with `Init` / `Exec` / `Cleanup` per
+C# functions bound as BHL coroutines: instead of a `[BhlCoroutine]` class with `Init` / `Exec` / `Cleanup` per
 binding, one static function. Its awaits run in the ticks of the BHL call awaiting it and live exactly as
 long: the `paral` branch lost, the fiber or the VM stopped, and the function is cancelled.
 

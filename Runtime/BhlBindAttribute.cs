@@ -25,19 +25,20 @@ public class BhlBindAttribute : Attribute
   public BhlBindAttribute(Type type, params string[] names) {}
 }
 
-//NOTE: the methods of the interface are BHL functions bound to the hand written Script_<Name> classes
-//      (Exec, or Init/Exec/Cleanup of a coroutine), the generator adds their Args, ReadArgs and ReturnValue.
-//      On a method of a [BhlClass] interface: the class method bound to the hand written Script_<Class>.Method_<Name>,
-//      its Args.self is the object unless the method is [BhlStatic]. On a property of a [BhlClass] interface: the field
-//      read by the hand written Script_<Class>.Get_<Name>(self) and written by Set_<Name>(ref self, value)
+//NOTE: on a hand written partial class: the coroutine BHL function declared by the class itself, named as the class
+//      or 'name', its arguments are the parameters of Init(VM.ExecState exec, ..) after exec, its result is 'Returns'
+//      passed to the generated ReturnValue(exec, ..); the generator adds the rest (reading the args, Tick, Destruct).
+//      On a func-typed parameter (Action, Func<..>): a coroutine func
 [Conditional("UNITY_EDITOR")]
-[AttributeUsage(AttributeTargets.Interface | AttributeTargets.Method | AttributeTargets.Property)]
-public class BhlCustomAttribute : Attribute {}
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Class)]
+public class BhlCoroutineAttribute : Attribute
+{
+  public Type Returns;
 
-//NOTE: a coroutine BHL function, or a coroutine func-typed parameter (Action, Func<..>)
-[Conditional("UNITY_EDITOR")]
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Parameter)]
-public class BhlCoroutineAttribute : Attribute {}
+  public BhlCoroutineAttribute() {}
+
+  public BhlCoroutineAttribute(string name) {}
+}
 
 //NOTE: the interface declares the BHL class of the native type, named as the interface or 'name' (in a namespace of
 //      their own the interfaces don't hide the native types they're named after): its properties are fields
@@ -82,12 +83,16 @@ public class BhlInterfaceAttribute : Attribute
 }
 
 //NOTE: the BHL class of a parameter or a return value ([return: BhlType("IList")]) rather than its C# type's own
-//      BHL type, e.g. a C# IList as the IList class of System.Collections.IList rather than []any
+//      BHL type, e.g. a C# IList as the IList class of System.Collections.IList rather than []any.
+//      [BhlType(typeof(Action<int>))] on a VM.FuncPtr parameter: the BHL func type of the func the parameter is
+//      (released after the call, of a coroutine when it ends)
 [Conditional("UNITY_EDITOR")]
 [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
 public class BhlTypeAttribute : Attribute
 {
   public BhlTypeAttribute(string name) {}
+
+  public BhlTypeAttribute(Type type) {}
 }
 
 //NOTE: the native member of a [BhlClass] or [BhlInterface] property or method, if it's named differently
