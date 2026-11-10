@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-10
+
+### Changed
+- bindgen: a type which is neither a `[BhlClass]` nor declared in the `sources` (a class bound by meta must be) is an
+  error rather than bound as a class: e.g. an enum of a generated source not generated yet
+
 ## [0.30.0] - 2026-11-10
 
 ### Added

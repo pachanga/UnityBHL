@@ -22,6 +22,9 @@ internal class Generator
   Config cur;
   //NOTE: the sources with declarations ([BhlClass], [BhlInterface], [BhlCoroutine] classes, [BhlBind(typeof(T), ..)])
   readonly List<string> decl_files = new List<string>();
+  //NOTE: all the sources, a type bound elsewhere (meta) must be declared in them, see Declared
+  List<(string file, string src)> sources;
+  readonly Dictionary<string, bool> declared = new Dictionary<string, bool>();
 
   static readonly System.Text.RegularExpressions.Regex decl_attrs = new System.Text.RegularExpressions.Regex(@"BhlClass|BhlInterface|BhlCoroutine|BhlBind\s*\(\s*typeof");
 
@@ -117,7 +120,7 @@ internal class Generator
       foreach(var file in conf.SourceFiles.Where(f => !owners.ContainsKey(f)))
         owners.Add(file, conf);
     }
-    var sources = owners.Keys.Select(f => (file: f, src: File.ReadAllText(f))).ToList();
+    sources = owners.Keys.Select(f => (file: f, src: File.ReadAllText(f))).ToList();
     foreach(var (file, src) in sources.Where(s => IsDeclFile(s.src)))
     {
       decl_files.Add(file);
@@ -498,9 +501,25 @@ internal class Generator
     else if(t.Name != null && t.GenericArgs == null)
     {
       var kind = t.Name == "Val" ? Kind.Any : custom_rw.Contains(t.Name) ? Kind.CustomRW : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
+      if(kind == Kind.Obj && !type_names.ContainsKey(t.Name) && !Declared(t.Name))
+        throw new GenException(t.Pos, $"type '{t.Text}' is declared neither by a [BhlClass] nor in the sources: a generated one not generated yet, or a missing source dir?");
       return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : type_names.TryGetValue(t.Name, out var bhl_name) ? bhl_name : t.Name };
     }
     throw new GenException(t.Pos, $"type '{t.Text}' is not supported");
+  }
+
+  //NOTE: a type which isn't a [BhlClass] (bound elsewhere, e.g. by meta) is declared in the sources: a missing one, e.g.
+  //      an enum of a generated source not generated yet, would be bound as a class silently. The text is searched
+  //      rather than parsed, the sources are parsed only when they may have bindings
+  bool Declared(string name)
+  {
+    if(!declared.TryGetValue(name, out var found))
+    {
+      var re = new System.Text.RegularExpressions.Regex($@"\b(class|struct|interface|record)\s+{name}\b");
+      found = sources.Any(s => s.src.Contains(name) && re.IsMatch(s.src));
+      declared[name] = found;
+    }
+    return found;
   }
 
   static string TypeRefCode(TypeRef t)

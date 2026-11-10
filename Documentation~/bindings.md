@@ -125,6 +125,9 @@ can't be done so.
 | an enum, a class | by name: `[BhlClass]`, or `[BhlType("Name")]` for one declared elsewhere under another name |
 | `bhl.IType` | `Type` |
 
+A type that isn't a `[BhlClass]` (bound elsewhere, e.g. by meta) must be declared in the `sources`, else it's an
+error: an enum of a generated source not generated yet would otherwise be bound as a class.
+
 ## From meta (metagen_bhl_bind)
 
 | Meta | bindgen |
