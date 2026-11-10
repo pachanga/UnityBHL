@@ -39,7 +39,6 @@ namespace Game.Bind.Decls                       // decls_namespace: the interfac
 {
 [BhlClass(typeof(Game.Unit),                    // the native type; qualify one named as the interface
   nameof(Game.Unit.Hp),                        // a member of the type from the sources: a field, a property, a method
-  nameof(Script.Unit_FindNear),                // static Script.<Class>_<Method>(self, ..), a method
   New = true)]                                 // BHL may new / {..}
 interface Unit : Actor, IDamageable             // the bases are declarations: the parent and the interfaces
 {
@@ -49,6 +48,11 @@ interface Unit : Actor, IDamageable             // the bases are declarations: t
   [BhlStatic] int Total();                      // a static one: Unit.Total()
   [BhlOp("+")] Unit Merge(Unit a, Unit b);      // a method and an operator (the C# operator)
   IList<Unit> squad { get; set; }               // an array (a field may be a List<T>)
+
+  // a static method with a body: of the native type first, a method on it (u.FindNear(5)); else a static one
+  static Game.Unit FindNear(Game.Unit self, float radius) => Game.World.Near(self, radius);
+  static Game.Unit Spawn(int hp) => new Game.Unit(hp);  // Unit.Spawn(10)
+  private static int Clamp(int v) => v < 0 ? 0 : v;    // a private method or a const: for the bodies, not bound
 }
 }
 ```
@@ -66,13 +70,16 @@ called on the object as on the native interface.
 ## Exec, funcs and hand written coroutines
 
 ```csharp
-static partial class Script
+interface Unit
 {
-  // a first VM.ExecState gets the call's exec; a func argument as is, released after the call
-  public static void Unit_AddTask(Game.Unit self, VM.ExecState exec, [BhlType(typeof(Action)), BhlCoroutine] VM.FuncPtr fn)
-    => self.AddTask(exec.Spawn(fn));                  // the method AddTask: nameof(Script.Unit_AddTask)
+  // a first VM.ExecState (after self) gets the call's exec; a func argument as is, released after the call
+  static void AddTask(Game.Unit self, VM.ExecState exec, [BhlType(typeof(Action)), BhlCoroutine] VM.FuncPtr fn)
+    => self.AddTask(exec.Spawn(fn));
 }
 ```
+
+In the declarations' namespace a type named as a declaration is the declaration: a body qualifies it
+(`UnityEngine.Transform`), `nameof(Unit)` there is the BHL name.
 
 A coroutine which isn't a `BhlTask` is declared by its class (in the output's `namespace`), the generator adds
 reading the args, `Tick` and `Destruct`:
@@ -117,6 +124,6 @@ can't be done so.
 | `@bhl_static` / `@bhl_bin_op` | `[BhlStatic]` / `[BhlOp]` |
 | `@bhl_get:0`, `@bhl_set:0` | `{ get; }`, `{ set; }` |
 | `@bhl_native_prefix` of a field | `[BhlNative]` |
-| `@bhl_get:2`, `@bhl_set:2` | `[BhlNative("an expression")]`, else a `Script.<Class>_<Method>` method |
+| `@bhl_get:2`, `@bhl_set:2` | `[BhlNative("an expression")]`, else a method with a body |
 | `POD` / `@bhl_custom_rw` | `Pod` / `CustomRW` |
 | `Ns.Name` | `"Ns.Name"` or `decls_namespace` |

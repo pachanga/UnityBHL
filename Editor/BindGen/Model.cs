@@ -71,6 +71,9 @@ internal class MethodDecl
   public string Native;
   //NOTE: a class method bound to the static SelfArgType.<Class>_<Name>(self, ..)
   public string SelfArgType;
+  //NOTE: a static method with a body of a [BhlClass] interface: bound as a method of the class, called as
+  //      <Decl>.<Name>(self, ..) when it takes the native type first, else as a static one, <Decl>.<Name>(..)
+  public bool HasBody;
   //NOTE: static in the source, or a [BhlStatic] or [BhlOp] method of a [BhlClass] interface: a static method of the class
   public bool IsStatic;
   //NOTE: [BhlOp("==")] of a [BhlClass] interface method: also bound as the operator, calls the C# operator

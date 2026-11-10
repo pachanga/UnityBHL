@@ -45,7 +45,8 @@ public class BhlCoroutineAttribute : Attribute
 //      ({ get; set; } tell what BHL may do), its methods are called on the native object ([BhlStatic] ones on its type).
 //      'members' bind members read from the sources, signatures included:
 //      nameof(T.Member) - a field, property or method (a static one too) of the native type T itself,
-//      nameof(Script.<Name>_Method) - the static method taking T self first, bound as Method
+//      nameof(Script.<Name>_Method) - the static method taking T self first, bound as Method; a static method with a
+//      body of the interface itself is bound so too (of T first) or as a static one
 [Conditional("UNITY_EDITOR")]
 [AttributeUsage(AttributeTargets.Interface)]
 public class BhlClassAttribute : Attribute

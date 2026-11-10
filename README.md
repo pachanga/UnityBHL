@@ -86,9 +86,13 @@ interface UnityObjectDecl
   [BhlOp("==")] bool Equals(UnityEngine.Object self, UnityEngine.Object v);   // a == b, the C# operator
 }
 
-[BhlClass(typeof(Game.BattleGame),
-  nameof(Script.BattleGame_AddTask))]                 // (BattleGame self, VM.ExecState exec, [BhlType(typeof(Action))] VM.FuncPtr fn)
-interface BattleGame {}
+[BhlClass(typeof(Game.BattleGame))]
+interface BattleGame
+{
+  //NOTE: a static method with a body: of the native type first a method on it, else a static one
+  static void AddTask(Game.BattleGame self, VM.ExecState exec, [BhlType(typeof(Action))] VM.FuncPtr fn)
+    => self.AddTask(exec.Spawn(fn));
+}
 
 [BhlClass(typeof(Game.UIPlate), Parent = "UIChip")]   // UIChip is declared elsewhere
 interface UIPlate {}

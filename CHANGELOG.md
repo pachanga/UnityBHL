@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- bindgen: a static method with a body in a `[BhlClass]` declaration is bound as a method of the class (taking the native
+  type first, `self`) or a static one; a class needs no `Script.<Class>_<Method>` and `nameof(..)` of it any more
+  (still supported). Its private methods and constants are for the bodies, they're not bound
 - the release zip `unitybhl.zip` of a version tag (`.github/workflows/release.yml`), the package with the bindings
   generator prebuilt in `Tools~/bindgen/dist` (`Tools~/bindgen/dist.sh`, not in git): a project's composer taking it
   as the package's dist needs only the .NET 8 runtime for taskman_bhl to run the generator

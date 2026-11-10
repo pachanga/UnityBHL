@@ -202,13 +202,29 @@ internal class Generator
       if(!c.IsInterface && c.Inherits.Count > 0)
         throw new GenException(c.Pos, $"class '{c.Name}' implements interfaces by Implements, Inherits is an interface's");
       //NOTE: as BHL calls an interface method on the object, whichever class it is
-      foreach(var m in c.Methods.Where(m => c.IsInterface && m.IsStatic))
-        throw new GenException(m.Pos, $"interface method '{c.Name}.{m.Name}' can't be static");
+      foreach(var m in c.Methods.Where(m => c.IsInterface && (m.IsStatic || m.HasBody)))
+        throw new GenException(m.Pos, $"interface method '{c.Name}.{m.Name}' can't be static or have a body");
       AddImports(owners[c.Pos.File], c.Usings);
       foreach(var r in c.MemberRefs)
         AddMember(c, r);
       foreach(var m in c.Methods)
       {
+        //NOTE: a static method with a body of the declaration itself: of the native type first a method on it (self),
+        //      else a static one
+        if(m.HasBody)
+        {
+          if(m.Op != null || m.Native != null)
+            throw new GenException(m.Pos, "a method with a body can't be an operator or have [BhlNative]");
+          m.Target = "global::" + (c.Ns != null ? c.Ns + "." : "") + c.DeclName;
+          if(!m.IsStatic && m.Params.Count > 0 && m.Params[0].Type.Name == c.NativeType.Name)
+          {
+            m.Params = m.Params.Skip(1).ToList();
+            m.SelfArgType = c.DeclName;
+          }
+          else
+            m.IsStatic = true;
+          continue;
+        }
         //NOTE: as BHL wants an operator overload: static, of two arguments, returning a value
         if(m.Op != null && !bin_ops.Contains(m.Op))
           throw new GenException(m.Pos, $"operator '{m.Op}' is not one of {string.Join(" ", bin_ops)}");
@@ -998,14 +1014,14 @@ internal class Generator
       //NOTE: a static one is called on the native type, it has no self
       if(m.Decl.IsStatic)
       {
-        var callee = $"{native}.{m.Decl.Native ?? m.Decl.Name}";
+        var callee = m.Decl.HasBody ? $"{m.Decl.Target}.{m.Decl.Name}" : $"{native}.{m.Decl.Native ?? m.Decl.Name}";
         EmitFunc(sb, m, name + "_" + m.Name, "cl", callee, null, false, is_static: true);
         //NOTE: also as the operator, as @bhl_bin_op of metagen_bhl_bind binds it additionally to the method
         if(m.Decl.Op != null)
           EmitFunc(sb, m, name + "_" + m.Name + "_op", "cl", callee, null, false, is_static: true, bhl_name: m.Decl.Op);
       }
       else
-        EmitFunc(sb, m, name + "_" + m.Name, "cl", self_arg ? $"{m.Decl.Target}.{name}_{m.Name}" : "__self." + (m.Decl.Native ?? m.Name), c.Self, self_arg);
+        EmitFunc(sb, m, name + "_" + m.Name, "cl", m.Decl.HasBody ? $"{m.Decl.Target}.{m.Decl.Name}" : self_arg ? $"{m.Decl.Target}.{name}_{m.Name}" : "__self." + (m.Decl.Native ?? m.Name), c.Self, self_arg);
     }
     sb.Append("  }\n");
   }

@@ -230,7 +230,8 @@ internal class HandParser : ICsParser
           Pos = member.Pos,
         });
       }
-      else if(member.Kind == MemberKind.Method)
+      //NOTE: a private one is a helper of the bodies, it's not bound
+      else if(member.Kind == MemberKind.Method && !member.Mods.Contains("private"))
       {
         var method = Method(member, null, usings);
         var native = FindAttr(member.Attrs, "BhlNative");
@@ -238,10 +239,14 @@ internal class HandParser : ICsParser
         var op = FindAttr(member.Attrs, "BhlOp");
         method.Op = op != null ? StringArg(op, 0) : null;
         method.IsStatic = HasAttr(member.Attrs, "BhlStatic") || op != null;
+        if(member.HasBody && !member.Mods.Contains("static"))
+          throw new GenException(member.Pos, $"a method with a body in '{i.Name}' is expected static");
+        method.HasBody = member.HasBody;
         decl.Methods.Add(method);
       }
-      else
-        throw new GenException(member.Pos, "only properties and methods are expected in a [BhlClass] interface");
+      //NOTE: a constant is for the bodies, it's not bound
+      else if(!(member.Kind == MemberKind.Field && member.Mods.Contains("const")) && member.Kind != MemberKind.Method)
+        throw new GenException(member.Pos, "only properties, methods and constants are expected in a [BhlClass] interface");
     }
     return decl;
   }
@@ -366,6 +371,8 @@ internal class HandParser : ICsParser
     //NOTE: null for an expression bodied property
     public List<(string kind, List<string> mods)> Accessors;
     public bool IsGeneric;
+    //NOTE: a method with a body ({ .. } or => ..), not just a signature
+    public bool HasBody;
     //NOTE: the start of the declaration, its attributes included
     public SrcPos Pos;
   }
@@ -1027,6 +1034,7 @@ internal class HandParser : ICsParser
         //NOTE: type parameter constraints
         while(!AtEnd && !Is("{") && !Is("=>") && !Is(";"))
           ++p;
+        m.HasBody = !Is(";");
         SkipBody();
       }
       else if(Is("{") || Is("=>"))

@@ -194,7 +194,8 @@ internal class RoslynParser : ICsParser
           Pos = Pos(prop),
         });
       }
-      else if(member is MethodDeclarationSyntax m)
+      //NOTE: a private one is a helper of the bodies, it's not bound
+      else if(member is MethodDeclarationSyntax m && !m.Modifiers.Any(SyntaxKind.PrivateKeyword))
       {
         var method = Method(m, null, usings);
         var native = FindAttr(m.AttributeLists, "BhlNative");
@@ -202,10 +203,14 @@ internal class RoslynParser : ICsParser
         var op = FindAttr(m.AttributeLists, "BhlOp");
         method.Op = op != null ? StringArg(op, 0) : null;
         method.IsStatic = HasAttr(m.AttributeLists, "BhlStatic") || op != null;
+        method.HasBody = m.Body != null || m.ExpressionBody != null;
+        if(method.HasBody && !m.Modifiers.Any(SyntaxKind.StaticKeyword))
+          throw new GenException(Pos(m), $"a method with a body in '{i.Identifier.Text}' is expected static");
         decl.Methods.Add(method);
       }
-      else
-        throw new GenException(Pos(member), "only properties and methods are expected in a [BhlClass] interface");
+      //NOTE: a constant is for the bodies, it's not bound
+      else if(!(member is FieldDeclarationSyntax fld && fld.Modifiers.Any(SyntaxKind.ConstKeyword)) && !(member is MethodDeclarationSyntax))
+        throw new GenException(Pos(member), "only properties, methods and constants are expected in a [BhlClass] interface");
     }
     return decl;
   }
