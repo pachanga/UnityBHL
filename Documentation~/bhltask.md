@@ -6,18 +6,7 @@ long: the `paral` branch lost, the fiber or the VM stopped, and the function is 
 
 ## Binding
 
-With bindgen it's `[BhlBind]` on the C# function (see [bindings.md](bindings.md)). In meta it's a coroutine
-with a direct binding (`bit/metagen_bhl_bind`, `docs/bindings.md`): the file sets `@bhl_bind_type:direct`
-and `@bhl_native_prefix` in `@shared_tokens`, `%` is the function's name:
-
-```
-@shared_tokens:{"bhl_bind":true, "bhl_bind_type":"direct", "bhl_native_prefix":"BitGames.BHL.Bind.ATFBind.%(..)"}
-
-func ATF_WaitSeconds(
-  @bhl_coroutine
-  seconds : float
-)
-```
+It's `[BhlBind]` on the C# function, see [bindings.md](bindings.md).
 
 The C# function returns one of two forms:
 

@@ -127,21 +127,3 @@ can't be done so.
 
 A type that isn't a `[BhlClass]` (bound elsewhere, e.g. by meta) must be declared in the `sources`, else it's an
 error: an enum of a generated source not generated yet would otherwise be bound as a class.
-
-## From meta (metagen_bhl_bind)
-
-| Meta | bindgen |
-|---|---|
-| `@bhl_native_prefix:Script.%(..)` | `[BhlBind]` |
-| `@bhl_coroutine`, direct | `BhlTask` |
-| `@bhl_bind_type:custom` | `VM.ExecState` / `VM.FuncPtr` parameters, a `[BhlCoroutine]` class |
-| `@bhl_pass_vm` | a first `VM` (or `VM.ExecState`) parameter |
-| `@bhl_native_class` | `[BhlClass(typeof(T))]` |
-| `extends` / `implements` | the interface's base / `Parent`, `Implements` |
-| `@bhl_no_new` | no `New` |
-| `@bhl_static` / `@bhl_bin_op` | `[BhlStatic]` / `[BhlOp]` |
-| `@bhl_get:0`, `@bhl_set:0` | `{ get; }`, `{ set; }` |
-| `@bhl_native_prefix` of a field | `[BhlNative]` |
-| `@bhl_get:2`, `@bhl_set:2` | `[BhlNative("an expression")]`, else a method with a body |
-| `POD` / `@bhl_custom_rw` | `Pod` / `CustomRW` |
-| `Ns.Name` | `"Ns.Name"` or `decls_namespace` |
