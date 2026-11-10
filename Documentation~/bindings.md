@@ -127,3 +127,6 @@ can't be done so.
 
 A type that isn't a `[BhlClass]` (bound elsewhere, e.g. by meta) must be declared in the `sources`, else it's an
 error: an enum of a generated source not generated yet would otherwise be bound as a class.
+
+Native types of one short name in different namespaces may both be bound; where such a type is used it's qualified
+(`Game.New.RewardWindow`), its short name alone is an error.

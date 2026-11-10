@@ -17,6 +17,10 @@ internal class Generator
   //NOTE: the BHL names of the native types named otherwise: by a [BhlClass], or BHL's own (bhl.IType is Type);
   //      a type not listed is named in BHL as in C#. custom_rw: of all the configs
   readonly Dictionary<string, string> type_names = new Dictionary<string, string> { ["IType"] = "Type" };
+  //NOTE: the BHL names by the qualified native type; a short name of native types of different namespaces is ambiguous,
+  //      such a type is qualified where it's used
+  readonly Dictionary<string, string> full_type_names = new Dictionary<string, string>();
+  readonly HashSet<string> ambiguous_names = new HashSet<string>();
   readonly HashSet<string> custom_rw = new HashSet<string>();
   //NOTE: the config being emitted, its register class holds the native list types of its output
   Config cur;
@@ -133,8 +137,17 @@ internal class Generator
     foreach(var c in decls.Classes)
     {
       var cs = c.NativeType.Name;
+      var full = FullName(c.NativeType);
+      if(full_type_names.TryGetValue(full, out var same) && same != c.Name)
+        throw new GenException(c.Pos, $"'{full}' is named '{same}' by another class, the class names it '{c.Name}'");
+      full_type_names[full] = c.Name;
       if(type_names.TryGetValue(cs, out var other) && other != c.Name)
-        throw new GenException(c.Pos, $"'{cs}' is named '{other}' by another class or BHL itself, the class names it '{c.Name}'");
+      {
+        if(cs == "IType" || !full.Contains("."))
+          throw new GenException(c.Pos, $"'{cs}' is named '{other}' by another class or BHL itself, the class names it '{c.Name}'");
+        ambiguous_names.Add(cs);
+        continue;
+      }
       type_names[cs] = c.Name;
     }
 
@@ -501,11 +514,22 @@ internal class Generator
     else if(t.Name != null && t.GenericArgs == null)
     {
       var kind = t.Name == "Val" ? Kind.Any : custom_rw.Contains(t.Name) ? Kind.CustomRW : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
-      if(kind == Kind.Obj && !type_names.ContainsKey(t.Name) && !Declared(t.Name))
-        throw new GenException(t.Pos, $"type '{t.Text}' is declared neither by a [BhlClass] nor in the sources: a generated one not generated yet, or a missing source dir?");
-      return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : type_names.TryGetValue(t.Name, out var bhl_name) ? bhl_name : t.Name };
+      if(!full_type_names.TryGetValue(FullName(t), out var bhl_name))
+      {
+        if(ambiguous_names.Contains(t.Name))
+          throw new GenException(t.Pos, $"type '{t.Text}' is ambiguous, native types of different namespaces are named '{t.Name}': qualify it");
+        if(kind == Kind.Obj && !type_names.ContainsKey(t.Name) && !Declared(t.Name))
+          throw new GenException(t.Pos, $"type '{t.Text}' is declared neither by a [BhlClass] nor in the sources: a generated one not generated yet, or a missing source dir?");
+        bhl_name = type_names.TryGetValue(t.Name, out var short_name) ? short_name : t.Name;
+      }
+      return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : bhl_name };
     }
     throw new GenException(t.Pos, $"type '{t.Text}' is not supported");
+  }
+
+  static string FullName(TypeDecl t)
+  {
+    return t.Text.StartsWith("global::") ? t.Text.Substring(8) : t.Text;
   }
 
   //NOTE: a type which isn't a [BhlClass] (bound elsewhere, e.g. by meta) is declared in the sources: a missing one, e.g.

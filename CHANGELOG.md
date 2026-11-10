@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-10
+
+### Fixed
+- bindgen: native types of one short name in different namespaces (`Game.RewardWindow`, `Game.New.RewardWindow`)
+  may be bound both, a use of such a type is qualified; before it was an error
+
 ## [0.31.0] - 2026-11-10
 
 ### Changed
