@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-10
+
 ### Added
 - bindgen: a `[BhlCoroutine]` class may do without `exec`: `Init(..)`, `bool Exec()` (true while running) or
   `bool Exec(out T result)` with `Returns`, `Cleanup()`, so C# calls it as is, no VM; the `exec` forms stay
