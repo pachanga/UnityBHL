@@ -82,12 +82,13 @@ public class BhlInterfaceAttribute : Attribute
   public BhlInterfaceAttribute(string name, Type type) {}
 }
 
-//NOTE: the BHL class of a parameter or a return value ([return: BhlType("IList")]) rather than its C# type's own
-//      BHL type, e.g. a C# IList as the IList class of System.Collections.IList rather than []any.
+//NOTE: the BHL class of a parameter, a return value ([return: BhlType("IList")]) or a [BhlClass] property rather than
+//      its C# type's own BHL type, e.g. a C# IList as the IList class of System.Collections.IList rather than []any,
+//      FInt as M3FInt declared elsewhere.
 //      [BhlType(typeof(Action<int>))] on a VM.FuncPtr parameter: the BHL func type of the func the parameter is
 //      (released after the call, of a coroutine when it ends)
 [Conditional("UNITY_EDITOR")]
-[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
+[AttributeUsage(AttributeTargets.Parameter | AttributeTargets.ReturnValue | AttributeTargets.Property)]
 public class BhlTypeAttribute : Attribute
 {
   public BhlTypeAttribute(string name) {}

@@ -189,6 +189,7 @@ internal class RoslynParser : ICsParser
           Get = accessors.Value.Any(a => a.IsKind(SyntaxKind.GetAccessorDeclaration)),
           Set = accessors.Value.Any(a => a.IsKind(SyntaxKind.SetAccessorDeclaration)),
           Native = native != null ? StringArg(native, 0) : null,
+          BhlType = BhlTypeArg(prop.AttributeLists),
           Usings = usings,
           Pos = Pos(prop),
         });

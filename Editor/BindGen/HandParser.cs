@@ -225,6 +225,7 @@ internal class HandParser : ICsParser
           Get = member.Accessors.Any(a => a.kind == "get"),
           Set = member.Accessors.Any(a => a.kind == "set"),
           Native = native != null ? StringArg(native, 0) : null,
+          BhlType = BhlTypeArg(member.Attrs),
           Usings = usings,
           Pos = member.Pos,
         });

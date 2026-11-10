@@ -37,7 +37,7 @@ the project has UniTask. Details: [Documentation~/bhltask.md](Documentation~/bhl
 
 `Tools~/bindgen` (also run in-process by the editor) makes BHL bindings from C# sources without compiling
 them (a cheat sheet: [Documentation~/bindings.md](Documentation~/bindings.md)), configured by `bhl_bindgen.json` next to bhl.proj (`sources`, `!` excluding, e.g. the generated code, `result_dir`, `imports`,
-`custom_rw`, `type_names_file`, `includes`); the declarations (below) are found in the sources too. The tool is
+`custom_rw`, `includes`); the declarations (below) are found in the sources too. The tool is
 prebuilt in `Tools~/bindgen/dist` of the release zip `unitybhl.zip` (a version tag makes it, `.github/workflows/release.yml`;
 not in git, `Tools~/bindgen/dist.sh`): a project taking the package from it, `"dist": { "url":
 "https://github.com/pachanga/UnityBHL/releases/download/v<version>/unitybhl.zip", "type": "zip" }`, needs only the .NET 8
@@ -57,10 +57,10 @@ static partial class Script
 ```
 
 A method returning `BhlTask`/`BhlFinallyTask` is bound as a coroutine (see BhlTask below). Types are named in
-BHL as in C#, a `[BhlClass]` names its native type, `type_names_file` renames the ones declared elsewhere
-(e.g. by meta). A non-generic `IList` is
-`[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too), `[BhlType("Name")]` on a parameter or a return
-(`[return: BhlType("IList")]`) makes it the BHL class `Name` instead. Classes: `[BhlClass]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
+BHL as in C#, a `[BhlClass]` names its native type, `bhl.IType` is BHL's `Type`. A non-generic `IList` is
+`[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too), `[BhlType("Name")]` on a parameter, a return
+(`[return: BhlType("IList")]`) or a `[BhlClass]` property makes it the BHL class `Name` instead, e.g. a type declared
+elsewhere under another name (`[BhlType("M3FInt")] FInt time`). Classes: `[BhlClass]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
 interfaces: `Implements`, value types: `Pod`, `CustomRW` with the project's `Val.Encode`/`Decode`), interfaces: `[BhlInterface]`,
 a hand written coroutine declared by its own class: `[BhlCoroutine] partial class <Name>`, the arguments are the
 parameters of its `Init(VM.ExecState exec, ..)`, the result `Returns = typeof(T)`; a first `VM.ExecState` parameter
@@ -112,8 +112,7 @@ to the including config (classes, value types, parents and interfaces across the
 generates them all.
 
 The main output file `register.cs` starts with `//dep: <path>` lines, the files it's made of relative to the config
-(the editor regenerates it when one of them changes); `type_names_file` has `<C# type> <BHL type>` lines, `#` comments.
-Both are read by the gamectl helpers of `bit/taskman_bhl` too (its README, «Bindings generator»).
+(the editor regenerates it when one of them changes). They are read by the gamectl helpers of `bit/taskman_bhl` too (its README, «Bindings generator»).
 
 ## Editor tools
 

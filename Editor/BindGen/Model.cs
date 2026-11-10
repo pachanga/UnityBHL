@@ -100,6 +100,8 @@ internal class FieldDecl
   public bool Set;
   //NOTE: [BhlNative("..")], the native member accessed instead of Name
   public string Native;
+  //NOTE: [BhlType("Name")], see ParamDecl.BhlType
+  public string BhlType;
   public List<string> Usings;
   public SrcPos Pos;
 }

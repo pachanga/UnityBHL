@@ -14,8 +14,9 @@ internal class Generator
   //NOTE: the config of a source file, the first one listing it (an included one before the including one)
   readonly Dictionary<string, Config> owners = new Dictionary<string, Config>();
   readonly Dictionary<Config, List<string>> imports = new Dictionary<Config, List<string>>();
-  //NOTE: of all the configs, see Config.TypeNames and Config.custom_rw
-  readonly Dictionary<string, string> type_names = new Dictionary<string, string>();
+  //NOTE: the BHL names of the native types named otherwise: by a [BhlClass], or BHL's own (bhl.IType is Type);
+  //      a type not listed is named in BHL as in C#. custom_rw: of all the configs
+  readonly Dictionary<string, string> type_names = new Dictionary<string, string> { ["IType"] = "Type" };
   readonly HashSet<string> custom_rw = new HashSet<string>();
   //NOTE: the config being emitted, its register class holds the native list types of its output
   Config cur;
@@ -66,12 +67,6 @@ internal class Generator
     {
       if(confs.Any(c => c != conf && c.result_dir == conf.result_dir))
         throw new GenException($"{conf.FilePath}: 'result_dir' is another config's too");
-      foreach(var kv in conf.TypeNames)
-      {
-        if(type_names.TryGetValue(kv.Key, out var other) && other != kv.Value)
-          throw new GenException($"{conf.FilePath}: '{kv.Key}' is named '{kv.Value}', another type names file names it '{other}'");
-        type_names[kv.Key] = kv.Value;
-      }
       custom_rw.UnionWith(conf.custom_rw);
       imports[conf] = new List<string>();
     }
@@ -131,12 +126,12 @@ internal class Generator
 
     ApplyDeclsNamespaces();
 
-    //NOTE: a class names its native type in BHL, as type_names_file does for the types declared elsewhere
+    //NOTE: a class names its native type in BHL
     foreach(var c in decls.Classes)
     {
       var cs = c.NativeType.Name;
       if(type_names.TryGetValue(cs, out var other) && other != c.Name)
-        throw new GenException(c.Pos, $"'{cs}' is named '{other}' by a type names file or another class, the class names it '{c.Name}'");
+        throw new GenException(c.Pos, $"'{cs}' is named '{other}' by another class or BHL itself, the class names it '{c.Name}'");
       type_names[cs] = c.Name;
     }
 
@@ -447,9 +442,9 @@ internal class Generator
   //NOTE: is_field: a field may be a List<T> too, it's read as IList<T> and written by copying into the list
   TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false, bool is_field = false, string bhl_type = null)
   {
-    //NOTE: [BhlType("Name")], e.g. a C# IList as the IList class rather than []any
+    //NOTE: [BhlType("Name")], e.g. a C# IList as the IList class rather than []any; a custom_rw one is still kept in Val
     if(bhl_type != null)
-      return new TypeRef { Kind = Kind.Obj, Cs = t.Text, Bhl = bhl_type };
+      return new TypeRef { Kind = t.Name != null && custom_rw.Contains(t.Name) ? Kind.CustomRW : Kind.Obj, Cs = t.Text, Bhl = bhl_type };
     if(t.Keyword != null)
     {
       if(t.Keyword == "void" && is_return)
@@ -713,7 +708,7 @@ internal class Generator
     var cl = new Class {
       Decl = c,
       Self = new TypeRef { Kind = c.CustomRW ? Kind.CustomRW : Kind.Obj, Cs = c.NativeType.Text, Bhl = c.Name, IsPod = c.Pod },
-      Fields = c.Fields.Select(f => (f, Resolve(f.Type, false, is_field: true))).ToList(),
+      Fields = c.Fields.Select(f => (f, Resolve(f.Type, false, is_field: true, bhl_type: f.BhlType))).ToList(),
       Methods = c.Methods.Select(ResolveFunc).ToList(),
     };
     foreach(var f in cl.Fields)

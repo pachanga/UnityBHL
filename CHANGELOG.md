@@ -25,9 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a function bound by both or twice is an error naming both places
 - bindgen: a first `VM` parameter of a bound method gets the VM running the call (`exec.vm`), it's not a BHL
   argument, after `self` of a class method - as `@bhl_pass_vm` of metagen_bhl_bind
-- bindgen: `type_names_file` of `bhl_bindgen.json`, '<C# type> <BHL type>' lines: the BHL names of types declared
-  elsewhere (e.g. by meta) when they differ from the C# names; a `[BhlClass]` names its native type itself
-  (another name for it in the file is an error)
+- bindgen: a `[BhlClass]` names its native type in BHL (another class naming it otherwise is an error), `bhl.IType`
+  is BHL's `Type`; `[BhlType("Name")]` names a type declared elsewhere under another name
 - bindgen: static methods of a `[BhlClass]` (`FuncAttrib.Static`, as `@bhl_static` of metagen_bhl_bind): a `[BhlStatic]`
   method of the interface, called on the native type (an interface can't declare it static in C# 9), or
   `nameof(T.Method)` of a static method of a type of the sources
@@ -57,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - bindgen: a `sources` glob starting with `!` excludes its files, e.g. the generated code under a source dir
 - bindgen: no `decls` in `bhl_bindgen.json`: the declarations files are found in the `sources`, the files with
   `[BhlClass]`, `[BhlInterface]`, `[BhlBind(typeof(T), ..)]` on a type or `[BhlCoroutine]` on a class
-- bindgen: `[BhlType("Name")]` on a parameter or a return value (`[return: BhlType("IList")]`): the BHL class `Name`
+- bindgen: `[BhlType("Name")]` on a parameter, a return value (`[return: BhlType("IList")]`) or a `[BhlClass]` property: the BHL class `Name`
   rather than the C# type's own BHL type, e.g. a C# `IList` as a bound class of `System.Collections.IList` not `[]any`
 - bindgen: the C# bases of a declaration which are declarations too: of a `[BhlClass]` the parent class and the
   implemented interfaces, of a `[BhlInterface]` the inherited ones (`interface UIPlate : UIChip`); `Parent`,

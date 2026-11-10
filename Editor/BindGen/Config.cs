@@ -20,9 +20,6 @@ internal class Config
   public List<string> defines = new List<string>();
   //NOTE: types marshalled with Val.Encode/Decode (@bhl_custom_rw in meta)
   public List<string> custom_rw = new List<string>();
-  //NOTE: a text file of '<C# type> <BHL type>' lines: the BHL names of the types declared elsewhere (e.g. by meta)
-  //      when they differ from the C# ones, a type not listed is named in BHL as in C#
-  public string type_names_file;
   //NOTE: the configs of other bindings (e.g. of a package) this one uses, relative to it: each is generated to its
   //      own result_dir, their declarations are known here, not the other way round
   public List<string> includes = new List<string>();
@@ -36,7 +33,6 @@ internal class Config
   [NonSerialized] public string FilePath;
   [NonSerialized] public List<Config> Includes = new List<Config>();
   [NonSerialized] public List<string> SourceFiles = new List<string>();
-  [NonSerialized] public Dictionary<string, string> TypeNames = new Dictionary<string, string>();
 
   //NOTE: from_json is the JSON reader of the host, comments aren't supported by Unity's one
   public static Config Load(string path, Func<string, Config> from_json)
@@ -50,8 +46,6 @@ internal class Config
     conf.result_dir = Norm(Path.GetFullPath(Path.Combine(dir, conf.result_dir)));
     var excluded = new HashSet<string>(conf.sources.Where(p => p.StartsWith("!")).SelectMany(p => Glob(dir, p.Substring(1))));
     conf.SourceFiles = conf.sources.Where(p => !p.StartsWith("!")).SelectMany(p => Glob(dir, p)).Distinct().Where(f => !excluded.Contains(f)).ToList();
-    if(!string.IsNullOrEmpty(conf.type_names_file))
-      conf.TypeNames = LoadTypeNames(Norm(Path.GetFullPath(Path.Combine(dir, conf.type_names_file))));
     return conf;
   }
 
@@ -86,28 +80,6 @@ internal class Config
   public IEnumerable<Config> AllIncludes()
   {
     return Includes.SelectMany(i => i.AllIncludes().Prepend(i)).Distinct();
-  }
-
-  static Dictionary<string, string> LoadTypeNames(string path)
-  {
-    if(!File.Exists(path))
-      throw new GenException($"type names file '{path}' is not found, it's made by the project's build");
-    var names = new Dictionary<string, string>();
-    int line_num = 0;
-    foreach(var line in File.ReadLines(path))
-    {
-      ++line_num;
-      var l = line.Trim();
-      if(l.Length == 0 || l.StartsWith("#"))
-        continue;
-      var parts = l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-      if(parts.Length != 2)
-        throw new GenException($"{path}({line_num}): expected '<C# type> <BHL type>'");
-      if(names.TryGetValue(parts[0], out var other) && other != parts[1])
-        throw new GenException($"{path}({line_num}): C# type '{parts[0]}' is named both '{other}' and '{parts[1]}'");
-      names[parts[0]] = parts[1];
-    }
-    return names;
   }
 
   //NOTE: supports 'dir/file.cs', 'dir/*.cs' and 'dir/**/*.cs'

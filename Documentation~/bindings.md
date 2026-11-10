@@ -11,7 +11,6 @@ A cheat sheet. The generator is `Tools~/bindgen` (the editor runs it too), the a
 | `sources` | `dir/*.cs`, `dir/**/*.cs`; `!glob` excludes (the generated code) |
 | `result_dir` | where it's written (gitignored); `register.cs` starts with `//dep:` lines, what it's made of |
 | `imports` | the `using`s of the output |
-| `type_names_file` | `<C# type> <BHL type>` of the types declared elsewhere (meta) |
 | `custom_rw` | the types marshalled by `Val.Encode/Decode`, declared elsewhere |
 | `decls_namespace` | the C# namespace of the declarations: `<it>.Geo` → the BHL namespace `Geo` |
 | `includes` | the configs of other bindings (a package's): their own `result_dir`, their declarations are known here |
@@ -101,7 +100,8 @@ can't be done so.
 | `Action<..>`, `Func<..>`; `[BhlCoroutine]` on the parameter | `func(..)`, `coro func(..)` |
 | `[BhlType(typeof(Action<..>))] VM.FuncPtr` | the same, the func itself (a coroutine's, `exec.Spawn`) |
 | `(int, string)` returned | several values |
-| an enum, a class | by name: `[BhlClass]` or `type_names_file` |
+| an enum, a class | by name: `[BhlClass]`, or `[BhlType("Name")]` for one declared elsewhere under another name |
+| `bhl.IType` | `Type` |
 
 ## From meta (metagen_bhl_bind)
 
