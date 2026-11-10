@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-10
+
+### Added
+- bindgen: `[BhlDefault("expr")]` on a parameter, the BHL default of an argument which can't be a C# default (not a
+  compile-time constant, e.g. `M3Pos.None`): the C# parameter has none, the expression is its value when BHL leaves it out
+
 ## [0.32.0] - 2026-11-10
 
 ### Fixed

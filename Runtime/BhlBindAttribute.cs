@@ -97,6 +97,15 @@ public class BhlTypeAttribute : Attribute
   public BhlTypeAttribute(Type type) {}
 }
 
+//NOTE: the BHL default of a parameter which can't be a C# one, not a compile-time constant ([BhlDefault("M3Pos.None")]):
+//      the expression is the value of the argument when BHL leaves it out, the C# parameter itself has no default
+[Conditional("UNITY_EDITOR")]
+[AttributeUsage(AttributeTargets.Parameter)]
+public class BhlDefaultAttribute : Attribute
+{
+  public BhlDefaultAttribute(string expr) {}
+}
+
 //NOTE: the native member of a [BhlClass] or [BhlInterface] property or method, if it's named differently
 [Conditional("UNITY_EDITOR")]
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Method)]

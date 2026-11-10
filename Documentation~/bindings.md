@@ -21,6 +21,7 @@ A cheat sheet. The generator is `Tools~/bindgen` (the editor runs it too), the a
 static partial class Script
 {
   [BhlBind] public static int Add(int a, int b = 2) => a + b;          // Add, the defaults as in C#
+  [BhlBind] public static void Move([BhlDefault("Pos.None")] Pos to) {}  // a default which isn't a C# constant
   [BhlBind("LM3.Refresh")] public static void Refresh(VM vm) {}        // a name and a namespace; a first VM gets exec.vm
   [BhlBind] public static void Later(VM.ExecState exec,                // a first VM.ExecState gets exec
     [BhlType(typeof(Action)), BhlCoroutine] VM.FuncPtr fn) {}          // a func: its BHL type, released after the call

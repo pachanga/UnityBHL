@@ -310,7 +310,7 @@ internal class HandParser : ICsParser
       Params = m.Params.Select(p => new ParamDecl {
         Name = p.Name,
         Type = p.Type,
-        Default = p.Default,
+        Default = FindAttr(p.Attrs, "BhlDefault") is Attr def ? StringArg(def, 0) : p.Default,
         Modifiers = p.Modifiers,
         IsCoroutine = HasAttr(p.Attrs, "BhlCoroutine"),
         BhlType = BhlTypeArg(p.Attrs),

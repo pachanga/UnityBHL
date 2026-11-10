@@ -275,7 +275,7 @@ internal class RoslynParser : ICsParser
       Params = m.ParameterList.Parameters.Select(p => new ParamDecl {
         Name = p.Identifier.Text,
         Type = Type(p.Type),
-        Default = p.Default?.Value.ToString(),
+        Default = FindAttr(p.AttributeLists, "BhlDefault") is AttributeSyntax def ? StringArg(def, 0) : p.Default?.Value.ToString(),
         Modifiers = p.Modifiers.ToString(),
         IsCoroutine = HasAttr(p.AttributeLists, "BhlCoroutine"),
         BhlType = BhlTypeArg(p.AttributeLists),
