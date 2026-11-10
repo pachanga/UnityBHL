@@ -166,8 +166,9 @@ generates them all.
 
 ## Editor tools
 
-- **BHL/Control Panel** - compile status, errors, settings, auto-compile toggle; **Generate Bindings**
-  when the project has `bhl_bindgen.json` next to bhl.proj (they're regenerated on changes by themselves too).
+- **BHL/Control Panel** - compile status, errors, settings (`bhl.proj` and `bhl_bindgen.json`, editable in place), auto-compile
+  toggle; **Generate Bindings** when the project has `bhl_bindgen.json` next to bhl.proj (they're regenerated on changes by
+  themselves too).
 - **BHL/Recompile** - clean compile and baking a bytecode bundle for
   Player builds.
 - **BHL/Force Recompile** - like Recompile, but bypasses the compile cache.

@@ -12,16 +12,14 @@ namespace UnityBHL
   [CustomEditor(typeof(Settings))]
   public class SettingsInspector : Editor
   {
-    bool _showProjContents;
-    string _cachedProjPath;
-    string _cachedProjContents;
-    string _editBuffer;
-    DateTime _loadedWriteTimeUtc;
-    string _lastValidatedText;
-    string _lastValidationError;
+    readonly ConfFileView _projView = new ConfFileView("bhl.proj", path => { ProjectConf.ReadFromFile(path); return null; });
     List<string> _cachedSrcDirs = new List<string>();
     List<string> _cachedPostprocSources = new List<string>();
-    Vector2 _projContentsScroll;
+
+    readonly ConfFileView _bindgenView = new ConfFileView(BindGen.ConfName, path => { BindGen.LoadConfigs(path); return null; });
+    List<string> _bindgenSources = new List<string>();
+    List<string> _bindgenIncludes = new List<string>();
+    List<string> _bindgenResultDirs = new List<string>();
     readonly Dictionary<string, bool> _pathArrayFoldouts = new Dictionary<string, bool>();
     readonly Dictionary<string, string> _pathArrayErrors = new Dictionary<string, string>();
 
@@ -61,56 +59,12 @@ namespace UnityBHL
 
       if(projExists)
       {
-        if(_cachedProjPath != resolved)
+        if(_projView.Draw(resolved))
           LoadProj(resolved);
 
-        var prev = GUI.color;
-        GUI.color = Color.green;
-        _showProjContents = EditorGUILayout.Foldout(_showProjContents, "Full path: " + resolved, true);
-        GUI.color = prev;
-
-        if(_showProjContents)
-        {
-          if(File.GetLastWriteTimeUtc(resolved) != _loadedWriteTimeUtc)
-          {
-            EditorGUILayout.HelpBox("File changed on disk since it was loaded here.", MessageType.Warning);
-            if(GUILayout.Button("Reload", GUILayout.ExpandWidth(false)))
-              LoadProj(resolved);
-          }
-
-          var height = EditorStyles.textArea.CalcHeight(new GUIContent(_editBuffer), EditorGUIUtility.currentViewWidth);
-
-          _projContentsScroll = EditorGUILayout.BeginScrollView(_projContentsScroll, GUILayout.Height(200));
-          _editBuffer = EditorGUILayout.TextArea(_editBuffer, EditorStyles.textArea, GUILayout.Height(height));
-          EditorGUILayout.EndScrollView();
-
-          bool dirty = _editBuffer != _cachedProjContents;
-
-          if(_lastValidatedText != _editBuffer)
-          {
-            _lastValidatedText = _editBuffer;
-            TryValidateProjText(_editBuffer, resolved, out _lastValidationError);
-          }
-
-          bool valid = _lastValidationError == null;
-          if(dirty && !valid)
-            EditorGUILayout.HelpBox("Invalid bhl.proj: " + _lastValidationError, MessageType.Warning);
-
-          EditorGUILayout.BeginHorizontal();
-          using(new EditorGUI.DisabledScope(!dirty))
-          {
-            if(GUILayout.Button("Save", GUILayout.ExpandWidth(false)))
-              SaveProj(resolved);
-          }
-          using(new EditorGUI.DisabledScope(!dirty))
-          {
-            if(GUILayout.Button("Revert", GUILayout.ExpandWidth(false)))
-              _editBuffer = _cachedProjContents;
-          }
-          EditorGUILayout.EndHorizontal();
-        }
-
         DrawPathArray("Script sources", _cachedSrcDirs, "No src_dirs configured in bhl.proj.", Directory.Exists);
+
+        DrawBindgen(resolved);
       }
       else
       {
@@ -266,47 +220,58 @@ namespace UnityBHL
       }
     }
 
+    //NOTE: bhl_bindgen.json next to bhl.proj, the bindings generator's config (see BindGen): shown as bhl.proj is,
+    //      with the files it's made of, the configs it includes and where the bindings are written
+    void DrawBindgen(string proj_path)
+    {
+      EditorGUILayout.Space();
+      EditorGUILayout.LabelField(BindGen.ConfName, EditorStyles.boldLabel);
+
+      var path = Path.Combine(Path.GetDirectoryName(proj_path), BindGen.ConfName);
+      if(!File.Exists(path))
+      {
+        EditorGUILayout.HelpBox($"No {BindGen.ConfName} next to bhl.proj: the project doesn't generate bindings from C#.", MessageType.None);
+        return;
+      }
+
+      if(_bindgenView.Draw(path))
+        LoadBindgen(path);
+
+      DrawPathArray("Binding sources", _bindgenSources, $"No sources matched in {BindGen.ConfName}.", File.Exists);
+      if(_bindgenIncludes.Count > 0)
+        DrawPathArray("Included configs", _bindgenIncludes, "", File.Exists);
+      DrawPathArray("Bindings result dirs", _bindgenResultDirs, $"No result_dir in {BindGen.ConfName}.", Directory.Exists);
+    }
+
+    void LoadBindgen(string path)
+    {
+      _bindgenSources = new List<string>();
+      _bindgenIncludes = new List<string>();
+      _bindgenResultDirs = new List<string>();
+      try
+      {
+        var confs = BindGen.LoadConfigs(path);
+        foreach(var conf in confs)
+        {
+          _bindgenSources.AddRange(conf.SourceFiles);
+          _bindgenResultDirs.Add(conf.result_dir);
+          if(conf != confs[confs.Count - 1])
+            _bindgenIncludes.Add(conf.FilePath);
+        }
+        _pathArrayErrors["Binding sources"] = null;
+      }
+      catch(Exception e)
+      {
+        _pathArrayErrors["Binding sources"] = e.Message;
+      }
+    }
+
     void LoadProj(string resolved)
     {
-      _cachedProjPath = resolved;
-      _cachedProjContents = File.ReadAllText(resolved);
-      _editBuffer = _cachedProjContents;
-      _loadedWriteTimeUtc = File.GetLastWriteTimeUtc(resolved);
       _cachedSrcDirs = TryParseProjList(resolved, p => p.src_dirs, out var srcDirsError);
       _pathArrayErrors["Script sources"] = srcDirsError;
       _cachedPostprocSources = TryParseProjList(resolved, p => p.postproc_sources, out var postprocSourcesError);
       _pathArrayErrors["Postproc sources"] = postprocSourcesError;
-    }
-
-    void SaveProj(string resolved)
-    {
-      File.WriteAllText(resolved, _editBuffer);
-      AssetDatabase.Refresh();
-      LoadProj(resolved);
-    }
-
-    //NOTE: validated against a scratch copy sitting next to the real bhl.proj (not the
-    //      system temp dir) - relative entries (src_dirs, includes, ...) are normalized
-    //      against the proj file's own directory, so validating from an unrelated
-    //      directory made every relative path fail to resolve
-    static void TryValidateProjText(string text, string resolvedPath, out string error)
-    {
-      var dir = Path.GetDirectoryName(resolvedPath);
-      var tmp = Path.Combine(dir, "~" + Path.GetRandomFileName() + ".proj");
-      try
-      {
-        File.WriteAllText(tmp, text);
-        ProjectConf.ReadFromFile(tmp);
-        error = null;
-      }
-      catch(Exception e)
-      {
-        error = e.Message;
-      }
-      finally
-      {
-        File.Delete(tmp);
-      }
     }
 
     //NOTE: list fields come back normalized (relative paths resolved against the proj
@@ -338,7 +303,7 @@ namespace UnityBHL
         EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
         _pathArrayErrors.TryGetValue(label, out var error);
         if(error != null)
-          EditorGUILayout.HelpBox($"Failed to parse bhl.proj: {error}", MessageType.Error);
+          EditorGUILayout.HelpBox($"Failed to parse: {error}", MessageType.Error);
         else
           EditorGUILayout.HelpBox(emptyMessage, MessageType.Warning);
         return;

@@ -16,7 +16,7 @@ namespace UnityBHL
   {
     static readonly Regex decl_attr = new Regex(@"^\s*\[(BhlBind|BhlClass|BhlInterface|BhlCoroutine)\b", RegexOptions.Multiline);
 
-    const string ConfName = "bhl_bindgen.json";
+    internal const string ConfName = "bhl_bindgen.json";
 
     //NOTE: the project generates bindings: it has bhl_bindgen.json next to bhl.proj (the Control Panel shows its button then)
     internal static bool IsConfigured => ConfPath() != null;
@@ -29,6 +29,9 @@ namespace UnityBHL
       else if(!Generate())
         Debug.Log("[BHL] bindgen: the bindings are up to date");
     }
+
+    //NOTE: the config and the ones it includes, as the generator loads them (a missing field or include throws)
+    internal static List<Config> LoadConfigs(string path) => Config.LoadAll(path, JsonUtility.FromJson<Config>);
 
     static string ConfPath()
     {
