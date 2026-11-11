@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-11-11
+
+### Changed
+- bindgen: a generated symbol's `Origin` is its C# declaration (the `[BhlBind]` method, the `[BhlCoroutine]` class,
+  the `[BhlClass]`/`[BhlInterface]` declaration and its members): with bhl keeping an explicit `Origin` (3.0.0-beta25+) the LSP's go to definition jumps there rather than to the generated registration
+
 ## [0.40.0] - 2026-11-11
 
 ### Changed

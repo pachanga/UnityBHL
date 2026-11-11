@@ -1126,7 +1126,7 @@ internal class Generator
       sb.Append(c.Decl.CustomRW ? "      v.Encode(o);\n" : "      v.SetObjNoRefc(o, type);\n");
       sb.Append("    #endif\n    }\n\n");
     }
-    sb.Append($"    var cl = new ClassSymbolNative(new Origin(), \"{ShortName(c.Decl.Name)}\",\n");
+    sb.Append($"    var cl = new ClassSymbolNative({OriginCode(c.Decl.Pos)}, \"{ShortName(c.Decl.Name)}\",\n");
     sb.Append(c.Decl.Parent != null ? $"      types.T(\"{c.Decl.Parent}\"),\n" : "      new ProxyType(),\n");
     sb.Append($"      proxy_implements: {ProxyTypes(c.Decl.Implements)},\n");
     sb.Append($"      creator: {(c.Decl.New ? "ctor_" + name : "null")}\n");
@@ -1179,7 +1179,7 @@ internal class Generator
           sb.Append("        ctx.obj = f; //copy on write\n");
         sb.Append("      #endif\n      }\n");
       }
-      sb.Append($"      cl.Define(new FieldSymbol(new Origin(), \"{f.Name}\", {TypeRefCode(t)}, {(f.Get ? $"get_{name}_{f.Name}" : "null")}, {(f.Set ? $"set_{name}_{f.Name}" : "null")}));\n");
+      sb.Append($"      cl.Define(new FieldSymbol({OriginCode(f.Pos)}, \"{f.Name}\", {TypeRefCode(t)}, {(f.Get ? $"get_{name}_{f.Name}" : "null")}, {(f.Set ? $"set_{name}_{f.Name}" : "null")}));\n");
       sb.Append("    }\n");
     }
 
@@ -1202,6 +1202,16 @@ internal class Generator
   }
 
   //NOTE: as metagen_bhl_bind binds an interface: its methods are called on the object as the native interface
+  //NOTE: the C# declaration of a binding: bhl keeps an explicit Origin, go to definition of its LSP jumps there
+  //      rather than to the generated registration
+  static string OriginCode(SrcPos pos)
+  {
+    if(pos?.File == null)
+      return "new Origin()";
+    var file = Path.GetFullPath(pos.File).Replace('\\', '/').Replace("\"", "\\\"");
+    return $"new Origin(\"{file}\", {pos.Line})";
+  }
+
   void EmitInterface(StringBuilder sb, Class c)
   {
     var name = Id(c.Decl.Name);
@@ -1209,7 +1219,7 @@ internal class Generator
     sb.Append("    var funcs = new List<FuncSymbol>();\n");
     foreach(var m in c.Methods)
       EmitFunc(sb, m, name + "_" + m.Name, "funcs", "__self." + (m.Decl.Native ?? m.Name), c.Self, false, add: true);
-    sb.Append($"    var ifs = new InterfaceSymbolNative(new Origin(), \"{ShortName(c.Decl.Name)}\", {ProxyTypes(c.Decl.Inherits)},\n");
+    sb.Append($"    var ifs = new InterfaceSymbolNative({OriginCode(c.Decl.Pos)}, \"{ShortName(c.Decl.Name)}\", {ProxyTypes(c.Decl.Inherits)},\n");
     sb.Append("      #if !BHL_FRONT\n");
     sb.Append($"      typeof({c.Self.Cs}),\n");
     sb.Append("      #else\n      null,\n      #endif\n");
@@ -1274,7 +1284,7 @@ internal class Generator
     sb.Append("    #endif\n\n");
 
     var attrib = (f.IsCoroutine ? "FuncAttrib.Coro" : "FuncAttrib.None") + (is_static ? " | FuncAttrib.Static" : "");
-    sb.Append($"    var fn = new FuncSymbolNative(new Origin(), \"{ShortName(bhl_name ?? f.Name)}\", {attrib}, {TypeRefCode(f.Ret)}, {f.Args.Count(a => a.def != null)},\n");
+    sb.Append($"    var fn = new FuncSymbolNative({OriginCode(f.Decl.Pos)}, \"{ShortName(bhl_name ?? f.Name)}\", {attrib}, {TypeRefCode(f.Ret)}, {f.Args.Count(a => a.def != null)},\n");
     sb.Append("      #if !BHL_FRONT\n");
     sb.Append($"      {local_fn}\n");
     sb.Append("      #else\n      null\n      #endif\n");

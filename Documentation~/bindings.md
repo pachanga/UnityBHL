@@ -18,6 +18,9 @@ A cheat sheet. The generator is `Tools~/bindgen` (the editor runs it too), the a
 `Types_<Class>` of the output: `Value`, its BHL type; `ToVal(v)`, the `Val` of a native value typed as the class;
 `FromVal(val)`, the native value of a `Val` (encoded and decoded if `CustomRW`).
 
+Each generated symbol's `Origin` is its C# declaration: go to definition of the BHL LSP jumps to the `[BhlBind]`
+method, the `[BhlCoroutine]` class, the `[BhlClass]` declaration or its member (bhl 3.0.0-beta25+).
+
 ## Functions
 
 ```csharp
