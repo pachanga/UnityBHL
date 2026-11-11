@@ -19,7 +19,8 @@ A cheat sheet. The generator is `Tools~/bindgen` (the editor runs it too), the a
 `FromVal(val)`, the native value of a `Val` (encoded and decoded if `CustomRW`).
 
 Each generated symbol's `Origin` is its C# declaration: go to definition of the BHL LSP jumps to the `[BhlBind]`
-method, the `[BhlCoroutine]` class, the `[BhlClass]` declaration or its member (bhl 3.0.0-beta25+).
+method, the `[BhlCoroutine]` class, the `[BhlClass]` declaration or its member (bhl 3.0.0-beta25+). Only the BHL
+front and the editor get it (`#if BHL_FRONT || UNITY_EDITOR`): a player shares `BindConv.NoOrigin`, no paths in it.
 
 ## Functions
 

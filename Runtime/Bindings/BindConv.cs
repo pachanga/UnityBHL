@@ -11,6 +11,10 @@ namespace UnityBHL
 //      a call is a real one in the editor (Unity compiles it without -optimize)
 public static class BindConv
 {
+  //NOTE: the Origin of every generated symbol in a player: its C# declaration only matters to the BHL front (the
+  //      LSP's go to definition) and the editor; ("", 0) as new Origin() would keep this file's path
+  public static readonly Origin NoOrigin = new Origin("", 0);
+
   //NOTE: the result keeps a reference of its own
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static Val ToAny(in Val v)

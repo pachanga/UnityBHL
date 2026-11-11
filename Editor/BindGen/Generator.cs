@@ -1203,13 +1203,17 @@ internal class Generator
 
   //NOTE: as metagen_bhl_bind binds an interface: its methods are called on the object as the native interface
   //NOTE: the C# declaration of a binding: bhl keeps an explicit Origin, go to definition of its LSP jumps there
-  //      rather than to the generated registration
+  //      rather than to the generated registration; a player has no use for it (no paths, no objects), it shares
+  //      BindConv.NoOrigin. A multiline argument, the caller goes on with ", .."
   static string OriginCode(SrcPos pos)
   {
-    if(pos?.File == null)
-      return "new Origin()";
-    var file = Path.GetFullPath(pos.File).Replace('\\', '/').Replace("\"", "\\\"");
-    return $"new Origin(\"{file}\", {pos.Line})";
+    var origin = "new Origin()";
+    if(pos?.File != null)
+    {
+      var file = Path.GetFullPath(pos.File).Replace('\\', '/').Replace("\"", "\\\"");
+      origin = $"new Origin(\"{file}\", {pos.Line})";
+    }
+    return $"\n      #if BHL_FRONT || UNITY_EDITOR\n      {origin}\n      #else\n      {Conv}NoOrigin\n      #endif\n      ";
   }
 
   void EmitInterface(StringBuilder sb, Class c)

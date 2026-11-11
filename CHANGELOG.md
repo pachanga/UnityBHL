@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-11
+
+### Changed
+- bindgen: the `Origin` of a generated symbol (its C# declaration) is only in the BHL front and the editor
+  (`#if BHL_FRONT || UNITY_EDITOR`); a player shares `BindConv.NoOrigin`: no source paths and no objects per symbol
+
 ## [0.41.0] - 2026-11-11
 
 ### Changed
