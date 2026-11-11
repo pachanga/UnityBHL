@@ -965,8 +965,23 @@ internal class Generator
     {
       //NOTE: the same holders as metagen_bhl_bind declares, the code it generates refers to them
       sb.Append("#if !BHL_FRONT\n");
+      //NOTE: ToVal makes the Val of a native value typed as the class, FromVal is the native value of a Val
       foreach(var c in classes)
-        sb.Append($"static public class Types_{Id(c.Decl.Name)} {{\n  static public IType Value;\n}}\n");
+      {
+        var cs = c.Decl.NativeType.Text;
+        sb.Append($"static public class Types_{Id(c.Decl.Name)} {{\n  static public IType Value;\n");
+        if(c.Decl.CustomRW)
+        {
+          sb.Append($"  static public Val ToVal({cs} v) {{ var dv = new Val(); dv.Encode(v); return dv; }}\n");
+          sb.Append($"  static public {cs} FromVal(Val v) {{ {cs} r = default; v.Decode(ref r); return r; }}\n");
+        }
+        else
+        {
+          sb.Append($"  static public Val ToVal({cs} o) => Val.NewObj(o, Value);\n");
+          sb.Append($"  static public {cs} FromVal(Val v) => ({cs})v.obj;\n");
+        }
+        sb.Append("}\n");
+      }
       sb.Append("#endif\n\n");
     }
     var auto_codecs = classes.Where(c => c.Decl.AutoCodec).ToList();

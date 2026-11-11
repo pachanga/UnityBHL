@@ -15,6 +15,9 @@ A cheat sheet. The generator is `Tools~/bindgen` (the editor runs it too), the a
 | `decls_namespace` | the C# namespace of the declarations: `<it>.Geo` → the BHL namespace `Geo` |
 | `includes` | the configs of other bindings (a package's): their own `result_dir`, their declarations are known here |
 
+`Types_<Class>` of the output: `Value`, its BHL type; `ToVal(v)`, the `Val` of a native value typed as the class;
+`FromVal(val)`, the native value of a `Val` (encoded and decoded if `CustomRW`).
+
 ## Functions
 
 ```csharp

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-11
+
+### Added
+- bindgen: `Types_<Class>.ToVal(v)`, the `Val` of a native value typed as the class, instead of
+  `Val.NewObj(v, Types_<Class>.Value)` written by hand, and `Types_<Class>.FromVal(val)`, the native value of a `Val`
+  (encoded and decoded for a `CustomRW` one)
+
 ## [0.37.0] - 2026-11-11
 
 ### Added

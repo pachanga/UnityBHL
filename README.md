@@ -58,6 +58,11 @@ The main output file `register.cs` starts with `//dep: <path>` lines, the files 
 the editor regenerates the bindings when one of them changes, the gamectl helpers of `bit/taskman_bhl` read them too
 (its README, «Bindings generator»).
 
+Each class has `Types_<Class>` in the output's namespace: `Value`, its BHL type; `ToVal(v)`, the `Val` of a native
+value typed as the class, e.g. the args of a BHL function called from C#: `Types_Unit.ToVal(unit)` rather than
+`Val.NewObj(unit, Types_Unit.Value)`; `FromVal(val)`, the native value of a `Val`, e.g. a result. A `CustomRW` one is
+encoded and decoded. Static rather than extensions: an object may be passed as several classes (its interfaces).
+
 ### The tool
 
 The release zip `unitybhl.zip` of a version tag (`.github/workflows/release.yml`) has the tool prebuilt in
