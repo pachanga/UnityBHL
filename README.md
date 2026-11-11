@@ -144,7 +144,9 @@ parameters of its `Init([VM.ExecState exec, ]..)`, the result is `Returns = type
 ### Types
 
 Types are named in BHL as in C#, a `[BhlClass]` names its native type, `bhl.IType` is BHL's `Type`. A non-generic
-`IList` is `[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too). `[BhlType("Name")]` on a parameter, a
+`IList` is `[]any`, `IList<T>` an array of `T` (a field may be a `List<T>` too). A returned list may be a `RefcList<T>`,
+the pooled list of bhl: the type tells a C# caller the reference is its own (`using var l = Script.Range(3)`), BHL
+takes it over; a parameter or a field is `IList<T>`. `[BhlType("Name")]` on a parameter, a
 return (`[return: BhlType("IList")]`) or a `[BhlClass]` property makes it the BHL class `Name` instead, e.g. a type
 declared elsewhere under another name (`[BhlType("M3FInt")] FInt time`).
 

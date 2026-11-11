@@ -140,7 +140,7 @@ can't be done so.
 |---|---|
 | `int`, `uint`, `long`, `short`, `byte` … / `float`, `double` / `string` / `bool` | `int` / `float` / `string` / `bool` |
 | `Val` | `any` |
-| `IList<T>` (a field also `List<T>`) / `IList` | `[]T` / `[]any` |
+| `IList<T>` (a field also `List<T>`, a return also `RefcList<T>`) / `IList` | `[]T` / `[]any` |
 | `Action<..>`, `Func<..>`; `[BhlCoroutine]` on the parameter | `func(..)`, `coro func(..)` |
 | `[BhlType(typeof(Action<..>))] VM.FuncPtr` | the same, the func itself (a coroutine's, `exec.Spawn`) |
 | `(int, string)` returned | several values |

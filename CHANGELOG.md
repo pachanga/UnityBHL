@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-11
+
+### Added
+- bindgen: a return (a tuple item, a coroutine's `Returns`) may be a `RefcList<T>`, an array of `T` as `IList<T>`: the
+  type tells a C# caller the list is pooled and its reference is the caller's, BHL takes it over when it's returned to
+  a script; a `RefcList<T>` parameter or field is an error, BHL passes a list of its own
+
 ## [0.38.0] - 2026-11-11
 
 ### Added

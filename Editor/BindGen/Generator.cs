@@ -564,7 +564,8 @@ internal class Generator
     return n;
   }
 
-  TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false, bool is_field = false, string bhl_type = null)
+  //NOTE: is_ret_item: an item of a returned tuple, a value C# hands to BHL like a return
+  TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false, bool is_field = false, string bhl_type = null, bool is_ret_item = false)
   {
     //NOTE: [BhlType("Name")], e.g. a C# IList as the IList class rather than []any; a custom_rw one is still kept in Val
     if(bhl_type != null)
@@ -578,13 +579,19 @@ internal class Generator
     }
     else if(t.TupleItems != null && is_return)
     {
-      return new TypeRef { Kind = Kind.Tuple, Cs = t.Text, Items = t.TupleItems.Select(i => Resolve(i, false)).ToList() };
+      return new TypeRef { Kind = Kind.Tuple, Cs = t.Text, Items = t.TupleItems.Select(i => Resolve(i, false, is_ret_item: true)).ToList() };
     }
     else if(t.Name == "IList" && t.GenericArgs == null)
     {
       return new TypeRef { Kind = Kind.AnyArr, Cs = t.Text, Bhl = "any" };
     }
-    else if((t.Name == "IList" || (is_field && t.Name == "List")) && t.GenericArgs?.Count == 1)
+    //NOTE: a returned RefcList<T> is an IList<T> too, the type tells a C# caller the list is pooled and its reference
+    //      is the caller's (BHL takes it over); a parameter is IList<T>, BHL passes in a list of its own, not a RefcList
+    else if(t.Name == "RefcList" && !(is_return || is_ret_item))
+    {
+      throw new GenException(t.Pos, $"type '{t.Text}': a RefcList<T> is for returns, a parameter or a field is IList<T>");
+    }
+    else if((t.Name == "IList" || t.Name == "RefcList" || (is_field && t.Name == "List")) && t.GenericArgs?.Count == 1)
     {
       var item = Resolve(t.GenericArgs[0], false);
       if(item.Kind != Kind.Any && item.Kind != Kind.Arr && item.Kind != Kind.AnyArr)
