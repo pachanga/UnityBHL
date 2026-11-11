@@ -62,6 +62,9 @@ public class BhlClassAttribute : Attribute
   //NOTE: a value type kept in the BHL value itself by the project's Val.Encode(T) and Val.Decode(ref T)
   //      (@bhl_custom_rw in meta), its args and returns too
   public bool CustomRW;
+  //NOTE: of a CustomRW one: Encode, Decode and ToVal are generated, the layout is the declaration's get/set properties
+  //      (bool, the numbers, enums; long and ulong as bits), at most 4 of them, as the Val keeps 4 numbers
+  public bool AutoCodec;
 
   public BhlClassAttribute(Type type, params string[] members) {}
 

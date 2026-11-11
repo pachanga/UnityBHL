@@ -109,6 +109,8 @@ internal class FieldDecl
   public string Native;
   //NOTE: [BhlType("Name")], see ParamDecl.BhlType
   public string BhlType;
+  //NOTE: of a native type, a field rather than a property: its data, see Generator.CheckAutoCodec
+  public bool IsField;
   public List<string> Usings;
   public SrcPos Pos;
 }
@@ -146,6 +148,8 @@ internal class ClassDecl
   //      the project's Val.Encode/Decode (@bhl_custom_rw); both are written back to the Val when changed
   public bool Pod;
   public bool CustomRW;
+  //NOTE: AutoCodec = true of a CustomRW one: its Encode/Decode are generated, see Generator.CheckAutoCodec
+  public bool AutoCodec;
   //NOTE: the BHL names of the interfaces a class implements (Implements) or an interface inherits (Inherits)
   public List<string> Implements = new List<string>();
   public List<string> Inherits = new List<string>();

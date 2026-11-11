@@ -91,7 +91,7 @@ A function returning `BhlTask` / `BhlFinallyTask` is a coroutine (see BhlTask ab
 ### Classes
 
 A class is declared by an interface: `[BhlClass(typeof(T))]` (static methods: `[BhlStatic]`, operators: `[BhlOp]`,
-value types: `Pod`, `CustomRW`), an interface by `[BhlInterface]`. It's named in BHL as the declaring interface, or by
+value types: `Pod`, `CustomRW`, a generated codec: `AutoCodec`), an interface by `[BhlInterface]`. It's named in BHL as the declaring interface, or by
 the name given first (`[BhlClass("UnityObject", typeof(UnityEngine.Object))]`). The parent class and the interfaces
 are the declaring interface's bases when they're declarations too, else `Parent`, `Implements`, `Inherits` name them
 (declared elsewhere, e.g. by meta). A static method with a body is bound as a method of the class: of the native

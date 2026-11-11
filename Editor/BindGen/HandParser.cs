@@ -82,6 +82,9 @@ internal class HandParser : ICsParser
     {
       if(!(c.Kind == "class" || c.Kind == "struct" || c.Kind == "interface"))
         continue;
+      //NOTE: a declaration isn't a native type, though it may be named as one
+      if(HasAttr(c.Attrs, "BhlClass") || HasAttr(c.Attrs, "BhlInterface"))
+        continue;
       //NOTE: a type with [BhlBind] methods is bound as a whole here, so their overloads are found too
       if(!bound_types.Contains(c.Name) && !c.Members.Any(m => m.Kind == MemberKind.Method && HasAttr(m.Attrs, "BhlBind")))
         continue;
@@ -121,6 +124,7 @@ internal class HandParser : ICsParser
               Type = member.Type,
               Get = true,
               Set = !member.Mods.Contains("readonly"),
+              IsField = true,
               Usings = tree.Usings,
               Pos = v.pos,
             };
@@ -206,10 +210,12 @@ internal class HandParser : ICsParser
         decl.Pod = named.Expr.Bool.Value;
       else if(named.NameEquals == "CustomRW" && named.Expr.Bool != null)
         decl.CustomRW = named.Expr.Bool.Value;
+      else if(named.NameEquals == "AutoCodec" && named.Expr.Bool != null)
+        decl.AutoCodec = named.Expr.Bool.Value;
       else if((named.NameEquals == "Implements" || named.NameEquals == "Inherits") && named.Expr.Items != null && named.Expr.Items.All(e => e.Str != null))
         (named.NameEquals == "Implements" ? decl.Implements : decl.Inherits).AddRange(named.Expr.Items.Select(e => e.Str));
       else
-        throw new GenException(named.Pos, "expected Parent = \"..\", New, Pod or CustomRW = true|false, Implements or Inherits = new[] { \"..\" }");
+        throw new GenException(named.Pos, "expected Parent = \"..\", New, Pod, CustomRW or AutoCodec = true|false, Implements or Inherits = new[] { \"..\" }");
     }
 
     foreach(var member in i.Members)

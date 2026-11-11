@@ -158,21 +158,23 @@ internal class RoslynParser : ICsParser
       var prop = named.NameEquals.Name.Identifier.Text;
       if(prop == "Parent" && named.Expression is LiteralExpressionSyntax p && p.IsKind(SyntaxKind.StringLiteralExpression))
         decl.Parent = p.Token.ValueText;
-      else if((prop == "New" || prop == "Pod" || prop == "CustomRW") && named.Expression is LiteralExpressionSyntax n && (n.IsKind(SyntaxKind.TrueLiteralExpression) || n.IsKind(SyntaxKind.FalseLiteralExpression)))
+      else if((prop == "New" || prop == "Pod" || prop == "CustomRW" || prop == "AutoCodec") && named.Expression is LiteralExpressionSyntax n && (n.IsKind(SyntaxKind.TrueLiteralExpression) || n.IsKind(SyntaxKind.FalseLiteralExpression)))
       {
         var flag = n.IsKind(SyntaxKind.TrueLiteralExpression);
         if(prop == "New")
           decl.New = flag;
         else if(prop == "Pod")
           decl.Pod = flag;
-        else
+        else if(prop == "CustomRW")
           decl.CustomRW = flag;
+        else
+          decl.AutoCodec = flag;
       }
       else if((prop == "Implements" || prop == "Inherits") && ArrayItems(named.Expression) is var items && items != null
         && items.All(e => e is LiteralExpressionSyntax s && s.IsKind(SyntaxKind.StringLiteralExpression)))
         (prop == "Implements" ? decl.Implements : decl.Inherits).AddRange(items.Select(e => ((LiteralExpressionSyntax)e).Token.ValueText));
       else
-        throw new GenException(Pos(named), "expected Parent = \"..\", New, Pod or CustomRW = true|false, Implements or Inherits = new[] { \"..\" }");
+        throw new GenException(Pos(named), "expected Parent = \"..\", New, Pod, CustomRW or AutoCodec = true|false, Implements or Inherits = new[] { \"..\" }");
     }
 
     foreach(var member in i.Members)
@@ -326,6 +328,9 @@ internal class RoslynParser : ICsParser
     {
       if(!(c is ClassDeclarationSyntax || c is StructDeclarationSyntax || c is InterfaceDeclarationSyntax))
         continue;
+      //NOTE: a declaration isn't a native type, though it may be named as one
+      if(FindAttr(c.AttributeLists, "BhlClass") != null || FindAttr(c.AttributeLists, "BhlInterface") != null)
+        continue;
       //NOTE: a type with [BhlBind] methods is bound as a whole here, so their overloads are found too
       if(!bound_types.Contains(c.Identifier.Text) && !c.Members.OfType<MethodDeclarationSyntax>().Any(m => FindAttr(m.AttributeLists, "BhlBind") != null))
         continue;
@@ -370,6 +375,7 @@ internal class RoslynParser : ICsParser
               Type = Type(f.Declaration.Type),
               Get = true,
               Set = !f.Modifiers.Any(SyntaxKind.ReadOnlyKeyword),
+              IsField = true,
               Usings = usings,
               Pos = Pos(v),
             };

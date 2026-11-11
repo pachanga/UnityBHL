@@ -64,6 +64,24 @@ interface Unit : Actor, IDamageable             // the bases are declarations: t
 | `Parent = ".."`, `Implements = new[] {..}` | the parent / the interfaces declared elsewhere (meta, another config) |
 | `Pod = true` | a boxed value type: a changed copy is written back |
 | `CustomRW = true` | a value type kept in the `Val` itself by the project's `Encode/Decode` (`Encode` sets `dv.type`) |
+| `AutoCodec = true` | with `CustomRW`: `Encode`, `Decode` and `ToVal` are generated, see below |
+
+A small value type is kept in the `Val` itself (its 4 numbers) with a generated codec:
+
+```csharp
+[BhlClass(typeof(Game.Pos), New = true, CustomRW = true, AutoCodec = true)]
+interface Pos
+{
+  int x { get; set; }     // the layout: the { get; set; } properties without [BhlNative], a Val number each
+  int y { get; set; }
+  Game.Pos to_left { get; }
+}
+```
+
+The output's `<register_class>_Codecs` has `Encode`, `Decode` and `ToVal` of the native type. The properties are bool,
+numbers and enums (`long` and `ulong` are kept as bits), at most 4. The native type may be out of the sources
+(`UnityEngine.Vector3`); when it's in them, each of its non-private instance fields must be such a property and
+writable, else it's an error: its value would be lost in the `Val`. A private field isn't seen, it's lost.
 
 An interface: `[BhlInterface(typeof(IWidget))] interface IWidget : IBase { void Update(); }`, its methods are
 called on the object as on the native interface.

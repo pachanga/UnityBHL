@@ -28,6 +28,10 @@ internal class Generator
   readonly Dictionary<Config, Names> names = new Dictionary<Config, Names>();
   //NOTE: custom_rw: of all the configs
   readonly HashSet<string> custom_rw = new HashSet<string>();
+  //NOTE: the layouts of the AutoCodec classes, a property per Val number
+  readonly Dictionary<ClassDecl, List<FieldDecl>> codecs = new Dictionary<ClassDecl, List<FieldDecl>>();
+  static readonly string[] codec_slots = { "num", "_num2", "_num3", "_num4" };
+  static readonly HashSet<string> codec_keywords = new HashSet<string> { "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong", "float", "double" };
   //NOTE: the config being emitted, its register class holds the native list types of its output
   Config cur;
   //NOTE: the sources with declarations ([BhlClass], [BhlInterface], [BhlCoroutine] classes, [BhlBind(typeof(T), ..)])
@@ -144,6 +148,9 @@ internal class Generator
       names[conf] = CollectNames(conf);
 
     var types = new HashSet<string>(decls.Binds.Select(b => b.Type).Concat(decls.BindAlls.Select(b => b.Type)));
+    //NOTE: an AutoCodec one's native fields are checked against its layout when the type is in the sources
+    foreach(var c in decls.Classes.Where(c => c.AutoCodec))
+      types.Add(c.NativeType.Name);
     foreach(var c in decls.Classes.Where(c => c.MemberRefs.Count > 0))
     {
       types.Add(c.NativeType.Name);
@@ -205,6 +212,8 @@ internal class Generator
       //NOTE: its args and returns are marshalled by Encode/Decode too, as the custom_rw of the config
       if(c.CustomRW)
         custom_rw.Add(c.NativeType.Name);
+      if(c.AutoCodec)
+        codecs[c] = CheckAutoCodec(c);
       if(c.IsInterface && (c.Parent != null || c.New || c.Pod || c.CustomRW || c.Fields.Count > 0 || c.MemberRefs.Count > 0 || c.Implements.Count > 0))
         throw new GenException(c.Pos, $"interface '{c.Name}' has only methods and Inherits");
       if(!c.IsInterface && c.Inherits.Count > 0)
@@ -464,6 +473,67 @@ internal class Generator
   }
 
   //NOTE: is_field: a field may be a List<T> too, it's read as IList<T> and written by copying into the list
+  //NOTE: the layout of a generated codec is the declaration's get/set properties, the native ones of the same names:
+  //      the native type may be out of the sources (UnityEngine.Vector3); when it's in them, each of its non-private
+  //      instance fields must be in the layout, else its value would be lost in the Val
+  List<FieldDecl> CheckAutoCodec(ClassDecl c)
+  {
+    if(!c.CustomRW)
+      throw new GenException(c.Pos, $"class '{c.Name}': AutoCodec is of a CustomRW one, CustomRW = true is expected too");
+    var layout = c.Fields.Where(f => f.Get && f.Set && f.Native == null).ToList();
+    if(layout.Count == 0)
+      throw new GenException(c.Pos, $"class '{c.Name}': AutoCodec takes its layout from the {{ get; set; }} properties, there are none");
+    if(layout.Count > codec_slots.Length)
+      throw new GenException(layout[codec_slots.Length].Pos, $"class '{c.Name}': AutoCodec keeps at most {codec_slots.Length} properties in the Val, '{layout[codec_slots.Length].Name}' is one more");
+    foreach(var f in layout)
+    {
+      if(!(f.Type.Keyword != null ? codec_keywords.Contains(f.Type.Keyword) : f.Type.GenericArgs == null && decls.Enums.Contains(f.Type.Name)))
+        throw new GenException(f.Pos, $"class '{c.Name}': AutoCodec keeps bool, numbers and enums, '{f.Name}' is '{f.Type.Text}'");
+      if(decls.Fields.TryGetValue((c.NativeType.Name, f.Name), out var native) && !native.Set)
+        throw new GenException(f.Pos, $"class '{c.Name}': '{c.NativeType.Name}.{f.Name}' is read only, AutoCodec can't decode it");
+    }
+    foreach(var kv in decls.Fields.Where(kv => kv.Key.type == c.NativeType.Name && kv.Value.IsField))
+    {
+      if(!layout.Any(f => f.Name == kv.Key.name))
+        throw new GenException(c.Pos, $"class '{c.Name}': the field '{c.NativeType.Name}.{kv.Key.name}' isn't in the AutoCodec layout, a {{ get; set; }} property, its value would be lost");
+    }
+    return layout;
+  }
+
+  //NOTE: as a project's hand written codec of a CustomRW type: Encode sets the type, ToVal makes a Val of it
+  void EmitCodec(StringBuilder sb, ClassDecl c)
+  {
+    var cs = c.NativeType.Text;
+    var layout = codecs[c];
+    var enc = new StringBuilder();
+    var dec = new StringBuilder();
+    for(int i = 0; i < layout.Count; ++i)
+    {
+      var f = layout[i];
+      var slot = "dv." + codec_slots[i];
+      var kw = f.Type.Keyword;
+      if(kw == "bool")
+      {
+        enc.Append($"    {slot} = v.{f.Name} ? 1 : 0;\n");
+        dec.Append($"    v.{f.Name} = {slot} != 0;\n");
+      }
+      else if(kw == "long" || kw == "ulong")
+      {
+        //NOTE: a double doesn't keep all the 64 bits of a number, its bits are kept instead
+        enc.Append($"    {slot} = System.BitConverter.Int64BitsToDouble((long)v.{f.Name});\n");
+        dec.Append($"    v.{f.Name} = ({kw})System.BitConverter.DoubleToInt64Bits({slot});\n");
+      }
+      else
+      {
+        enc.Append($"    {slot} = (double)v.{f.Name};\n");
+        dec.Append($"    v.{f.Name} = ({f.Type.Text}){slot};\n");
+      }
+    }
+    sb.Append($"  public static void Encode(ref this Val dv, {cs} v)\n  {{\n    dv.type = Types_{Id(c.Name)}.Value;\n{enc}  }}\n\n");
+    sb.Append($"  public static void Decode(this Val dv, ref {cs} v)\n  {{\n{dec}  }}\n\n");
+    sb.Append($"  public static Val ToVal(this {cs} v)\n  {{\n    var dv = new Val();\n    dv.Encode(v);\n    return dv;\n  }}\n");
+  }
+
   Names CollectNames(Config conf)
   {
     var n = new Names();
@@ -897,6 +967,20 @@ internal class Generator
       sb.Append("#if !BHL_FRONT\n");
       foreach(var c in classes)
         sb.Append($"static public class Types_{Id(c.Decl.Name)} {{\n  static public IType Value;\n}}\n");
+      sb.Append("#endif\n\n");
+    }
+    var auto_codecs = classes.Where(c => c.Decl.AutoCodec).ToList();
+    if(auto_codecs.Count > 0)
+    {
+      sb.Append("#if !BHL_FRONT\n");
+      sb.Append($"public static class {cur.register_class}_Codecs\n{{\n");
+      for(int i = 0; i < auto_codecs.Count; ++i)
+      {
+        if(i > 0)
+          sb.Append("\n");
+        EmitCodec(sb, auto_codecs[i].Decl);
+      }
+      sb.Append("}\n");
       sb.Append("#endif\n\n");
     }
     sb.Append("}\n");

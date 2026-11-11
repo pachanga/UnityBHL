@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-11
+
+### Added
+- bindgen: `[BhlClass(.., CustomRW = true, AutoCodec = true)]` generates the codec of a value type kept in the `Val`
+  (`Encode`, `Decode`, `ToVal` in `<register_class>_Codecs`): its layout is the declaration's `{ get; set; }`
+  properties, bool, numbers and enums (`long`/`ulong` as bits), at most 4; when the native type is in the sources
+  each of its non-private instance fields must be in the layout
+
+### Fixed
+- bindgen: a declaration interface named as its native type no longer hides the native type's members
+
 ## [0.36.0] - 2026-11-11
 
 ### Added
