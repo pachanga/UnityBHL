@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-11
+
+### Added
+- bindgen: one native type may be named by classes of different configs (as meta allowed), e.g. `Vector3` by the
+  project and `M2Vector3` by a package it includes: a config uses its own name, else the included one's;
+  `[BhlType("Name")]` picks the other one for a parameter or a return. Within one config it's still an error
+
 ## [0.35.0] - 2026-11-10
 
 ### Changed

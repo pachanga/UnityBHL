@@ -131,3 +131,7 @@ error: an enum of a generated source not generated yet would otherwise be bound 
 
 Native types of one short name in different namespaces may both be bound; where such a type is used it's qualified
 (`Game.New.RewardWindow`), its short name alone is an error.
+
+One native type may be named by classes of different configs (the project's `Vector3`, a package's `M2Vector3`): a config
+uses its own name, else the one of the config it includes; `[BhlType("M2Vector3")]` picks the other one for a parameter
+or a return. Within one config a native type has one name.

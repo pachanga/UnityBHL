@@ -14,13 +14,19 @@ internal class Generator
   //NOTE: the config of a source file, the first one listing it (an included one before the including one)
   readonly Dictionary<string, Config> owners = new Dictionary<string, Config>();
   readonly Dictionary<Config, List<string>> imports = new Dictionary<Config, List<string>>();
-  //NOTE: the BHL names of the native types named otherwise: by a [BhlClass], or BHL's own (bhl.IType is Type);
-  //      a type not listed is named in BHL as in C#. custom_rw: of all the configs
-  readonly Dictionary<string, string> type_names = new Dictionary<string, string> { ["IType"] = "Type" };
-  //NOTE: the BHL names by the qualified native type; a short name of native types of different namespaces is ambiguous,
-  //      such a type is qualified where it's used
-  readonly Dictionary<string, string> full_type_names = new Dictionary<string, string>();
-  readonly HashSet<string> ambiguous_names = new HashSet<string>();
+  //NOTE: the BHL names of the native types as a config sees them: a native type may be named by classes of several
+  //      configs (as meta allowed), a config uses its own one, else the one of the nearest config it includes
+  class Names
+  {
+    //NOTE: named otherwise: by a [BhlClass], or BHL's own (bhl.IType is Type); a type not listed is named as in C#
+    public readonly Dictionary<string, string> type_names = new Dictionary<string, string> { ["IType"] = "Type" };
+    //NOTE: by the qualified native type, with the config naming it; a short name of native types of different
+    //      namespaces is ambiguous, such a type is qualified where it's used
+    public readonly Dictionary<string, (string name, Config conf)> full_type_names = new Dictionary<string, (string, Config)>();
+    public readonly HashSet<string> ambiguous_names = new HashSet<string>();
+  }
+  readonly Dictionary<Config, Names> names = new Dictionary<Config, Names>();
+  //NOTE: custom_rw: of all the configs
   readonly HashSet<string> custom_rw = new HashSet<string>();
   //NOTE: the config being emitted, its register class holds the native list types of its output
   Config cur;
@@ -133,23 +139,9 @@ internal class Generator
 
     ApplyDeclsNamespaces();
 
-    //NOTE: a class names its native type in BHL
-    foreach(var c in decls.Classes)
-    {
-      var cs = c.NativeType.Name;
-      var full = FullName(c.NativeType);
-      if(full_type_names.TryGetValue(full, out var same) && same != c.Name)
-        throw new GenException(c.Pos, $"'{full}' is named '{same}' by another class, the class names it '{c.Name}'");
-      full_type_names[full] = c.Name;
-      if(type_names.TryGetValue(cs, out var other) && other != c.Name)
-      {
-        if(cs == "IType" || !full.Contains("."))
-          throw new GenException(c.Pos, $"'{cs}' is named '{other}' by another class or BHL itself, the class names it '{c.Name}'");
-        ambiguous_names.Add(cs);
-        continue;
-      }
-      type_names[cs] = c.Name;
-    }
+    //NOTE: a class names its native type in BHL, for its config and the ones including it
+    foreach(var conf in confs)
+      names[conf] = CollectNames(conf);
 
     var types = new HashSet<string>(decls.Binds.Select(b => b.Type).Concat(decls.BindAlls.Select(b => b.Type)));
     foreach(var c in decls.Classes.Where(c => c.MemberRefs.Count > 0))
@@ -472,6 +464,36 @@ internal class Generator
   }
 
   //NOTE: is_field: a field may be a List<T> too, it's read as IList<T> and written by copying into the list
+  Names CollectNames(Config conf)
+  {
+    var n = new Names();
+    foreach(var owner in conf.AllIncludes().Prepend(conf))
+    {
+      foreach(var c in decls.Classes.Where(c => owners[c.Pos.File] == owner))
+      {
+        var cs = c.NativeType.Name;
+        var full = FullName(c.NativeType);
+        if(n.full_type_names.TryGetValue(full, out var same))
+        {
+          if(same.conf == owner && same.name != c.Name)
+            throw new GenException(c.Pos, $"'{full}' is named '{same.name}' by another class, the class names it '{c.Name}'");
+          //NOTE: named by a nearer config
+          continue;
+        }
+        n.full_type_names[full] = (c.Name, owner);
+        if(n.type_names.TryGetValue(cs, out var other) && other != c.Name)
+        {
+          if(cs == "IType" || !full.Contains("."))
+            throw new GenException(c.Pos, $"'{cs}' is named '{other}' by another class or BHL itself, the class names it '{c.Name}'");
+          n.ambiguous_names.Add(cs);
+          continue;
+        }
+        n.type_names[cs] = c.Name;
+      }
+    }
+    return n;
+  }
+
   TypeRef Resolve(TypeDecl t, bool is_return, bool is_coro = false, bool is_field = false, string bhl_type = null)
   {
     //NOTE: [BhlType("Name")], e.g. a C# IList as the IList class rather than []any; a custom_rw one is still kept in Val
@@ -514,13 +536,17 @@ internal class Generator
     else if(t.Name != null && t.GenericArgs == null)
     {
       var kind = t.Name == "Val" ? Kind.Any : custom_rw.Contains(t.Name) ? Kind.CustomRW : decls.Enums.Contains(t.Name) ? Kind.Enum : Kind.Obj;
-      if(!full_type_names.TryGetValue(FullName(t), out var bhl_name))
+      var n = names[cur];
+      string bhl_name;
+      if(n.full_type_names.TryGetValue(FullName(t), out var named))
+        bhl_name = named.name;
+      else
       {
-        if(ambiguous_names.Contains(t.Name))
+        if(n.ambiguous_names.Contains(t.Name))
           throw new GenException(t.Pos, $"type '{t.Text}' is ambiguous, native types of different namespaces are named '{t.Name}': qualify it");
-        if(kind == Kind.Obj && !type_names.ContainsKey(t.Name) && !Declared(t.Name))
+        if(kind == Kind.Obj && !n.type_names.ContainsKey(t.Name) && !Declared(t.Name))
           throw new GenException(t.Pos, $"type '{t.Text}' is declared neither by a [BhlClass] nor in the sources: a generated one not generated yet, or a missing source dir?");
-        bhl_name = type_names.TryGetValue(t.Name, out var short_name) ? short_name : t.Name;
+        bhl_name = n.type_names.TryGetValue(t.Name, out var short_name) ? short_name : t.Name;
       }
       return new TypeRef { Kind = kind, Cs = t.Text, Bhl = kind == Kind.Any ? "any" : bhl_name };
     }

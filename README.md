@@ -164,6 +164,11 @@ classes are in its assembly, next to the hand written ones), the project registe
 to the including config (classes, value types, parents and interfaces across them), not the other way round. One run
 generates them all.
 
+A native type may be named by classes of different configs, e.g. `UnityEngine.Vector3` as `Vector3` by the project and
+as `M2Vector3` by a package: a config's own name is used, else the one of the config it includes. Where a signature
+needs the other name, `[BhlType("M2Vector3")]` on the parameter or `[return: BhlType("M2Vector3")]`. Within one config
+a native type has one name.
+
 ## Editor tools
 
 - **BHL/Control Panel** - compile status, errors, settings (`bhl.proj` and `bhl_bindgen.json`, editable in place), auto-compile
