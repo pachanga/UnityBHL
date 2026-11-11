@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-11-11
+
+### Changed
+- bindgen: the result of a `[BhlCoroutine]` class with `bool Exec(out T ..)` is its `out` parameters (several make a
+  tuple); `Returns = typeof(T)` is only for `void Exec(VM.ExecState exec)`, next to `out` parameters it's an error:
+  drop it
+
 ## [0.39.0] - 2026-11-11
 
 ### Added

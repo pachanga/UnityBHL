@@ -138,8 +138,9 @@ such a type is qualified.
 ### Coroutine classes
 
 A hand written coroutine is declared by its own class, `[BhlCoroutine] partial class <Name>`: the arguments are the
-parameters of its `Init([VM.ExecState exec, ]..)`, the result is `Returns = typeof(T)`. Without `exec`
-(`bool Exec([out T result])`, `Cleanup()`) it's callable from C# as is. A new coroutine is better a `BhlTask` function.
+parameters of its `Init([VM.ExecState exec, ]..)`, the result is the `out` parameters of its `bool Exec(out T result)`
+(several are a tuple), or `Returns = typeof(T)` for `void Exec(VM.ExecState exec)`, which pushes it itself. Without
+`exec` (`bool Exec([out T result])`, `Cleanup()`) it's callable from C# as is. A new coroutine is better a `BhlTask` function.
 
 ### Types
 

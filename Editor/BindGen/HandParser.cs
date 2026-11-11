@@ -273,16 +273,17 @@ internal class HandParser : ICsParser
       decl.Params.RemoveAt(0);
     decl.CoroExec = One("Exec");
     decl.CoroCleanup = One("Cleanup");
-    decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = attr.Pos };
+    TypeDecl returns = null;
     foreach(var arg in attr.Args ?? new List<Arg>())
     {
       if(arg.NameEquals == null && arg.Expr.Str != null)
         decl.BhlName = arg.Expr.Str;
       else if(arg.NameEquals == "Returns" && arg.Expr.TypeOf != null)
-        decl.ReturnType = arg.Expr.TypeOf;
+        returns = arg.Expr.TypeOf;
       else
         throw new GenException(arg.Pos, "expected [BhlCoroutine(\"Name\", Returns = typeof(T))], both optional");
     }
+    decl.ReturnType = CoroReturns.Of(decl.CoroExec, returns, attr.Pos);
     decl.Name = c.Name;
     decl.CoroClass = c.Name;
     decl.DeclNs = c.Ns;

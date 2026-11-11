@@ -233,16 +233,17 @@ internal class RoslynParser : ICsParser
       decl.Params.RemoveAt(0);
     decl.CoroExec = One("Exec");
     decl.CoroCleanup = One("Cleanup");
-    decl.ReturnType = new TypeDecl { Text = "void", Keyword = "void", Pos = Pos(attr) };
+    TypeDecl returns = null;
     foreach(var arg in attr.ArgumentList?.Arguments ?? default)
     {
       if(arg.NameEquals == null && arg.Expression is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression))
         decl.BhlName = lit.Token.ValueText;
       else if(arg.NameEquals?.Name.Identifier.Text == "Returns" && arg.Expression is TypeOfExpressionSyntax type_of)
-        decl.ReturnType = Type(type_of.Type);
+        returns = Type(type_of.Type);
       else
         throw new GenException(Pos(arg), "expected [BhlCoroutine(\"Name\", Returns = typeof(T))], both optional");
     }
+    decl.ReturnType = CoroReturns.Of(decl.CoroExec, returns, Pos(attr));
     decl.Name = c.Identifier.Text;
     decl.CoroClass = c.Identifier.Text;
     decl.DeclNs = Ns(c);

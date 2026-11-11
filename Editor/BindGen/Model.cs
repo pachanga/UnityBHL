@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 //NOTE: what a parser extracts from C# sources; the generator works only with this model,
 //      so parsers (Roslyn, hand written) are interchangeable and comparable
@@ -196,4 +197,21 @@ internal interface ICsParser
   void ParseDecls(string file, string src, CsDecls decls);
   //NOTE: collects enums, the members of the bound types and the [BhlBind] methods (to Binds)
   void ParseSource(string file, string src, HashSet<string> bound_types, CsDecls decls);
+}
+
+internal static class CoroReturns
+{
+  //NOTE: the result of a [BhlCoroutine] class: bool Exec(out T ..) tells it by its out parameters (several make a
+  //      tuple), Returns = typeof(T) is for void Exec(VM.ExecState exec) which pushes its results itself
+  public static TypeDecl Of(MethodDecl exec, TypeDecl returns, SrcPos pos)
+  {
+    var outs = exec.Params.Where(p => p.Modifiers == "out").ToList();
+    if(outs.Count == 0)
+      return returns ?? new TypeDecl { Text = "void", Keyword = "void", Pos = pos };
+    if(returns != null)
+      throw new GenException(returns.Pos, "[BhlCoroutine(Returns = ..)]: the result is the out parameters of Exec, drop Returns");
+    if(outs.Count == 1)
+      return outs[0].Type;
+    return new TypeDecl { Text = "(" + string.Join(", ", outs.Select(p => p.Type.Text)) + ")", TupleItems = outs.Select(p => p.Type).ToList(), Pos = pos };
+  }
 }

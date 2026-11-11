@@ -107,11 +107,12 @@ A coroutine which isn't a `BhlTask` is declared by its class (in the output's `n
 reading the args, `Tick` and `Destruct`:
 
 ```csharp
-[BhlCoroutine(Returns = typeof(VFX))]          // or [BhlCoroutine("LM3.Name")]; no Returns: void
+[BhlCoroutine]                                 // or [BhlCoroutine("LM3.Name")]
 partial class VFXCreate
 {
   public void Init(string prefab, Component parent = null) { .. }   // the BHL arguments
-  public bool Exec(out VFX vfx) { .. }        // true: still running; the result of the last call, no Returns: bool Exec()
+  public bool Exec(out VFX vfx) { .. }        // true: still running; the result is the out parameters of the last call
+                                              // (several: a tuple), none: bool Exec()
   public void Cleanup() { .. }
 }
 ```
@@ -129,7 +130,8 @@ c.Cleanup();
 
 When the body needs the VM (`exec.vm`, a fail by `exec.status = BHS.FAILURE`), the methods take it:
 `Init(VM.ExecState exec, ..)`, `void Exec(VM.ExecState exec)` setting `exec.status = BHS.RUNNING` and pushing the
-result by `ReturnValue(exec, ..)`, `Cleanup(VM.ExecState exec)`; each one either way.
+result by `ReturnValue(exec, ..)` (its type is `[BhlCoroutine(Returns = typeof(T))]`, the signature doesn't tell it),
+`Cleanup(VM.ExecState exec)`; each one either way.
 
 A new one is better a `BhlTask` function (`[BhlBind]`, see [bhltask.md](bhltask.md)), the class is for what
 can't be done so.
