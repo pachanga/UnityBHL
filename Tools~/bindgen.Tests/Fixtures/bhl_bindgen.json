@@ -1,0 +1,8 @@
+{
+  "namespace" : "Fixtures.Bind",
+  "register_class" : "Fixtures_Bindings",
+  "sources" : [ "*.cs" ],
+  "result_dir" : "out",
+  "defines" : [ "FIXTURE_DEFINE" ],
+  "imports" : [ "Fixtures.Src", "UnityEngine" ]
+}

@@ -162,3 +162,23 @@ Native types of one short name in different namespaces may both be bound; where 
 One native type may be named by classes of different configs (the project's `Vector3`, a package's `M2Vector3`): a config
 uses its own name, else the one of the config it includes; `[BhlType("M2Vector3")]` picks the other one for a parameter
 or a return. Within one config a native type has one name.
+
+## The parser
+
+C# is read by a hand written parser of declarations only (`Editor/BindGen/HandParser.cs`), nothing is compiled:
+that's what lets the editor run the generator in-process, without the .NET SDK.
+
+`Tools~/bindgen.Tests` checks it against Roslyn: both parse the fixtures and any difference of the models is a
+failure (`BothParser` names the file and the differing line of the dump). Roslyn is a dependency of those tests
+alone — the prebuilt tool in the package zip carries the hand parser only, 116 KB instead of 9 MB of
+`Microsoft.CodeAnalysis`. The release workflow runs the tests before building the tool.
+
+```sh
+dotnet test "Tools~/bindgen.Tests"
+```
+
+Fixtures: `Fixtures/` is a working config the real `Generator` runs over, so everything there must be
+generatable; `Syntax/` goes straight to the parsers, so it may hold what the generator rejects (arrays, tuples,
+nullables) and the corners nobody writes by accident. A construct the hand parser rejects outright kills the
+whole file's model, which would leave the check comparing two identical error strings — `SyntaxFixtureParsesIntoAModel`
+guards against that.

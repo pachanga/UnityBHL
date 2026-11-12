@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Checks the hand written C# parser of the generator (Editor/BindGen/HandParser.cs) against Roslyn:
+       both parse the fixtures, any difference of the models fails. Roslyn is a dependency of the tests
+       only - the tool shipped in the package zip (Tools~/bindgen) has the hand parser alone, so a project
+       doesn't download 9 MB of Microsoft.CodeAnalysis with it.
+       dotnet test "Tools~/bindgen.Tests" -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RollForward>Major</RollForward>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- the generator itself, as Tools~/bindgen compiles it -->
+    <Compile Include="../../Editor/BindGen/*.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
+    <PackageReference Include="NUnit" Version="3.13.3" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.2.1" />
+  </ItemGroup>
+
+</Project>

@@ -5,7 +5,20 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.43.0] - 2026-11-12
+
+### Changed
+- bindgen: Roslyn is no longer a dependency of the generator, only of its tests. The prebuilt tool in the
+  package zip (`Tools~/bindgen/dist`) is **116 KB instead of 9.1 MB** - 99% of it was
+  `Microsoft.CodeAnalysis`, downloaded by every project for a parser which was off by default
+  (`--parser=hand`) and a check nothing ran. `--parser` is gone, the hand parser is the only one
+- bindgen: `Tools~/bindgen.Tests` checks the hand written parser against Roslyn, which used to be
+  `--parser=both` with nothing running it: `RoslynParser` and `BothParser` live there now, Roslyn is their
+  dependency alone, and the release workflow runs them before building the tool. Fixtures are in two
+  kinds - `Fixtures/` is a working config the real `Generator` runs over (so everything there must be
+  generatable), `Syntax/` goes straight to the parsers (so it may hold arrays, tuples, nullables and the
+  corners the generator rejects). The two parsers agree on every real binding the check was run against
+  before the move: 876 funcs and 357 classes over two projects
 
 ## [0.42.0] - 2026-11-11
 

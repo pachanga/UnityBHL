@@ -30,6 +30,10 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Check the version
         run: test "v$(jq -r .version package.json)" = "$TAG" || { echo "package.json version isn't $TAG"; exit 1; }
+      # the generator's hand written C# parser against Roslyn: Roslyn is a dependency of these tests only,
+      # the generator shipped below has the hand parser alone
+      - name: Check the generator's parser
+        run: dotnet test "Tools~/bindgen.Tests" --nologo
       - name: Build the generator
         run: '"Tools~/bindgen/dist.sh"'
       - name: Package
