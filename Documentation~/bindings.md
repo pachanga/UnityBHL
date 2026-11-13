@@ -163,6 +163,24 @@ One native type may be named by classes of different configs (the project's `Vec
 uses its own name, else the one of the config it includes; `[BhlType("M2Vector3")]` picks the other one for a parameter
 or a return. Within one config a native type has one name.
 
+## Regenerating
+
+| | |
+|---|---|
+| `Generate Bindings` (Control Panel) | now; says so when the bindings are up to date |
+| `BindGen` (`AssetPostprocessor`) | a `.cs` of the bindings changed - but only what Unity imports, and only once Unity has focus |
+| `Auto` tickbox (Control Panel) | a watched file changed, focused or not; off by default, per developer |
+| `Tools~/bindgen <config.json>` | from a console, an IDE file watcher or a build step; needs the .NET runtime |
+
+`Auto` watches the configs (the one next to `bhl.proj` and the ones it `includes`) and the files the outputs
+name in their `//dep:` headers - that is, what Unity itself can't see: `bhl_bindgen.json` usually lives
+outside the Unity project, and so may the sources. A declarations file added since the last generation isn't
+watched yet; inside the project the postprocessor catches it, outside it the next regeneration does.
+
+The poll is a background thread, the generation is on the main thread. A save burst is one regeneration
+(0.5 s quiet window); a change which doesn't affect the bindings writes nothing and costs no reload. It's off
+during Play Mode, where regenerating would reload the domain.
+
 ## The parser
 
 C# is read by a hand written parser of declarations only (`Editor/BindGen/HandParser.cs`), nothing is compiled:

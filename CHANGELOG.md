@@ -5,6 +5,23 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0] - 2026-11-13
+
+### Added
+- `BindGen`: an `Auto` tickbox next to `Generate Bindings` in the Control Panel (remembered in EditorPrefs,
+  off by default) regenerates the bindings when a file they're made of changes, **without waiting for Unity
+  to be focused**: edit a declarations file in an IDE and the bindings follow. It closes two gaps of the
+  `AssetPostprocessor`, which only sees what Unity imports, and only on focus:
+  - `bhl_bindgen.json` itself, which lives next to `bhl.proj` and so is usually outside the Unity project -
+    Unity never reports it at all, so changing `sources`, `imports` or `includes` did nothing until the
+    button was pressed
+  - the sources outside `Assets`/`Packages` (the files the outputs name in their `//dep:` headers)
+
+  The mtime poll is a background thread, as `AutoCompileController`'s; the generation is on the main thread
+  (`JsonUtility`, `AssetDatabase.Refresh` and the compile are main-thread-only). A save burst is one
+  regeneration (a 0.5 s quiet window), and a change which doesn't affect the bindings writes nothing, so it
+  costs no reload. Off in Play Mode: generating would reload the domain and drop the session
+
 ## [0.43.0] - 2026-11-12
 
 ### Changed

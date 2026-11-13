@@ -33,6 +33,13 @@ namespace UnityBHL
     //NOTE: the config and the ones it includes, as the generator loads them (a missing field or include throws)
     internal static List<Config> LoadConfigs(string path) => Config.LoadAll(path, JsonUtility.FromJson<Config>);
 
+    //NOTE: for BindGenWatcher: the config next to bhl.proj, null when the project generates no bindings
+    internal static string ConfigPath() => ConfPath();
+
+    //NOTE: for BindGenWatcher: the files the generated bindings were made of, by the //dep: headers of the
+    //      outputs; null when an output isn't made yet
+    internal static HashSet<string> Deps(List<Config> confs) => ReadDeps(confs);
+
     static string ConfPath()
     {
       var settings = Settings.Instance;
@@ -100,8 +107,9 @@ namespace UnityBHL
       return decl_attr.IsMatch(File.ReadAllText(path));
     }
 
-    //NOTE: true if the bindings have changed (or the generation failed: it's said)
-    static bool Generate()
+    //NOTE: true if the bindings have changed (or the generation failed: it's said). Internal for
+    //      BindGenWatcher, which regenerates without the "up to date" line GenerateNow() prints
+    internal static bool Generate()
     {
       try
       {

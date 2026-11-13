@@ -72,10 +72,24 @@ namespace UnityBHL
       //      when a file they're made of changes
       if(BindGen.IsConfigured)
       {
+        EditorGUILayout.BeginHorizontal();
+
         var bindgenContent = new GUIContent("Generate Bindings",
           "Regenerates the bindings from the C# declarations ([BhlBind], [BhlClass], [BhlCoroutine]) by bhl_bindgen.json.");
         if(GUILayout.Button(bindgenContent))
           BindGen.GenerateNow();
+
+        //NOTE: remembered in EditorPrefs, per developer: it makes Unity recompile while you may still be
+        //      typing in an IDE, which not everyone wants
+        var autoContent = new GUIContent("Auto",
+          "Regenerates the bindings when a file they're made of changes - bhl_bindgen.json included, which " +
+          "Unity itself never sees - without waiting for Unity to be focused.");
+        bool auto = BindGenWatcher.Enabled;
+        bool newAuto = EditorGUILayout.ToggleLeft(autoContent, auto, GUILayout.Width(60));
+        if(newAuto != auto)
+          BindGenWatcher.Enabled = newAuto;
+
+        EditorGUILayout.EndHorizontal();
       }
 
       EditorGUILayout.Space();
