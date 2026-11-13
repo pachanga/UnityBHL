@@ -181,6 +181,14 @@ The poll is a background thread, the generation is on the main thread. A save bu
 (0.5 s quiet window); a change which doesn't affect the bindings writes nothing and costs no reload. It's off
 during Play Mode, where regenerating would reload the domain.
 
+### One at a time
+
+A generation holds an advisory lock on its config (`BindGenLock`: a temp file, `FileShare.None`), so the
+editor and the console tool can't write the same `result_dir`s at once - a run sweeps the generated files
+which aren't in its own set, and two overlapping runs with different sets delete each other's output. The
+editor doesn't wait (the other run makes the same files) and says so when the button was pressed; the tool
+waits 30 s and then fails with a non-zero exit.
+
 ## The parser
 
 C# is read by a hand written parser of declarations only (`Editor/BindGen/HandParser.cs`), nothing is compiled:

@@ -26,9 +26,17 @@ namespace UnityBHL
     {
       if(ConfPath() == null)
         Debug.LogError($"[BHL] bindgen: no {ConfName} next to bhl.proj");
-      else if(!Generate())
+      else if(Generate())
+        return;
+      else if(Busy)
+        Debug.Log("[BHL] bindgen: another bindgen is generating, nothing done");
+      else
         Debug.Log("[BHL] bindgen: the bindings are up to date");
     }
+
+    //NOTE: the last Generate() found the lock held (by the console tool, or another editor): it makes the
+    //      same files, so there's nothing to do about it but say so when it was asked for explicitly
+    static bool Busy;
 
     //NOTE: the config and the ones it includes, as the generator loads them (a missing field or include throws)
     internal static List<Config> LoadConfigs(string path) => Config.LoadAll(path, JsonUtility.FromJson<Config>);
@@ -111,15 +119,22 @@ namespace UnityBHL
     //      BindGenWatcher, which regenerates without the "up to date" line GenerateNow() prints
     internal static bool Generate()
     {
+      Busy = false;
       try
       {
         var confs = Config.LoadAll(ConfPath(), JsonUtility.FromJson<Config>);
+        //NOTE: doesn't wait: whoever holds the lock is generating the same files from the same sources
         var (summary, changed) = new Generator(confs, new HandParser(confs[confs.Count - 1].defines)).Run();
         if(!changed)
           return false;
         Debug.Log("[BHL] " + summary);
         AssetDatabase.Refresh();
         return true;
+      }
+      catch(BindGenBusyException)
+      {
+        Busy = true;
+        return false;
       }
       catch(GenException e)
       {

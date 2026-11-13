@@ -120,6 +120,30 @@ public class ParserTests
     }
   }
 
+  //NOTE: one generation at a time per config: the editor and the console tool write the same result_dirs,
+  //      and a run deletes the generated files which aren't in its own set (BindGenLock)
+  [Test]
+  public void OneGenerationAtATimePerConfig()
+  {
+    var defines = LoadFixtureConfig("unused").Last().defines;
+    var key = Path.Combine(FixturesDir, "bhl_bindgen.json");
+
+    using(var held = BindGenLock.TryAcquire(key, 0))
+    {
+      Assert.That(held, Is.Not.Null, "the lock is free to begin with");
+      Assert.That(BindGenLock.TryAcquire(key, 0), Is.Null, "a second one doesn't get it");
+      Assert.Throws<BindGenBusyException>(() => Run(new HandParser(defines)), "a run doesn't start");
+
+      //NOTE: another config is another lock
+      var other = BindGenLock.TryAcquire(key + ".other", 0);
+      Assert.That(other, Is.Not.Null, "a different config doesn't contend");
+      other.Dispose();
+    }
+
+    //NOTE: released - and it stays usable, the lock file isn't left locked
+    Assert.DoesNotThrow(() => Run(new HandParser(defines)), "the lock is free again");
+  }
+
   //NOTE: both parsers read the same #if: a define of the config takes the branch, the other one is skipped
   [Test]
   public void DefinesAreHonoured()

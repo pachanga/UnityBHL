@@ -5,6 +5,20 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0] - 2026-11-13
+
+### Fixed
+- bindgen: one generation at a time per config (`BindGenLock`). The editor (the postprocessor, or the new
+  `Auto` watcher) and the console tool write the same `result_dir`s, and a run deletes the generated files
+  which aren't in its own set - two runs started around one change hold different sets, so the later one's
+  new file was swept away by the earlier one's pass and the project missed a registration with nothing in
+  the log to say why. The writes aren't atomic either, so a concurrent reader (the other run, or Unity
+  importing after a `Refresh`) could see half a file. The whole run is now under an advisory lock
+  (`FileShare.None` on a temp file named by the config's path; the OS drops it if a process dies, so
+  nothing goes stale). The editor doesn't wait - whoever holds it generates the same files - and says so
+  when `Generate Bindings` was pressed; the console tool waits 30 s and then fails, since a build step
+  can't silently skip
+
 ## [0.44.0] - 2026-11-13
 
 ### Added

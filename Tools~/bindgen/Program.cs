@@ -29,8 +29,15 @@ internal static class Program
       var confs = Config.LoadAll(args[0], json => JsonSerializer.Deserialize<Config>(json, json_opts));
       //NOTE: the defines of the config itself (the last one) for all the sources
       var defines = confs[confs.Count - 1].defines;
-      Console.WriteLine(new Generator(confs, new HandParser(defines)).Run().summary);
+      //NOTE: the editor may be generating for the same config right now; a build step can't just skip,
+      //      so it waits for its turn and says so if it never comes
+      Console.WriteLine(new Generator(confs, new HandParser(defines)).Run(lock_wait_ms: 30000).summary);
       return 0;
+    }
+    catch(BindGenBusyException e)
+    {
+      Console.Error.WriteLine("bindgen: " + e.Message);
+      return 1;
     }
     catch(GenException e)
     {
