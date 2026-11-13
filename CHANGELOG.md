@@ -5,6 +5,13 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.1] - 2026-11-13
+
+### Fixed
+- `BindGenWatcher.cs` (0.44.0) and `BindGen/BindGenLock.cs` (0.45.0) shipped without their `.meta`:
+  every other script of the package has a tracked one, so its GUID is the same in every project,
+  and these two would have got a fresh one per install instead
+
 ## [0.45.0] - 2026-11-13
 
 ### Fixed
