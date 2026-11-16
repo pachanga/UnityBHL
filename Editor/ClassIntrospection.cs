@@ -239,7 +239,7 @@ namespace UnityBHL
     static bool InheritsBHLComponent(ClassSymbolScript cls)
     {
       for(var c = cls.super_class; c != null; c = c.super_class)
-        if(c == UnityBindings.TypeBHLComponent)
+        if(c == UnityBindings.Of(_cachedTypes)?.BHLComponent)
           return true;
       return false;
     }
@@ -250,7 +250,7 @@ namespace UnityBHL
       if(t == Types.Float) return FieldType.Float;
       if(t == Types.Bool) return FieldType.Bool;
       if(t == Types.String) return FieldType.String;
-      if(t == UnityBindings.TypeVector3) return FieldType.Vector3;
+      if(t == UnityBindings.Of(_cachedTypes)?.Vector3) return FieldType.Vector3;
       return null;
     }
   }

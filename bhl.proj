@@ -2,7 +2,7 @@
   "bindings" : [
     {
       "name" : "unity",
-      "sources" : ["./Runtime/Bindings/*.bhl"]
+      "sources" : ["./Runtime/Bindings/UnityBindings.cs"]
     }
   ]
 }

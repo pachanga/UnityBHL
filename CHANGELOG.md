@@ -5,6 +5,36 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0] - 2026-11-16
+
+### Changed
+- `UnityBindings.cs` is read by bhl's `CsSourceBindings` (the package's `bhl.proj` points its `unity`
+  binding at it), so the LSP and the CLI - which never load the Unity assembly - resolve
+  `import "unity"` from the registration code itself. What they parse is the declarations with the
+  native bodies omitted: everything touching Unity or returning a value is under `#if !BHL_FRONT`,
+  the shape bindgen already emits. Needs `com.bitgames.bhl` 3.0.0-beta26, where
+  `std.bind.DefineVirtualMethod` takes `params` args - a virtual method without any couldn't be
+  declared in the straight-line subset the reader accepts
+- `UnityBindings`' type symbols are per `Types` (`UnityBindings.Of(types)`) instead of statics built
+  once in a static constructor: the editor's compiles and the Class picker register the module into
+  `Types` of their own next to the VM's, and whichever `Register()` ran last used to own the statics,
+  so a `Val` could end up carrying a symbol of a different `Types`. The static constructor is gone -
+  the reader interprets `Register()` alone and never runs one
+
+### Removed
+- `Runtime/Bindings/UnityBindings.bhl`, the hand-maintained signature-only mirror of
+  `UnityBindings.cs` which let the LSP/CLI resolve `import "unity"` without loading the Unity
+  assembly: nothing imports the module any more, and keeping a second declaration of the same
+  bindings in lockstep by hand was its own bug source (see 0.11.1). `UnityBindings.cs` itself stays -
+  it registers the module at runtime and the package uses its types (`ScriptBHL`, `FieldValue`,
+  `ClassIntrospection`)
+- `Runtime/Bindings/bhl.proj`, which existed to make that `.bhl` a source dir; the folder has no
+  scripts left. The package's own `bhl.proj` keeps declaring the `unity` binding, now by `name`
+  alone: its `sources` glob matched the deleted mirror, and `UnityBindings.cs` can't take its place -
+  a `.cs` binding source has to be in the straight-line shape `CsSourceBindings` reads (static
+  methods calling the symbols API, no control flow), which a static constructor full of inline
+  delegates isn't. The name alone is what `BindingsRegistry` discovers at runtime
+
 ## [0.45.1] - 2026-11-13
 
 ### Fixed

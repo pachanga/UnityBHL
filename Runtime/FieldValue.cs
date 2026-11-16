@@ -43,7 +43,7 @@ namespace UnityBHL
         case FieldType.Float: v = Val.NewFlt(FloatValue); break;
         case FieldType.Bool: v = Val.NewBool(BoolValue); break;
         case FieldType.String: v = Val.NewStr(StringValue ?? ""); break;
-        case FieldType.Vector3: v = UnityBindings.NewVector3(Vector3Value); break;
+        case FieldType.Vector3: v = UnityBindings.NewVector3(vm.types, Vector3Value); break;
         default: throw new Exception($"Unsupported BHL field type: {Type}");
       }
 
