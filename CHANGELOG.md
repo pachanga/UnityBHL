@@ -5,6 +5,16 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.0] - 2026-11-17
+
+### Changed
+- `UnityBindings`' type symbols are reached through a tag type per bound type - `TypeVector3`,
+  `TypeGameObject`, `TypeBHLComponent` and so on, each with a `Get(types)` - replacing
+  `UnityBindings.Of(types)` and its `Symbols` holder. The symbol stays per `Types`, but it's one
+  array load instead of a `ConditionalWeakTable` lookup (~1.8 ns against ~4.8), so there's nothing
+  to hoist out of a loop and the `Symbols` overloads of `NewVector3`/`NewGameObject`/… are gone.
+  Needs `com.bitgames.bhl` 3.0.0-beta27, which adds `Types.IndexType`/`GetIndexedType`
+
 ## [0.46.0] - 2026-11-16
 
 ### Changed

@@ -1,11 +1,71 @@
 #if !BHL_FRONT
 using UnityEngine;
+using System.Runtime.CompilerServices;
 #endif
 using bhl;
 using Types = bhl.Types;
 
 namespace UnityBHL
 {
+
+#if !BHL_FRONT
+  //NOTE: one handle per type the "unity" module declares - the symbol can't be a static, a
+  //      compile, the VM and the Class picker each have their own Types. Guarded since the
+  //      reader parses every method body here and rejects `return` anywhere
+  public struct TypeVector3
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolNative Get(Types t)
+    {
+      return (ClassSymbolNative)t.GetIndexedType<TypeVector3>();
+    }
+  }
+
+  public struct TypeQuaternion
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolNative Get(Types t)
+    {
+      return (ClassSymbolNative)t.GetIndexedType<TypeQuaternion>();
+    }
+  }
+
+  public struct TypeTransform
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolNative Get(Types t)
+    {
+      return (ClassSymbolNative)t.GetIndexedType<TypeTransform>();
+    }
+  }
+
+  public struct TypeRigidbody
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolNative Get(Types t)
+    {
+      return (ClassSymbolNative)t.GetIndexedType<TypeRigidbody>();
+    }
+  }
+
+  public struct TypeGameObject
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolNative Get(Types t)
+    {
+      return (ClassSymbolNative)t.GetIndexedType<TypeGameObject>();
+    }
+  }
+
+  public struct TypeBHLComponent
+  {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ClassSymbolScript Get(Types t)
+    {
+      return (ClassSymbolScript)t.GetIndexedType<TypeBHLComponent>();
+    }
+  }
+#endif
 
   //NOTE: registers a "unity" module - BHL scripts `import "unity"`.
   //      The file is also read as a declarations source by bhl's CsSourceBindings (bhl.proj's
@@ -22,32 +82,6 @@ namespace UnityBHL
     //must be present due to loading class instance from dll requirements
     public UnityBindings()
     {}
-
-#if !BHL_FRONT
-    //NOTE: the symbols belong to the Types they were registered into - the editor compiles and the
-    //      Class picker make Types of their own next to the VM's, and a Val carrying a symbol of one
-    //      doesn't match the same symbol of another. Kept per Types rather than in statics, which
-    //      whichever Register() ran last would otherwise own
-    public class Symbols
-    {
-      public ClassSymbolNative Vector3;
-      public ClassSymbolNative Quaternion;
-      public ClassSymbolNative GameObject;
-      public ClassSymbolNative Transform;
-      public ClassSymbolNative Rigidbody;
-      public ClassSymbolScript BHLComponent;
-    }
-
-    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Types, Symbols> _symbols =
-      new System.Runtime.CompilerServices.ConditionalWeakTable<Types, Symbols>();
-
-    //NOTE: null when this Types never had the module registered
-    public static Symbols Of(Types types)
-    {
-      _symbols.TryGetValue(types, out var syms);
-      return syms;
-    }
-#endif
 
     public void Register(Types types)
     {
@@ -266,42 +300,44 @@ namespace UnityBHL
       types.RegisterModule(module);
 
 #if !BHL_FRONT
-      _symbols.Remove(types);
-      _symbols.Add(types, new Symbols {
-        Vector3 = vec3, Quaternion = quat, GameObject = gameObject,
-        Transform = transform, Rigidbody = rigidbody, BHLComponent = component
-      });
+      types.IndexType<TypeVector3>(vec3);
+      types.IndexType<TypeQuaternion>(quat);
+      types.IndexType<TypeTransform>(transform);
+      types.IndexType<TypeRigidbody>(rigidbody);
+      types.IndexType<TypeGameObject>(gameObject);
+      types.IndexType<TypeBHLComponent>(component);
 #endif
     }
 
 #if !BHL_FRONT
+    //NOTE: the Val is tagged with the symbol of the Types it's headed for
     public static Val NewVector3(Types types, Vector3 v)
     {
       var val = new Val();
-      val.EncodeVector3(Of(types).Vector3, v);
+      val.EncodeVector3(TypeVector3.Get(types), v);
       return val;
     }
 
     public static Val NewQuaternion(Types types, Quaternion q)
     {
       var val = new Val();
-      val.EncodeQuaternion(Of(types).Quaternion, q);
+      val.EncodeQuaternion(TypeQuaternion.Get(types), q);
       return val;
     }
 
     public static Val NewGameObject(Types types, GameObject go)
     {
-      return Val.NewObj(go, Of(types).GameObject);
+      return Val.NewObj(go, TypeGameObject.Get(types));
     }
 
     public static Val NewTransform(Types types, Transform t)
     {
-      return Val.NewObj(t, Of(types).Transform);
+      return Val.NewObj(t, TypeTransform.Get(types));
     }
 
     public static Val NewRigidbody(Types types, Rigidbody rb)
     {
-      return Val.NewObj(rb, Of(types).Rigidbody);
+      return Val.NewObj(rb, TypeRigidbody.Get(types));
     }
 #endif
   }

@@ -111,11 +111,9 @@ namespace UnityBHL
       //NOTE: opt-in - only set if the class itself declares a matching field, mirroring
       //      Unity's own MonoBehaviour.gameObject/.transform rather than forcing every
       //      lifecycle method's signature to carry them
-      //NOTE: the symbols belong to this VM's Types, not to a static: an editor compile or the Class
-      //      picker registers the module into Types of their own, and a Val of one doesn't match another
-      var unity = UnityBindings.Of(vm.types);
-      TrySetNativeField(vm, "gameObject", unity.GameObject, UnityBindings.NewGameObject(vm.types, gameObject));
-      TrySetNativeField(vm, "transform", unity.Transform, UnityBindings.NewTransform(vm.types, transform));
+      //NOTE: the symbols belong to this VM's Types, not to a static - see UnityBindings' Type* tags
+      TrySetNativeField(vm, "gameObject", TypeGameObject.Get(vm.types), UnityBindings.NewGameObject(vm.types, gameObject));
+      TrySetNativeField(vm, "transform", TypeTransform.Get(vm.types), UnityBindings.NewTransform(vm.types, transform));
 
       foreach(var fv in FieldValues)
         fv.ApplyTo(vm, ref _instance, this);
