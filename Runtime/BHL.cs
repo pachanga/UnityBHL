@@ -260,6 +260,14 @@ namespace UnityBHL
           continue;
         }
 
+        //NOTE: the imports not loaded yet go first (a new module's, a new import of a reloaded one): LoadModule(Module)
+        //      and Reload don't load imports, the module's setup fails without them ("Module '...' not found")
+        foreach(var imported in decl.imports)
+        {
+          if(_vm.FindModule(imported) == null)
+            _vm.LoadModule(imported);
+        }
+
         if(_vm.FindModule(module_name) != null)
         {
           _vm.Reload(new Module(decl));

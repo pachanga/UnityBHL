@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.1] - 2026-11-23
+
+### Fixed
+- `BHL.ReloadModules` loads the imports a module needs first (a new module's, a new import of a reloaded one): its
+  setup failed with "Module '...' not found" (e.g. a pushed module importing a library module the app hadn't loaded)
+
 ## [0.49.0] - 2026-11-23
 
 ### Added
