@@ -2,8 +2,8 @@
 namespace UnityBHL;
 
 //The bindings generator (Tools~/bindgen) from PHP: BHL bindings made from C# sources without compiling them. No
-//dependencies: composer loads it (autoload.files), bin~/bhl-bindgen runs it from a shell, bit/taskman_bhl's gamectl
-//helpers forward to it. Paths are with '/' on every OS, as the generator's. See README, «Bindings generator»
+//dependencies: composer loads it (autoload.files), bin~/bhl-bindgen runs it from a shell. Paths are with '/' on
+//every OS, as the generator's. See README, «Bindings generator»
 
 //The tool's project dir; $tool - another one (e.g. a checkout of the tool under development)
 function bindgen_tool_dir(?string $tool = null) : string

@@ -91,8 +91,7 @@ and `bin` of `composer.json` into its definition: composer reads that one, not t
 | `bindgen_last_output($conf)` | `register.cs` of the config and its `//dep:` files |
 | `bindgen_inputs($conf)` | What the output is made of, e.g. for the staleness of a BHL build: the configs, the tool, the `//dep:` files of the last outputs; a new file with bindings is seen by the next run |
 
-The tool's functions take an optional tool dir, `Tools~/bindgen` of the package by default. The gamectl helpers of
-`bit/taskman_bhl` (`bhl_bindgen_*`, the task's artefact and stamp) forward to them.
+The tool's functions take an optional tool dir, `Tools~/bindgen` of the package by default.
 
 `bin~/bhl-bindgen` is the shell's: composer installs it into `vendor/bin`, the args go to the tool.
 
