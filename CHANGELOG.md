@@ -5,6 +5,17 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- The .NET build (`Runtime/UnityBHL.csproj`, `NO_UNITY`) has `Bindings/BindConv.cs`: bindgen's output uses it
+  (`BindConv.NoOrigin`), only `Bindings/UnityBindings.cs` needs Unity
+- `Runtime/UnityBHL.csproj` takes the path of bhl's `bhl_runtime.csproj` as `BhlRuntimeProject`: a package
+  symlinked into `composer/vendor` (a checkout under development) has its relative default resolved from the
+  link's target, so a referencing project passes its own
+  (`AdditionalProperties="BhlRuntimeProject=<full path>"`). The property isn't passed on to bhl_runtime: with it
+  bhl_runtime was built twice in parallel into one output dir
+
 ## [0.47.0] - 2026-11-17
 
 ### Changed

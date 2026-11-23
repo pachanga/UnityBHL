@@ -10,11 +10,14 @@
         <NoWarn>CS8981;NU1104</NoWarn>
         <ProduceReferenceAssemblyInOutDir>true</ProduceReferenceAssemblyInOutDir>
         <LangVersion>9</LangVersion>
+        <!-- bit/bhl next to the package in composer/vendor; a referencing project passes its own path when the
+             package is a symlink (MSBuild resolves the link, the relative path would be of its target) -->
+        <BhlRuntimeProject Condition="'$(BhlRuntimeProject)' == ''">..\..\..\bit\bhl\src\vm\bhl_runtime.csproj</BhlRuntimeProject>
     </PropertyGroup>
 
     <ItemGroup>
       <!-- NOTE: everything else here compiles by default (SDK-style glob) - only
-           ScriptBHL.cs, FieldValue.cs, Settings.cs, BHLFieldAttributes.cs and Bindings/ are
+           ScriptBHL.cs, FieldValue.cs, Settings.cs, BHLFieldAttributes.cs and Bindings/UnityBindings.cs are
            fundamentally MonoBehaviour/UnityEngine-based, so they're excluded from this build entirely,
            not just conditionally compiled. Any new Unity-independent file is picked up
            automatically; a new Unity-only file needs a Remove added here. -->
@@ -22,11 +25,11 @@
       <Compile Remove="FieldValue.cs" />
       <Compile Remove="Settings.cs" />
       <Compile Remove="BHLFieldAttributes.cs" />
-      <Compile Remove="Bindings/**/*.cs" />
+      <Compile Remove="Bindings/UnityBindings.cs" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\bit\bhl\src\vm\bhl_runtime.csproj"/>
+      <ProjectReference Include="$(BhlRuntimeProject)" GlobalPropertiesToRemove="BhlRuntimeProject"/>
     </ItemGroup>
 
 </Project>
