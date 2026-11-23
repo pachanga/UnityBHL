@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`AdditionalProperties="BhlRuntimeProject=<full path>"`). The property isn't passed on to bhl_runtime: with it
   bhl_runtime was built twice in parallel into one output dir
 
+### Added
+- The bindings generator from PHP and a shell, no dependencies: `bin~/bindgen.inc.php` (namespace `UnityBHL`,
+  `autoload.files` of `composer.json`) - `bindgen_run`, `bindgen_exec`, `bindgen_dll`, `bindgen_conf_files`,
+  `bindgen_source_files`, `bindgen_inputs`... moved here from `bit/taskman_bhl`, which forwards to them: the package
+  knows its tool and its config format. `bin~/bhl-bindgen` (composer's `bin`) runs the tool from a shell, e.g. with
+  `--watch`. A project defining the package inline copies `autoload` and `bin` into its definition
+
 ## [0.47.0] - 2026-11-17
 
 ### Changed

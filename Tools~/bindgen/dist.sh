@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the prebuilt tool taskman_bhl runs instead of building it (dist/, framework-dependent: one for every OS).
+# Builds the prebuilt tool bin~/bindgen.inc.php runs instead of building it (dist/, framework-dependent: one for every OS).
 # The release workflow (.github/workflows/release.yml) puts it into the package zip, it's not in git.
 set -e
 cd "$(dirname "$0")"

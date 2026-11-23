@@ -1,6 +1,6 @@
 # The package zip of a version tag with the prebuilt bindings generator in Tools~/bindgen/dist (Tools~/bindgen/dist.sh,
 # not in git), attached to the tag's release as unitybhl.zip: a project's composer takes it as the package's dist,
-# taskman_bhl runs the prebuilt tool (only the .NET 8 runtime is needed). Run it by hand for an existing tag.
+# bin~/bindgen.inc.php runs the prebuilt tool (only the .NET 8 runtime is needed). Run it by hand for an existing tag.
 name: release
 
 on:
@@ -34,6 +34,8 @@ jobs:
       # the generator shipped below has the hand parser alone
       - name: Check the generator's parser
         run: dotnet test "Tools~/bindgen.Tests" --nologo
+      - name: Check the PHP helpers of the generator
+        run: php "Tests~/bindgen_php/bindgen_test.php"
       - name: Build the generator
         run: '"Tools~/bindgen/dist.sh"'
       - name: Package

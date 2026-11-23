@@ -1,0 +1,13 @@
+#!/usr/bin/env php
+<?php
+//bhl-bindgen <bhl_bindgen.json> [--watch] [--exit-on-stdin-close]: the bindings generator (Tools~/bindgen), the
+//prebuilt one or built from the sources when stale, see README, «Bindings generator». Composer installs it into
+//vendor/bin; the args go to the tool as they are
+require __DIR__ . '/bindgen.inc.php';
+
+if(count($argv) < 2)
+{
+  fwrite(STDERR, "usage: bhl-bindgen <bhl_bindgen.json> [--watch] [--exit-on-stdin-close]\n");
+  exit(1);
+}
+exit(UnityBHL\bindgen_exec(array_slice($argv, 1)));

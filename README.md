@@ -55,8 +55,8 @@ are in `Runtime/BhlBindAttribute.cs`.
 | `includes` | the configs of other bindings it uses, see «Includes» |
 
 The main output file `register.cs` starts with `//dep: <path>` lines, the files it's made of relative to the config:
-the editor regenerates the bindings when one of them changes, the gamectl helpers of `bit/taskman_bhl` read them too
-(its README, «Bindings generator»).
+the editor regenerates the bindings when one of them changes, `bindgen_inputs()` of the PHP helpers reads them too
+(«From PHP and a shell»).
 
 Each class has `Types_<Class>` in the output's namespace: `Value`, its BHL type; `ToVal(v)`, the `Val` of a native
 value typed as the class, e.g. the args of a BHL function called from C#: `Types_Unit.ToVal(unit)` rather than
@@ -73,8 +73,35 @@ The release zip `unitybhl.zip` of a version tag (`.github/workflows/release.yml`
 "dist": { "url": "https://github.com/pachanga/UnityBHL/releases/download/v<version>/unitybhl.zip", "type": "zip" }
 ```
 
-From the tag's archive or a checkout taskman_bhl builds the tool from the sources (.NET 8 SDK); the env var
-`BHL_BINDGEN_REBUILD=1` makes it do so with `dist/` too.
+From the tag's archive or a checkout the tool is built from the sources (.NET 8 SDK) when it's older than them; the
+env var `BHL_BINDGEN_REBUILD=1` makes it so with `dist/` too.
+
+### From PHP and a shell
+
+`bin~/bindgen.inc.php` runs the tool and knows its config, no dependencies; composer loads it (`autoload.files` of
+`composer.json`). A project defining the package inline (`"type": "package"` with the `dist` above) copies `autoload`
+and `bin` of `composer.json` into its definition: composer reads that one, not the package's.
+
+| Function (namespace `UnityBHL`) | What |
+|---|---|
+| `bindgen_run($conf)` | Generates the bindings of the config (throws when the tool fails), the output is written only if it changed; `bindgen_exec($args)` - the tool with any args, the exit code |
+| `bindgen_dll()` | The tool to run: the prebuilt `dist/`, else built from the sources by `bindgen_build_tool()` |
+| `bindgen_conf_files($conf)` | The config and the ones it includes, recursively, the included ones first |
+| `bindgen_source_files($conf)` | The files of the `sources` globs of them as the generator reads them, sorted; `bindgen_sources_hash($conf)` - of the list |
+| `bindgen_last_output($conf)` | `register.cs` of the config and its `//dep:` files |
+| `bindgen_inputs($conf)` | What the output is made of, e.g. for the staleness of a BHL build: the configs, the tool, the `//dep:` files of the last outputs; a new file with bindings is seen by the next run |
+
+The tool's functions take an optional tool dir, `Tools~/bindgen` of the package by default. The gamectl helpers of
+`bit/taskman_bhl` (`bhl_bindgen_*`, the task's artefact and stamp) forward to them.
+
+`bin~/bhl-bindgen` is the shell's: composer installs it into `vendor/bin`, the args go to the tool.
+
+```sh
+composer/vendor/bin/bhl-bindgen bhl_bindgen.json            # php in PATH
+php composer/vendor/bin/bhl-bindgen bhl_bindgen.json --watch
+```
+
+The check of the PHP: `php Tests~/bindgen_php/bindgen_test.php`.
 
 ### Functions
 
