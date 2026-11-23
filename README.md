@@ -213,6 +213,10 @@ a native type has one name.
 - **BHL/Force Recompile** - like Recompile, but bypasses the compile cache.
 - **BHL/VM Stats** - Play-Mode-only pool/exec stats for every `VMTracker`-tracked VM.
 - **BHL/About** - package description and UnityBHL/BHL versions.
+- **Module and function pickers** for tools: `BHLModuleBrowser.DrawModuleField` / `DrawFuncField` (and the
+  `[BHLModuleField]` / `[BHLFuncField]` attributes) - fuzzy completions, best first (`tm3p` - `test_m3_perf`), Up / Down move
+  the highlighted one, Enter takes it, red when the name doesn't resolve; `func_pattern` narrows the functions (e.g. `func ...([]string ...)`).
+  They search the project's bhl.proj, or another one: `proj: BHLModuleBrowser.LoadProj(path)`.
 
 ## License
 

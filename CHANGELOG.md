@@ -5,6 +5,20 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.0] - 2026-11-23
+
+### Added
+- `BHLModuleBrowser` searches any bhl.proj: `LoadProj(path)` (parsed again when the file changes) and the optional
+  `proj` of `GetSearchRoots`, `FindModuleFile`, `FindModuleCompletions`, `FindFuncCompletions`, `DrawModuleField`,
+  `DrawFuncField` (null - the project's, as before), e.g. the tests of a tool with a bhl.proj of their own
+- Up / Down in `DrawModuleField` / `DrawFuncField` move the highlighted completion, Enter takes it (the best one
+  unless moved); `DrawCompletions` takes the highlighted row
+
+### Changed
+- The completions of modules and functions are fuzzy, best first (`FuzzyScore`, `FuzzyRank`): the chars typed in order
+  (`tm3p` - `test_m3_perf`), a start of a word and a run of chars count more; a substring still matches. The module
+  lists are cached per bhl.proj
+
 ## [0.48.0] - 2026-11-23
 
 ### Fixed
