@@ -88,24 +88,7 @@ namespace UnityBHL
 
     //NOTE: the files listed in the headers of the main output files of the configs (the one next to bhl.proj and
     //      the ones it includes), null if an output isn't made yet
-    static HashSet<string> ReadDeps(List<Config> confs)
-    {
-      var deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-      foreach(var conf in confs)
-      {
-        var result = Path.Combine(conf.result_dir, Generator.MainFile);
-        if(!File.Exists(result))
-          return null;
-        foreach(var line in File.ReadLines(result))
-        {
-          if(!line.StartsWith("//"))
-            break;
-          if(line.StartsWith("//dep: "))
-            deps.Add(Path.GetFullPath(Path.Combine(conf.Dir, line.Substring(7))));
-        }
-      }
-      return deps;
-    }
+    static HashSet<string> ReadDeps(List<Config> confs) => BindGenDeps.Read(confs);
 
     //NOTE: a new declarations file isn't listed in the result yet
     static bool IsDecl(string path)

@@ -22,6 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bindgen_source_files`, `bindgen_inputs`...: the package knows its tool and its config format.
   `bin~/bhl-bindgen` (composer's `bin`) runs the tool from a shell, e.g. with `--watch`. A project defining the
   package inline copies `autoload` and `bin` into its definition
+- `bindgen --watch`: generates once and then on every change of a file the bindings are made of, so a
+  reader of the generated sources - the BHL LSP, which already watches them and reloads - keeps up
+  **without Unity**. The watched set is the configs plus the `//dep:` files each output names, so it
+  follows the sources rather than the globs, and it's recollected after every regeneration. A save
+  burst is one pass (0.5 s quiet window), and a failed generation (a half written file, a broken
+  config) is reported without stopping the watch.
+
+  A foreground process on purpose: its lifetime is the on/off switch, so there's no toggle to get out
+  of sync with it, unlike the Unity watcher which lives inside a process you can't Ctrl+C. One per
+  config - a second refuses and names the pid holding it - and `--exit-on-stdin-close` makes it go
+  with an editor which launched it as a task. That's opt-in, since backgrounding gives it a closed
+  stdin too, which would have it quit the moment it starts
 
 ## [0.47.0] - 2026-11-17
 

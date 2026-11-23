@@ -22,7 +22,11 @@ internal sealed class BindGenLock : IDisposable
   //NOTE: null when another run holds it for longer than wait_ms (0 = don't wait at all)
   public static BindGenLock TryAcquire(string config_path, int wait_ms)
   {
-    var path = Path.Combine(Path.GetTempPath(), "bindgen-" + Hash(Path.GetFullPath(config_path)) + ".lock");
+    return Lock(LockPath(Path.GetFullPath(config_path), ".lock"), wait_ms);
+  }
+
+  static BindGenLock Lock(string path, int wait_ms)
+  {
     var until = DateTime.UtcNow.AddMilliseconds(wait_ms);
     while(true)
     {
@@ -43,6 +47,57 @@ internal sealed class BindGenLock : IDisposable
       }
     }
   }
+
+  //NOTE: held for the whole run of a `bindgen --watch`, unlike the generation lock above which is held
+  //      per generation - a second watcher of the same config refuses to start instead of doubling every
+  //      regeneration. Its own file, so holding it doesn't block generations.
+  //      FileShare.None, as above: on Unix .NET maps None to flock(LOCK_EX) and every other value to
+  //      LOCK_SH, so anything more permissive lets two watchers hold it at once. That leaves no way to
+  //      read the holder out of the locked file itself, hence the pid in a sidecar next to it
+  public static BindGenLock TryAcquireWatch(string config_path)
+  {
+    var gate = Lock(WatchLockPath(config_path), 0);
+    if(gate != null)
+      WritePid(config_path);
+    return gate;
+  }
+
+  //NOTE: -1 when there's nobody to name: the holder hasn't written it yet, or it isn't a pid
+  public static int ReadWatchHolderPid(string config_path)
+  {
+    try
+    {
+      return int.TryParse(File.ReadAllText(PidPath(config_path)).Trim(), out int pid) ? pid : -1;
+    }
+    catch(Exception)
+    {
+      return -1;
+    }
+  }
+
+  //NOTE: left behind by a watcher which was killed - harmless, it's only read while the lock is held
+  //      and whoever holds it rewrote this first
+  static void WritePid(string config_path)
+  {
+    try
+    {
+      //NOTE: not Environment.ProcessId - it's .NET 5+, this file compiles into Unity's editor assembly too
+      File.WriteAllText(PidPath(config_path), System.Diagnostics.Process.GetCurrentProcess().Id.ToString());
+    }
+    catch(Exception)
+    {}
+  }
+
+  //NOTE: the suffix is what keeps the watcher's run-length lock off the per generation one - the hash
+  //      is of the config path alone, so it can't depend on the cwd a watcher was started from
+  static string LockPath(string full_config_path, string suffix)
+  {
+    return Path.Combine(Path.GetTempPath(), "bindgen-" + Hash(full_config_path) + suffix);
+  }
+
+  static string WatchLockPath(string config_path) => LockPath(Path.GetFullPath(config_path), "-watch.lock");
+
+  static string PidPath(string config_path) => LockPath(Path.GetFullPath(config_path), "-watch.pid");
 
   public void Dispose()
   {
