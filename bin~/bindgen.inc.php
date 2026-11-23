@@ -77,7 +77,8 @@ function bindgen_run(string $conf_file, ?string $tool = null)
 }
 
 //The main output file of the config and the files the last output was made of, listed by the '//dep:' lines of it
-//as the Unity editor reads them; whether they exist isn't checked
+//as the Unity editor reads them; whether they exist isn't checked. register.cs and the header are Generator's
+//(Editor/BindGen/Generator.cs, MainFile)
 function bindgen_last_output(string $conf_file) : array
 {
   $dir = dirname($conf_file);
