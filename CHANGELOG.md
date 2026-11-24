@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.2] - 2026-11-24
+
+### Fixed
+- `BHLModuleBrowser.AnyFuncPattern` finds a function with a return type (`func float Foo(`, `coro func []string Bar(`):
+  the pickers of functions missed it, a field showed it as not found
+
 ## [0.49.1] - 2026-11-23
 
 ### Fixed

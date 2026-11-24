@@ -159,7 +159,8 @@ namespace UnityBHL
       return q == query.Length ? score : int.MinValue;
     }
 
-    public const string AnyFuncPattern = @"\bfunc\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(";
+    //NOTE: a return type before the name is optional ('func float Foo(', 'coro func []string Bar(')
+    public const string AnyFuncPattern = @"\bfunc\s+(?:[^(\n]*?\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(";
     public const string AnyClassPattern = @"\bclass\s+([a-zA-Z_][a-zA-Z0-9_]*)\b";
 
     //NOTE: also doubles as a per-result tag (FindFuncCompletions never tags a result
