@@ -43,6 +43,10 @@ static class Script
   [BhlBind]
   public static RefcList<int> Numbers(IList<int> xs, IList<string> names, Val any) => null;
 
+  //NOTE: a map parameter: IDictionary<string, T> of a builtin T is BHL [string]T, copied
+  [BhlBind]
+  public static int Count(IDictionary<string, float> values, IDictionary<string, string> names) => 0;
+
   //NOTE: a func parameter and a coroutine func one
   [BhlBind]
   public static void Each(Action<int> step, [BhlCoroutine] Func<int, bool> body) {}

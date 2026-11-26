@@ -5,6 +5,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.50.0] - 2026-11-26
+
+### Added
+- bindgen: a parameter `IDictionary<string, T>` of a builtin `T` is BHL's `[string]T`, a copy of the map
+  (`BindConv.ToDict` / `PopDict`); a map isn't returned or a field
+
 ## [0.49.2] - 2026-11-24
 
 ### Fixed

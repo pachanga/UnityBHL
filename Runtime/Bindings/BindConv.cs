@@ -56,6 +56,16 @@ public static class BindConv
     return res;
   }
 
+  //NOTE: a copy of a BHL map [string]T, item reads a value; the native side may keep or change it
+  public static IDictionary<string, T> ToDict<T>(in Val v, System.Func<Val, T> item)
+  {
+    var map = (ValMap)v.obj;
+    var res = new Dictionary<string, T>(map.Count);
+    foreach(var kv in map)
+      res[kv.Key.str] = item(kv.Value);
+    return res;
+  }
+
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static Val PopAny(VM.ExecState exec)
   {
@@ -79,6 +89,14 @@ public static class BindConv
   {
     var dv = exec.stack.Pop();
     var res = ToList<T>(dv, proxy);
+    dv._refc?.Release();
+    return res;
+  }
+
+  public static IDictionary<string, T> PopDict<T>(VM.ExecState exec, System.Func<Val, T> item)
+  {
+    var dv = exec.stack.Pop();
+    var res = ToDict(dv, item);
     dv._refc?.Release();
     return res;
   }

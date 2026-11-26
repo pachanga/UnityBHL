@@ -429,6 +429,8 @@ internal class Generator
     Arr,
     //NOTE: IList, BHL []any
     AnyArr,
+    //NOTE: IDictionary<string, T> of a parameter, BHL [string]T of a builtin T: copied, Items[0] is T
+    Map,
     //NOTE: Action<..> or Func<..>, Items are the args
     Func,
   }
@@ -616,6 +618,16 @@ internal class Generator
           Proxy = "List_" + (item.Kind == Kind.Builtin ? meta_names[item.Cs] : Id(item.Bhl)),
           ProxyField = $"{cur.register_class}.t_List_" + (item.Kind == Kind.Builtin ? meta_names[item.Cs] : Id(item.Bhl)) };
     }
+    else if(t.Name == "IDictionary" && t.GenericArgs?.Count == 2)
+    {
+      if(is_return || is_ret_item || is_field)
+        throw new GenException(t.Pos, $"type '{t.Text}': an IDictionary<string, T> is for parameters only");
+      var key = Resolve(t.GenericArgs[0], false);
+      var item = Resolve(t.GenericArgs[1], false);
+      if(key.Cs != "string" || item.Kind != Kind.Builtin)
+        throw new GenException(t.Pos, $"type '{t.Text}': an IDictionary<string, T> of a builtin T is supported");
+      return new TypeRef { Kind = Kind.Map, Cs = t.Text, Bhl = $"[string]{item.Bhl}", Items = new List<TypeRef> { item } };
+    }
     else if(t.Name == "Action" || (t.Name == "Func" && t.GenericArgs != null))
     {
       var sig = (t.GenericArgs ?? new List<TypeDecl>()).Select(a => Resolve(a, false)).ToList();
@@ -674,6 +686,8 @@ internal class Generator
       return "types.TArr(" + TypeRefCode(t.Items[0]) + ")";
     if(t.Kind == Kind.AnyArr)
       return "types.TArr(types.T(\"any\"))";
+    if(t.Kind == Kind.Map)
+      return "types.TMap(types.T(\"string\"), " + TypeRefCode(t.Items[0]) + ")";
     if(t.Kind == Kind.Func)
       return $"types.TFunc({(t.IsCoro ? "true" : "false")}, {TypeRefCode(t.Ret)}" + string.Concat(t.Items.Select(i => ", " + TypeRefCode(i))) + ")";
     return $"types.T(\"{t.Bhl}\")";
@@ -693,6 +707,8 @@ internal class Generator
         return $"{Conv}{op}List<{t.Items[0].Cs}>({src}, {t.ProxyField})";
       case Kind.AnyArr:
         return $"{Conv}{op}AnyList({src})";
+      case Kind.Map:
+        return $"{Conv}{op}Dict<{t.Items[0].Cs}>({src}, static dv => {Val2NativeExpr(t.Items[0], "dv")})";
       case Kind.Func:
         return $"{Conv}{op}Func({src})";
       default:
